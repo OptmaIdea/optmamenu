@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useSearchParams, useOutletContext } from 'react-router-dom';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { ShoppingBag, Clock, CheckCircle, XCircle, AlertCircle, ChevronDown, ChevronUp, MessageCircle, RefreshCw, Truck, Search } from 'lucide-react';
@@ -13,7 +13,8 @@ import { useRealtimeListener } from '@/hooks/useRealtimeListener';
 import { OrderCommunicationService, type OrderMessageEventCode } from '@/services/orderCommunicationService';
 import OrderPaymentModal, { type FinalPaymentMethodCode } from '@/components/orders/OrderPaymentModal';
 import OrderPaymentProofPanel from './OrderPaymentProofPanel';
-import { getActiveStoreId } from '@/utils/activeStore';
+import { usePermissions } from '@/hooks/usePermissions';
+import { isCurrentOrderStatus } from '@/utils/adminOrderVisibility';
 
 function getAutomaticExpirationAt(order: Order): string | null {
     const metadata = (order as Order & { commercial_metadata?: Record<string, unknown> }).commercial_metadata;
@@ -39,6 +40,13 @@ function getOrderActivityLabel(order: Order) {
 }
 
 export default function Orders() {
+    // A mesma store selecionada e validada pelo layout alimenta badge, rota e listagem.
+    const { storeId: activeStoreId } = useOutletContext<{ storeId: string | null }>();
+    const { hasPermission } = usePermissions(activeStoreId);
+    const canManageOrders = hasPermission('orders.manage');
+    const canCancelOrders = hasPermission('orders.cancel');
+    const requestIdRef = useRef(0);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [searchParams, setSearchParams] = useSearchParams();
     const focusedOrderId = searchParams.get('orderId')?.trim() || null;
     const [orders, setOrders] = useState<Order[]>([]);
@@ -68,7 +76,7 @@ export default function Orders() {
         return orders
             .filter((o) => {
                 if (filterStatus === 'current') {
-                    if (!(o.status === 'reserved' || o.status === 'confirmed' || o.status === 'ready' || o.status === 'out_for_delivery')) return false;
+                    if (!isCurrentOrderStatus(o.status)) return false;
                 }
 
                 const activityAt = getOrderActivityAt(o);
@@ -111,46 +119,63 @@ export default function Orders() {
                 : 'Nenhum pedido encontrado para o filtro selecionado.';
 
     const fetchOrders = useCallback(async () => {
+        const requestId = ++requestIdRef.current;
         setLoading(true);
+        setLoadError(null);
+
         try {
-            const activeStoreId = getActiveStoreId();
             if (!activeStoreId) {
-                setOrders([]);
-                setStoreData(null);
                 throw new Error('Nenhuma loja ativa selecionada.');
             }
 
-            const { data: store, error: storeError } = await supabase
-                .from('stores')
-                .select('id, name, config')
-                .eq('id', activeStoreId)
-                .maybeSingle();
-
-            if (storeError) throw storeError;
-            if (!store) throw new Error('Loja ativa não encontrada ou sem permissão.');
-
-            setStoreData({
-                id: store.id,
-                name: store.name,
-                config: (store.config || {}) as StoreConfig,
-            });
-
             const rpcStatus = focusedOrderId || filterStatus === 'all' || filterStatus === 'current' ? 'all' : filterStatus;
+            // Não condicionar a leitura de pedidos a uma segunda consulta em "stores":
+            // a RPC já verifica vínculo e permissão efetiva no servidor.
             const { data: result, error } = await supabase.rpc('get_admin_orders_safe', {
                 p_store_id: activeStoreId,
                 p_status: rpcStatus,
                 p_limit: 500,
             });
+            if (requestId !== requestIdRef.current) return;
             if (error) throw error;
             if (!result?.ok) throw new Error(result?.error || 'Erro ao buscar pedidos.');
-            setOrders(result.orders || []);
+            if (!Array.isArray(result.orders)) throw new Error('invalid_orders_payload');
+
+            setOrders(result.orders as Order[]);
+            setStoreData({ id: activeStoreId, name: 'Loja ativa' });
+
+            // Configuração é auxiliar (por exemplo, minutos de prorrogação), não uma
+            // pré-condição que possa esconder pedidos já autorizados pela RPC.
+            void supabase
+                .from('stores')
+                .select('id, name, config')
+                .eq('id', activeStoreId)
+                .maybeSingle()
+                .then(({ data: store, error: storeError }) => {
+                    if (requestId !== requestIdRef.current) return;
+                    if (storeError) {
+                        console.warn('Não foi possível consultar a configuração da loja:', storeError);
+                        return;
+                    }
+                    if (store) {
+                        setStoreData({
+                            id: store.id,
+                            name: store.name,
+                            config: (store.config || {}) as StoreConfig,
+                        });
+                    }
+                });
         } catch (error) {
+            if (requestId !== requestIdRef.current) return;
+            setOrders([]);
+            setStoreData(null);
+            setLoadError('Não foi possível carregar os pedidos desta loja. Tente atualizar; se persistir, informe o suporte.');
             console.error('Error fetching orders:', error);
             toast.error('Não foi possível atualizar os pedidos agora.');
         } finally {
-            setLoading(false);
+            if (requestId === requestIdRef.current) setLoading(false);
         }
-    }, [filterStatus, focusedOrderId]);
+    }, [activeStoreId, filterStatus, focusedOrderId]);
 
     useEffect(() => { fetchOrders(); }, [fetchOrders]);
     useRefreshFrame(fetchOrders);
@@ -645,8 +670,14 @@ export default function Orders() {
                     </div>
                 )}
 
+                {loadError && (
+                    <div role="alert" className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-300 bg-red-50 p-3 text-sm font-semibold text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">
+                        <span>{loadError}</span>
+                        <button type="button" onClick={() => void fetchOrders()} className="rounded-lg border border-red-300 px-3 py-1.5 font-bold hover:bg-red-100 dark:border-red-800 dark:hover:bg-red-900">Tentar novamente</button>
+                    </div>
+                )}
                 <div className="min-h-0 custom-scrollbar lg:flex-1 lg:overflow-y-auto lg:pr-1">
-                    {displayedOrders.length === 0 && !loading ? (
+                    {displayedOrders.length === 0 && !loading && !loadError ? (
                         <div className="flex flex-col items-center justify-center py-20 text-gray-400 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-3xl text-center px-6">
                             <ShoppingBag size={64} className="opacity-20 mb-4" /><h2 className="text-xl font-bold">Nenhum pedido encontrado</h2><p className="text-sm max-w-md">{emptyStateMessage}</p>
                         </div>
@@ -759,7 +790,7 @@ export default function Orders() {
                                                         </div>
                                                     </div>
 
-                                                    {storeData && (
+                                                    {storeData && canManageOrders && (
                                                         <OrderPaymentProofPanel
                                                             storeId={storeData.id}
                                                             orderId={order.id}
@@ -785,15 +816,15 @@ export default function Orders() {
                                                         />
                                                     )}
 
-                                                    <div className="md:col-span-2 mt-2 flex flex-col gap-2 border-t border-gray-200 pt-4 dark:border-gray-700 sm:flex-row sm:flex-wrap sm:justify-end">
+                                                    {canManageOrders && <div className="md:col-span-2 mt-2 flex flex-col gap-2 border-t border-gray-200 pt-4 dark:border-gray-700 sm:flex-row sm:flex-wrap sm:justify-end">
                                                         {order.status === 'reserved' && <>
                                                             {canUseTimer && <button onClick={() => extendReservation(order)} className="w-full rounded-lg bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-600 transition hover:bg-indigo-100 sm:w-auto" title={`Adicionar +${storeData?.config?.extension_minutes || 10} minutos ao prazo`}>Prorrogar (+{storeData?.config?.extension_minutes || 10}min)</button>}
-                                                            <button onClick={() => void cancelOrder(order)} className="w-full rounded-lg bg-red-50 px-4 py-2 text-sm font-bold text-red-600 transition hover:bg-red-100 sm:w-auto">{publicOrder.payment_status === 'paid' ? 'Cancelar com estorno' : 'Recusar / Cancelar'}</button>
+                                                            {canCancelOrders && <button onClick={() => void cancelOrder(order)} className="w-full rounded-lg bg-red-50 px-4 py-2 text-sm font-bold text-red-600 transition hover:bg-red-100 sm:w-auto">{publicOrder.payment_status === 'paid' ? 'Cancelar com estorno' : 'Recusar / Cancelar'}</button>}
                                                             <button onClick={async () => { await acceptOrder(order); }} className="flex w-full items-center justify-center gap-2 rounded-lg bg-teal-600 px-6 py-2 text-sm font-bold text-white shadow-lg shadow-teal-200 transition hover:bg-teal-700 sm:w-auto"><Clock size={16} /> Aceitar pedido</button>
                                                         </>}
                                                         {order.status === 'confirmed' && <>
                                                             {canUseTimer && <button onClick={() => extendReservation(order)} className="w-full rounded-lg bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-600 transition hover:bg-indigo-100 sm:w-auto">Prorrogar (+{storeData?.config?.extension_minutes || 10}min)</button>}
-                                                            <button onClick={() => void cancelOrder(order)} className="w-full rounded-lg bg-red-50 px-4 py-2 text-sm font-bold text-red-600 transition hover:bg-red-100 sm:w-auto">{publicOrder.payment_status === 'paid' ? 'Cancelar com estorno' : 'Cancelar'}</button>
+                                                            {canCancelOrders && <button onClick={() => void cancelOrder(order)} className="w-full rounded-lg bg-red-50 px-4 py-2 text-sm font-bold text-red-600 transition hover:bg-red-100 sm:w-auto">{publicOrder.payment_status === 'paid' ? 'Cancelar com estorno' : 'Cancelar'}</button>}
                                                             {publicOrder.fulfillment_type === 'delivery' ? (
                                                                 <button onClick={() => updateStatus(order.id, 'out_for_delivery' as OrderStatus)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-purple-600 px-6 py-2 text-sm font-bold text-white shadow-lg shadow-purple-200 transition hover:bg-purple-700 sm:w-auto"><Truck size={16} /> Saiu para entrega</button>
                                                             ) : (
@@ -804,12 +835,12 @@ export default function Orders() {
                                                             )}
                                                         </>}
                                                         {order.status === 'ready' && <>
-                                                            <button onClick={() => void cancelOrder(order)} className="w-full rounded-lg bg-red-50 px-4 py-2 text-sm font-bold text-red-600 transition hover:bg-red-100 sm:w-auto">{publicOrder.payment_status === 'paid' ? 'Cancelar com estorno' : 'Cancelar'}</button>
+                                                            {canCancelOrders && <button onClick={() => void cancelOrder(order)} className="w-full rounded-lg bg-red-50 px-4 py-2 text-sm font-bold text-red-600 transition hover:bg-red-100 sm:w-auto">{publicOrder.payment_status === 'paid' ? 'Cancelar com estorno' : 'Cancelar'}</button>}
                                                             {publicOrder.fulfillment_type === 'delivery' ? <button onClick={() => updateStatus(order.id, 'out_for_delivery' as OrderStatus)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-purple-600 px-6 py-2 text-sm font-bold text-white shadow-lg shadow-purple-200 transition hover:bg-purple-700 sm:w-auto"><Truck size={16} /> Saiu para entrega</button> : <button onClick={() => publicOrder.payment_status === 'paid' ? updateStatus(order.id, 'completed') : setFinalizingOrder(order)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-6 py-2 text-sm font-bold text-white shadow-lg shadow-green-200 transition hover:bg-green-700 sm:w-auto"><CheckCircle size={16} /> Finalizar retirada</button>}
                                                         </>}
                                                         {order.status === 'out_for_delivery' && <button onClick={() => publicOrder.payment_status === 'paid' ? updateStatus(order.id, 'completed') : setFinalizingOrder(order)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#21A896] px-6 py-2 text-sm font-bold text-white transition hover:bg-[#1A867A] sm:w-auto"><CheckCircle size={16} /> {publicOrder.payment_status === 'paid' ? 'Confirmar entrega' : 'Finalizar entrega e pagamento'}</button>}
                                                         {order.status === 'completed' && <span className="px-4 py-2 text-green-600 bg-green-50 rounded-lg font-bold text-sm flex items-center gap-2 cursor-default"><CheckCircle size={16} /> Pedido Concluído</span>}
-                                                    </div>
+                                                    </div>}
                                                 </div>
                                             </div>
                                         )}

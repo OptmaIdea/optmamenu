@@ -1775,7 +1775,7 @@ export default function PrivateLayout() {
                 <div id="main-scroll-container" className="flex-1 min-w-0 overflow-y-auto custom-scrollbar flex flex-col bg-[#F8F6F2] dark:bg-gray-950">
                     <main className="flex-1 min-w-0 p-4 md:p-8">
                         <MyStoreInvitesBanner />
-                        <Outlet />
+                        <Outlet context={{ storeId }} />
                     </main>
                 </div>
             </div>
