@@ -344,7 +344,7 @@ export default function Checkout() {
     const cashAtDelivery = paymentTiming === 'pay_on_fulfillment' && promisedPaymentMethodCode === 'cash';
     const changeValue = Number(changeFor.replace(',', '.'));
     const paymentValid = paymentTiming === 'pay_now'
-        ? Boolean(selectedPayNowMethod)
+        ? !isTestStore && Boolean(selectedPayNowMethod)
         : paymentTiming === 'pay_on_fulfillment'
             ? paymentOptions.pay_on_fulfillment.enabled
                 && (!paymentOptions.pay_on_fulfillment.requires_method_choice || Boolean(selectedPayLaterMethod))
@@ -618,6 +618,11 @@ export default function Checkout() {
         if (isTestStore && !testAcknowledged) {
             setError('Antes de finalizar, reconheça o aviso de que a Gelinhares neste ambiente é uma loja de testes.');
             setView('review');
+            return;
+        }
+        if (isTestStore && paymentTiming === 'pay_now') {
+            setError('Pagamento antecipado não é permitido na loja de testes. Escolha uma opção sem pagamento imediato.');
+            setView('payment');
             return;
         }
         if (!checkoutValid) {
@@ -1148,7 +1153,12 @@ export default function Checkout() {
                         <section className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{paymentOptionsError}</section>
                     )}
 
-                    {!paymentOptionsLoading && paymentOptions.pay_now.length > 0 && (
+                    {isTestStore && (
+                        <section className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">
+                            Pagamentos antecipados estão desabilitados nesta loja de testes para evitar cobranças reais. Não transfira dinheiro ou Pix.
+                        </section>
+                    )}
+                    {!isTestStore && !paymentOptionsLoading && paymentOptions.pay_now.length > 0 && (
                         <section className="overflow-hidden rounded-2xl bg-white shadow-sm">
                             <div className="border-b border-slate-100 px-4 py-4">
                                 <h2 className="text-lg font-black text-slate-950">Pagar agora</h2>
