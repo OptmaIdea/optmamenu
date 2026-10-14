@@ -16,6 +16,7 @@ import {
     Users,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { systemConfirm } from '@/components/common/SystemDialogProvider';
 import PageContainer from '@/components/common/PageContainer';
 import RewardImageLibrary from '@/pages/private/admin/commercial/loyalty/settings/RewardImageLibrary';
 import type { RewardMediaAsset } from '@/services/rewardMediaLibrary';
@@ -1197,13 +1198,20 @@ export default function LoyaltyPage() {
                             <div className="min-w-0">
                                 <p className="break-all font-mono text-sm font-bold text-emerald-700">{v.code}</p>
                                 <p className="font-bold dark:text-white">{v.reward_title}</p>
-                                <p className="text-xs text-gray-500">{v.customer_name} · {v.points_cost} pontos · {v.status}</p>
+                                <p className="text-xs text-gray-500">{v.customer_name} · {v.points_cost} pontos · {v.status === 'used' ? 'Usado' : v.status === 'expired' || new Date(v.expires_at).getTime() <= Date.now() ? 'Expirado' : 'Ativo'}</p>
                                 <p className="text-xs text-gray-500">Válido até {new Date(v.expires_at).toLocaleString('pt-BR')}</p>
                             </div>
                             <button type="button"
                                 disabled={!canManage || !v.redeemable || !v.independent_fulfillment || voucherBusyId !== null}
                                 onClick={async () => {
-                                    if (!storeId || !window.confirm('Entregar ' + v.reward_title + ' e inutilizar o código ' + v.code + '?')) return;
+                                    if (!storeId) return;
+                                    const confirmed = await systemConfirm({
+                                        title: 'Confirmar entrega do prêmio?',
+                                        description: 'Entregar ' + v.reward_title + ' para ' + v.customer_name + ' e marcar o voucher ' + v.code + ' como usado? Este código não poderá ser reutilizado.',
+                                        confirmLabel: 'Confirmar utilização',
+                                        cancelLabel: 'Voltar',
+                                    });
+                                    if (!confirmed) return;
                                     setVoucherBusyId(v.id);
                                     try { await StoreLoyaltyVouchers.markUsed(storeId,v.id); toast.success('Voucher utilizado.'); }
                                     catch (error) { toast.error(error instanceof Error ? error.message : 'Falha ao validar.'); }
