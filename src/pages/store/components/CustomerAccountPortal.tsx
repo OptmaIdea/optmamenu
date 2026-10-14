@@ -47,6 +47,7 @@ import { formatBRL } from '@/utils/pricing';
 import { toast } from 'sonner';
 import { systemConfirm } from '@/components/common/SystemDialogProvider';
 import { CustomerLoyaltyRewardDetails } from './CustomerLoyaltyRewardDetails';
+import { GelinharesTestNotice, hasAcknowledgedGelinharesTest, isGelinharesTestEnvironment } from './GelinharesTestNotice';
 import { loyaltyVoucherEligibility } from './loyaltyVoucherEligibility';
 import { CUSTOMER_LOYALTY_SECTIONS, getStampCampaignSummary, type CustomerLoyaltySection } from './customerLoyaltySections';
 
@@ -938,6 +939,11 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     const redeemLoyaltyReward = async () => {
         const reward = selectedLoyaltyReward;
         if (!reward || redeemingLoyaltyReward || redeemActionLockedRef.current || !customer) return;
+        const activeStoreSlug = cartContext?.canonicalSlug || cartContext?.requestedSlug;
+        if (isGelinharesTestEnvironment(activeStoreSlug) && !hasAcknowledgedGelinharesTest()) {
+            toast.error('Antes de trocar pontos, reconheça o aviso da Gelinhares como loja de testes.');
+            return;
+        }
         const eligibility = loyaltyVoucherEligibility(reward);
         if (!eligibility.supported) {
             toast.error(eligibility.reason);
@@ -3200,6 +3206,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
 
                             {tab === 'loyalty' && (
                                 <div ref={loyaltyTopRef} className="mx-auto max-w-3xl space-y-4">
+                                    <GelinharesTestNotice slug={cartContext?.canonicalSlug || cartContext?.requestedSlug} compact />
                                     <section className="rounded-3xl bg-slate-950 p-5 text-white shadow-xl dark:bg-slate-900 sm:p-6">
                                         <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
                                             <div>
