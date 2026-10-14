@@ -437,8 +437,6 @@ export function UserDetailModal({
     canViewSensitiveUserData = false,
     canManageSensitiveUserData = false,
     onSaveProfileDetails,
-    onRequestRoleChange,
-    onRequestCustomRoleChange,
     onOccurrenceSaved,
     customRoles = [],
     onAvatarUpdated,
@@ -541,7 +539,6 @@ export function UserDetailModal({
         });
     }, [fullHistoryItems, historySortOrder]);
 
-    const isProtectedOwner = user?.role === 'owner';
     const memberStore = user?.stores?.[0] ?? null;
 
     const [internalForm, setInternalForm] = useState<InternalFormState>(() =>
@@ -2479,7 +2476,7 @@ export function UserDetailModal({
                                                 }
                                             />
 
-                                            {occurrenceForm.occurrenceType === 'role_change' && (
+                                            {(false && (occurrenceForm.occurrenceType === 'role_change' || occurrenceForm.occurrenceType === 'admission')) && (
                                                     <div className="space-y-3">
                                                         <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">
                                                             {occurrenceForm.occurrenceType === 'admission'

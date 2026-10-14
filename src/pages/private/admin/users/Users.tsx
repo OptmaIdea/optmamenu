@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useUsersStore } from '@/store/useUsersStore';
-import type { UserAdmin, UserFormData, UserFilters } from '@/types';
+import type { UserAdmin, UserFormData, UserRole, UserFilters } from '@/types';
 import { UserCard, UserFormModal, UserDetailModal } from '@/components/users';
 import { UserInvitesPanel } from '@/components/users/UserInvitesPanel';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
@@ -75,21 +75,6 @@ function formatAdditionalInfoChange(change: any): {
         oldSensitive: oldItem?.sensitive ? 'Sim' : 'Não',
         newSensitive: newItem?.sensitive ? 'Sim' : 'Não',
     };
-}
-
-function formatRoleLabel(role: string): string {
-    const labels: Record<string, string> = {
-        owner: 'Proprietário',
-        admin: 'Administrador',
-        manager: 'Gerente',
-        stock_operator: 'Operador de estoque',
-        cashier: 'Caixa',
-        sales: 'Vendas',
-        staff: 'Equipe',
-        viewer: 'Visualizador',
-    };
-
-    return labels[role] ?? role;
 }
 
 export default function Users() {
