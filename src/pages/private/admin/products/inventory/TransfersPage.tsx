@@ -11,6 +11,7 @@ import { formatNumberPtBr } from '@/utils/export/formatters';
 import { formatDateTimeForExportPtBr, toAppDate, getLocalDateInputValue } from '@/utils/dateTime';
 import EmptyState from '@/components/common/empty-state/EmptyState';
 import { toast } from 'sonner';
+import { systemNotice } from '@/components/common/SystemDialogProvider';
 import { stockService } from '@/services/stockService';
 import type { InventoryPositionRow } from '@/services/stockService';
 import { supabase } from '@/lib/supabase';
@@ -346,9 +347,11 @@ export default function TransfersPage() {
           'Rascunho manual em lote criado pela tela de transferências.',
       });
 
-      toast.success(
-        `Rascunho ${result.transfer_code} criado com ${result.items_count} item(ns).`
-      );
+      await systemNotice({
+        title: 'Rascunho de transferência criado',
+        description: `Documento ${result.transfer_code}: ${result.items_count} item(ns) adicionados. O estoque só será movimentado após o envio físico.`,
+        tone: 'success',
+      });
 
       setShowManualBatchModal(false);
       setManualBatchItems([createEmptyManualBatchItem()]);
@@ -451,9 +454,11 @@ export default function TransfersPage() {
         notes: 'Rascunho em lote criado a partir das sugestões gerenciais de transferência.',
       });
 
-      toast.success(
-        `Rascunho ${result.transfer_code} criado com ${result.items_count} item(ns).`
-      );
+      await systemNotice({
+        title: 'Rascunho criado a partir das sugestões',
+        description: `Documento ${result.transfer_code}: ${result.items_count} item(ns). Confira as quantidades antes de despachar.`,
+        tone: 'success',
+      });
 
       await refresh();
       await refreshSuggestions();
@@ -546,7 +551,11 @@ export default function TransfersPage() {
         notes: 'Rascunho criado a partir da sugestão gerencial de estoque.',
       });
 
-      toast.success(`Rascunho ${result.transfer_code} criado com sucesso.`);
+      await systemNotice({
+        title: 'Rascunho de transferência criado',
+        description: `Documento ${result.transfer_code} registrado. O estoque só será movimentado após o envio da remessa.`,
+        tone: 'success',
+      });
 
       clearPrefillParams();
       await refresh();
