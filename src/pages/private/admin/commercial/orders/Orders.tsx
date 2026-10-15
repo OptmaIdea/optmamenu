@@ -15,6 +15,7 @@ import OrderPaymentModal, { type FinalPaymentMethodCode } from '@/components/ord
 import OrderPaymentProofPanel from './OrderPaymentProofPanel';
 import { usePermissions } from '@/hooks/usePermissions';
 import { isCurrentOrderStatus } from '@/utils/adminOrderVisibility';
+import { formatTimeInRoute } from '@/utils/orders/timeInRoute';
 
 function getAutomaticExpirationAt(order: Order): string | null {
     const metadata = (order as Order & { commercial_metadata?: Record<string, unknown> }).commercial_metadata;
@@ -645,6 +646,14 @@ export default function Orders() {
                     <div className="mb-3 shrink-0 space-y-3 rounded-2xl border border-gray-100 bg-white p-3 font-candara shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:mb-4 sm:p-4 sm:space-y-4">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                             <OrderStatusFilter value={filterStatus} onChange={setFilterStatus} />
+                            <button
+                                type="button"
+                                onClick={() => setFilterStatus(filterStatus === 'out_for_delivery' ? 'current' : 'out_for_delivery')}
+                                aria-pressed={filterStatus === 'out_for_delivery'}
+                                className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl border px-3 text-xs font-black transition ${filterStatus === 'out_for_delivery' ? 'border-purple-600 bg-purple-600 text-white' : 'border-purple-200 bg-purple-50 text-purple-800 hover:bg-purple-100 dark:border-purple-800 dark:bg-purple-950/30 dark:text-purple-200'}`}
+                            >
+                                <Truck size={16} /> Pedidos em rota
+                            </button>
                             <div className="relative min-w-[220px] flex-1 sm:max-w-md">
                                 <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                                 <input
@@ -745,6 +754,16 @@ export default function Orders() {
                                                             <Clock size={12} /> {getOrderActivityLabel(order)} · {formatDate(getOrderActivityAt(order))}
                                                         </span>
                                                     </div>
+                                                    {order.status === 'out_for_delivery' && (
+                                                        <div className="mt-2 space-y-1 text-xs font-semibold text-purple-800 dark:text-purple-200">
+                                                            <p><Truck size={13} className="mr-1 inline-block" />{formatTimeInRoute(order.status_changed_at, now)}</p>
+                                                            {deliveryAddressLines.length > 0 && (
+                                                                <p className="break-words text-gray-600 dark:text-gray-300">
+                                                                    Entrega: {deliveryAddressLines.slice(0, 3).join(' · ')}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
