@@ -103,3 +103,48 @@ Todos os três commits receberam Vercel `READY` no domínio de homologação, ve
 ## Regra de execução
 
 Um pacote por vez: reprodução, causa-raiz, alteração mínima, teste automatizado, migration **apenas se necessária e autorizada**, Verify, Vercel READY, reteste manual e documentação. Não juntar correções financeiras de alto risco com simples melhorias de UI.
+
+
+## Atualização complementar — 15/10/2026 (retorno sobre transferências, inventory e checkout)
+
+**Homologação da rodada:** base `1cf30c93660b5fb3fbbaeebe37e783595695599c`. Foram feitas alterações isoladas na mesma branch, sem criar módulos comerciais novos.
+
+### Entregas com código
+
+| Item | Commit | Estado automático |
+| --- | --- | --- |
+| Carrinho desktop no cabeçalho, sem CTA flutuante inferior | `e664c96373d1` | Verify SUCCESS, Vercel READY |
+| Diálogo amigável global de aviso/motivo | `df3296d8fca8` | Verify SUCCESS, Vercel READY |
+| Transferências: solicitar motivo, confirmar envio e recebimento/divergência, avisos em modal | `2b0c68e7d4a0` | Verify SUCCESS, Vercel READY |
+| Criação de rascunhos em transferência: diálogos claros | `fefb09e73a10` | Verify SUCCESS, Vercel READY |
+| `/inventory`: filtros compactos recolhíveis, agrupamento por produto/local, saldo x trânsito explicados | `7a929366a1ab` | Verify SUCCESS, Vercel READY |
+| Divergências de transferência consultáveis também pela central, sem duplicar tratamento | `9818626250d7` | Verify SUCCESS, Vercel READY |
+| `/inventory`: cards expansíveis para celular/tablet estreito | `930ac6fab9f3` | Verify SUCCESS, Vercel READY |
+| Checkout: pagamento antecipado SIMULADO no Sandbox para retirada e entrega | `54dc7d95886e` | Vercel READY; conferir Verify e teste manual |
+
+**Migration aplicada e espelhada:** `20261015170639_rc_public_checkout_sandbox_payment_visibility.sql` marca `sandbox_only` estritamente quando o método é integração `optma_sandbox` API. Em homologação Gelinhares: PIX/débito/crédito Sandbox visíveis; PIX manual excluído. O gateway verifica `environment=sandbox` e `realMoney=false`; **não realizar pagamento real**.
+
+### Divergência real reproduzida
+
+`TRF-20261015-144225-589`: Abacate, Estoque Principal → Loja SJN; 30 enviados, 27 recebidos, 3 divergentes, resolução `loss` (Perda/Avaria), motivo `quebra`, 3 perdas, 0 retornos. Status `divergent`. Não constava na central porque a tela só listava vendas e compras. Agora a TRF aparece em seção própria de leitura, com navegação ao documento; não há segundo ajuste de estoque.
+
+### Retestes prioritários
+
+- [ ] Em desktop com usuário autenticado, carrinho no cabeçalho **entre sino e saudação**, sem botão flutuante; visitante ao lado de Entrar; somente badge com quantidade quando não vazio.
+- [ ] Carrinho permanece entre refresh, login, logout, múltiplas abas e viewport; o problema de persistência anterior ainda NÃO foi comprovadamente sanado.
+- [ ] Criar rascunho, cancelar rascunho com motivo, enviar, receber normal, receber divergente; verificar modais responsivos, tema escuro, confirmação de estoque e eventos.
+- [ ] Abrir `/admin/stock/divergences` e conferir TRF `TRF-20261015-144225-589`, filtro de data, link para detalhe e ausência de duplicação de movimentação.
+- [ ] Em `/admin/inventory`, testar celular/tablet vertical, agrupamento default por produto, expandir/recolher, filtro por local, limpar filtros, ordenar cabeçalhos no desktop e valores estáveis do banco.
+- [ ] Criar pedidos de retirada e entrega com Pix Sandbox e cartão fictício; conferir `/p/<token>`, reserva, confirmação, baixa física no momento correto e classificação financeira; também testar pagar depois na retirada/entrega.
+- [ ] Testar método manual de PIX não disponível para testes Gelinhares, sem permissão para dinheiro real.
+- [ ] Conferir função `get_public_checkout_payment_options_by_slug` para outros slugs inalterados em comportamento.
+
+### Questões NÃO concluídas nesta rodada
+
+- Histórico detalhado de transferências na Vida do Produto: estados, valores antes/depois por local e resumo progressivo de 104 enviadas, 101 recebidas, 3 de retorno/perda. **Não inventar saldo histórico** quando não houver snapshot.
+- `/inventory`: coluna de máximo e estado agregado dependem da disponibilidade e autoridade do campo configurado, ainda não incluídos; trânsito de entrega de cliente deve ser indicador distinto das transferências.
+- Divergência da classificação de comprovante de cartão como Pix, rastreabilidade de status público, persistência multiaba do carrinho e cancelamento transacional pós-despacho continuam em acompanhamento.
+- Rotina financeira de depósito em fases, nova leitura do extrato, tradução de lançamento, padronização de atualização e caixa: documentados separadamente em `docs/HANDOFF_FINANCEIRO_EXTRATO_DEPOSITOS_UX_20261015.md`.
+
+**Proibição de fechamento contábil fictício:** registros antigos só podem ser reconciliados/fechados como exatos se houver provas de contagem e autorização/auditoria. Uma diferença real não deve ser apagada para simular 100% correto.
+
