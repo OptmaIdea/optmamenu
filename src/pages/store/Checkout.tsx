@@ -35,6 +35,7 @@ import {
 import { buildWhatsappUrl, canOpenWhatsapp } from '@/utils/whatsapp';
 import { formatBRL } from '@/utils/pricing';
 import { systemConfirm } from '@/components/common/SystemDialogProvider';
+import { getVisiblePayNowMethods } from '@/utils/storefront/sandboxCheckoutMethods';
 
 const DEFAULT_STORE_SLUG = 'gelinharessjn';
 const CHECKOUT_DRAFT_VERSION = 3;
@@ -339,12 +340,13 @@ export default function Checkout() {
         && address.state.trim().toUpperCase() === deliveryAddress.state.trim().toUpperCase()
     ));
 
-    const selectedPayNowMethod = paymentOptions.pay_now.find((method) => method.code === paymentMethodCode) || null;
+    const visiblePayNowMethods = getVisiblePayNowMethods(paymentOptions.pay_now, isTestStore);
+    const selectedPayNowMethod = visiblePayNowMethods.find((method) => method.code === paymentMethodCode) || null;
     const selectedPayLaterMethod = paymentOptions.pay_on_fulfillment.methods.find((method) => method.code === promisedPaymentMethodCode) || null;
     const cashAtDelivery = paymentTiming === 'pay_on_fulfillment' && promisedPaymentMethodCode === 'cash';
     const changeValue = Number(changeFor.replace(',', '.'));
     const paymentValid = paymentTiming === 'pay_now'
-        ? !isTestStore && Boolean(selectedPayNowMethod)
+        ? Boolean(selectedPayNowMethod)
         : paymentTiming === 'pay_on_fulfillment'
             ? paymentOptions.pay_on_fulfillment.enabled
                 && (!paymentOptions.pay_on_fulfillment.requires_method_choice || Boolean(selectedPayLaterMethod))
@@ -620,8 +622,8 @@ export default function Checkout() {
             setView('review');
             return;
         }
-        if (isTestStore && paymentTiming === 'pay_now') {
-            setError('Pagamento antecipado não é permitido na loja de testes. Escolha uma opção sem pagamento imediato.');
+        if (isTestStore && paymentTiming === 'pay_now' && !selectedPayNowMethod?.sandbox_only) {
+            setError('Esta loja de testes aceita somente pagamentos fictícios pela integração OptmaPay Sandbox.');
             setView('payment');
             return;
         }
@@ -1155,16 +1157,16 @@ export default function Checkout() {
 
                     {isTestStore && (
                         <section className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">
-                            Pagamentos antecipados estão desabilitados nesta loja de testes para evitar cobranças reais. Não transfira dinheiro ou Pix.
+                            Somente pagamentos simulados pelo OptmaPay Sandbox são permitidos. Nunca utilize dinheiro, Pix ou cartão reais.
                         </section>
                     )}
-                    {!isTestStore && !paymentOptionsLoading && paymentOptions.pay_now.length > 0 && (
+                    {!paymentOptionsLoading && visiblePayNowMethods.length > 0 && (
                         <section className="overflow-hidden rounded-2xl bg-white shadow-sm">
                             <div className="border-b border-slate-100 px-4 py-4">
                                 <h2 className="text-lg font-black text-slate-950">Pagar agora</h2>
                                 <p className="mt-1 text-sm text-slate-500">Somente formas configuradas pela loja aparecem aqui.</p>
                             </div>
-                            {paymentOptions.pay_now.map((method) => (
+                            {visiblePayNowMethods.map((method) => (
                                 <button
                                     key={method.code}
                                     type="button"

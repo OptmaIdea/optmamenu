@@ -148,11 +148,11 @@ export default function PublicOrderTracking() {
           </div>
         </section>
 
-        {!isTestStore && publicOrderToken && <PublicOrderOptmaPayCard token={publicOrderToken} />}
+        {publicOrderToken && <PublicOrderOptmaPayCard token={publicOrderToken} />}
         {!isTestStore && publicOrderToken && <PublicOrderPaymentProofCard token={publicOrderToken} />}
         {isTestStore && (
           <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
-            Pedido do ambiente de testes: pagamento online e envio de comprovantes estão indisponíveis. Não realize transferências ou Pix reais para este pedido.
+            Pedido de homologação: somente pagamentos fictícios pelo OptmaPay Sandbox podem ser testados. Não faça Pix, transferência, depósito ou pagamento com cartão reais.
           </section>
         )}
 

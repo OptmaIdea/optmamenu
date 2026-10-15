@@ -23,6 +23,7 @@ export interface PublicCheckoutPayNowMethod {
     requires_proof: boolean;
     confirmation_mode: 'manual_proof' | 'api' | string;
     integration_enabled: boolean;
+    sandbox_only?: boolean;
 }
 
 export interface PublicCheckoutPayOnFulfillmentMethod {
