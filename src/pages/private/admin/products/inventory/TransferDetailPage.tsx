@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { ArrowLeft, CheckCircle2, RotateCcw, Send, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { systemConfirm } from '@/components/common/SystemDialogProvider';
+import { systemConfirm, systemNotice, systemPrompt } from '@/components/common/SystemDialogProvider';
 
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import PageContainer from '@/components/common/PageContainer';
@@ -182,8 +182,13 @@ export default function TransferDetailPage() {
         try {
             setActionLoading(true);
             const result = await stockService.shipStockTransfer({ transferId: transfer.id, notes: 'Transferência enviada pela tela de detalhe.' });
-            toast.success(`Transferência ${result.transfer_code} enviada com sucesso.`);
             await Promise.all([refresh(), refetchTransferTimeline()]);
+            await systemNotice({
+                title: 'Transferência enviada',
+                description: `A remessa ${result.transfer_code} saiu do estoque de origem e agora está aguardando recebimento no destino.`,
+                tone: 'success',
+                confirmLabel: 'Entendi',
+            });
         } catch (error: unknown) {
             const feedback = getFriendlyShipError(error, items);
             if (!feedback.expected) console.error('Falha inesperada ao enviar transferência:', error);
@@ -199,16 +204,25 @@ export default function TransferDetailPage() {
             toast.error('Você não tem permissão para cancelar transferências.');
             return;
         }
-        const reason = window.prompt('Informe o motivo do cancelamento:');
-        if (!reason?.trim()) {
-            toast.warning('Informe o motivo do cancelamento.');
-            return;
-        }
+        const reason = await systemPrompt({
+            title: 'Cancelar rascunho de transferência?',
+            description: 'Descreva o motivo. Esta ação ficará registrada no histórico da transferência.',
+            inputLabel: 'Motivo do cancelamento',
+            placeholder: 'Ex.: remessa criada por engano',
+            confirmLabel: 'Cancelar rascunho',
+            cancelLabel: 'Manter rascunho',
+            tone: 'danger',
+        });
+        if (!reason) return;
         try {
             setActionLoading(true);
             const result = await stockService.cancelStockTransfer({ transferId: transfer.id, reason });
-            toast.success(`Transferência ${result.transfer_code} cancelada.`);
             await Promise.all([refresh(), refetchTransferTimeline()]);
+            await systemNotice({
+                title: 'Rascunho cancelado',
+                description: `A transferência ${result.transfer_code} foi cancelada. O motivo informado foi preservado no histórico.`,
+                tone: 'success',
+            });
         } catch (error: unknown) {
             console.error('Erro ao cancelar transferência:', error);
             toast.error(getErrorMessage(error) || 'Não foi possível cancelar a transferência.');
@@ -223,18 +237,34 @@ export default function TransferDetailPage() {
             toast.error('Você não tem permissão para estornar transferências recebidas.');
             return;
         }
-        const reason = window.prompt('Informe o motivo do estorno do recebimento:');
-        if (!reason?.trim()) {
-            toast.warning('Informe o motivo do estorno.');
-            return;
-        }
-        if (!window.confirm('Estornar o recebimento desta transferência? O sistema vai retirar o saldo do destino e devolver para a origem, mantendo o histórico.')) return;
+        const reason = await systemPrompt({
+            title: 'Estornar recebimento?',
+            description: 'Explique o motivo para rastrear a correção da transferência.',
+            inputLabel: 'Motivo do estorno',
+            placeholder: 'Ex.: recebimento lançado no local incorreto',
+            confirmLabel: 'Continuar',
+            cancelLabel: 'Voltar',
+            tone: 'danger',
+        });
+        if (!reason) return;
+        const confirmed = await systemConfirm({
+            title: 'Confirmar reversão do estoque',
+            description: 'O saldo recebido será retirado do destino e devolvido à origem conforme as regras da transferência. A operação ficará auditada.',
+            confirmLabel: 'Estornar recebimento',
+            cancelLabel: 'Manter recebimento',
+            tone: 'danger',
+        });
+        if (!confirmed) return;
 
         try {
             setActionLoading(true);
             const result = await reverseReceivedStockTransfer({ transferId: transfer.id, reason: reason.trim() });
-            toast.success(`Transferência ${result.transfer_code ?? transfer.transfer_code ?? ''} estornada com sucesso.`);
             await Promise.all([refresh(), refetchTransferTimeline()]);
+            await systemNotice({
+                title: 'Recebimento estornado',
+                description: `Transferência ${result.transfer_code ?? transfer.transfer_code ?? ''}: operação de reversão registrada com sucesso.`,
+                tone: 'success',
+            });
         } catch (error: unknown) {
             console.error('Erro ao estornar transferência recebida:', error);
             toast.error(getErrorMessage(error) || 'Não foi possível estornar a transferência recebida.');
@@ -280,12 +310,34 @@ export default function TransferDetailPage() {
             return;
         }
 
+        const divergenceTotal = mappedItems.reduce((total, item) => {
+            const shipped = Number(items.find((row) => row.id === item.itemId)?.shipped_qty ?? 0);
+            return total + Math.max(0, shipped - item.receivedQty);
+        }, 0);
+        const confirmed = await systemConfirm({
+            title: divergenceTotal > 0 ? 'Confirmar recebimento com divergência?' : 'Confirmar recebimento da transferência?',
+            description: divergenceTotal > 0
+                ? `Foram identificadas ${divergenceTotal} unidade(s) de divergência. Confira os motivos e as resoluções: perdas não voltam ao estoque, retornos voltam à origem e faltas aceitas seguem o tratamento registrado.`
+                : 'Confirme somente depois de conferir os produtos e as quantidades recebidas no destino.',
+            confirmLabel: 'Concluir conferência',
+            cancelLabel: 'Continuar conferindo',
+            tone: divergenceTotal > 0 ? 'danger' : 'default',
+        });
+        if (!confirmed) return;
+
         try {
             setActionLoading(true);
             const result = await stockService.receiveStockTransfer({ transferId: transfer.id, items: mappedItems, notes: 'Recebimento registrado pela tela de detalhe.' });
-            toast.success(result.status === 'divergent' ? 'Transferência recebida com divergência.' : 'Transferência recebida com sucesso.');
             setShowReceiveForm(false);
             await Promise.all([refresh(), refetchTransferTimeline()]);
+            await systemNotice({
+                title: result.status === 'divergent' ? 'Transferência concluída com divergência' : 'Transferência recebida',
+                description: result.status === 'divergent'
+                    ? `A transferência ${transfer.transfer_code} foi registrada com ${divergenceTotal} unidade(s) de divergência. Consulte os detalhes da TRF e a Vida do Produto para conferir perdas e devoluções.`
+                    : `Transferência ${transfer.transfer_code} recebida e registrada com sucesso.`,
+                confirmLabel: 'Entendi',
+                tone: result.status === 'divergent' ? 'default' : 'success',
+            });
         } catch (error: unknown) {
             console.error('Erro ao receber transferência:', error);
             toast.error(getErrorMessage(error) || 'Não foi possível receber a transferência.');
