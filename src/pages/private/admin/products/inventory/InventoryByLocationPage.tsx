@@ -731,7 +731,69 @@ export default function InventoryByLocationPage() {
         <p className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs font-medium text-sky-900 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-200">
           O disponível é o saldo físico menos as reservas, conforme o estoque registrado. Remessas já enviadas saíram do físico na origem; por isso não são descontadas novamente. A entrada em trânsito só fica disponível após o recebimento. Pedidos em rota de entrega não são transferências entre estoques.
         </p>
-        <div className="overflow-x-auto rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+        {/* Em celulares e tablets retrato, itens viram resumos expansíveis em vez de tabela larga. */}
+        <div className="space-y-2 lg:hidden">
+          {(groupBy === 'none'
+            ? sortedRows.map((row) => ({ key: `${row.product_id}:${row.location_id}`, label: `${row.product_name} · ${row.location_name}`, rows: [row] }))
+            : groupedRows || []
+          ).map((group) => {
+            const opened = expandedGroupIds.has(group.key);
+            const total = (key: string) => group.rows.reduce((sum, row) => sum + Number(row[key] ?? 0), 0);
+            return (
+              <article key={group.key} className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group.key)}
+                  aria-expanded={opened}
+                  className="flex w-full items-start justify-between gap-3 p-3 text-left"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words text-sm font-black text-gray-900 dark:text-gray-100">{group.label}</p>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      Físico {formatNumberPtBr(total('on_hand'))} · Reservado {formatNumberPtBr(total('reserved'))}
+                    </p>
+                    <p className="mt-1 font-black text-emerald-700 dark:text-emerald-300">
+                      Disponível: {formatNumberPtBr(total('available'))}
+                    </p>
+                    {(total('in_transit_in') > 0 || total('in_transit_out') > 0) && (
+                      <p className="mt-1 text-xs font-semibold text-sky-700 dark:text-sky-300">
+                        {total('in_transit_in') > 0 ? `A receber: ${formatNumberPtBr(total('in_transit_in'))}` : ''}
+                        {total('in_transit_out') > 0 ? ` · Enviado: ${formatNumberPtBr(total('in_transit_out'))}` : ''}
+                      </p>
+                    )}
+                  </div>
+                  {opened ? <ChevronUp size={19} className="mt-1 shrink-0 text-gray-500" /> : <ChevronDown size={19} className="mt-1 shrink-0 text-gray-500" />}
+                </button>
+                {opened && (
+                  <div className="space-y-3 border-t border-gray-200 bg-gray-50/40 p-3 dark:border-gray-700 dark:bg-gray-900/30">
+                    {group.rows.map((row) => (
+                      <div key={`${row.location_id}:${row.product_id}:${row.variant_id || 'base'}`} className="rounded-lg border border-gray-200 bg-white p-3 text-sm dark:border-gray-700 dark:bg-gray-800">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <strong className="text-gray-900 dark:text-gray-100">{groupBy === 'location' ? row.product_name : row.location_name}</strong>
+                          <span className={`rounded-full px-2 py-1 text-xs font-bold ${statusClassMap[row.location_status] || statusClassMap[row.stock_status] || 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-200'}`}>
+                            {statusLabelMap[row.location_status] || statusLabelMap[row.stock_status] || row.stock_status}
+                          </span>
+                        </div>
+                        <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                          <div><span className="block text-gray-500">Físico</span><strong>{formatNumberPtBr(row.on_hand)}</strong></div>
+                          <div><span className="block text-gray-500">Reservado</span><strong>{formatNumberPtBr(row.reserved)}</strong></div>
+                          <div><span className="block text-gray-500">Disponível</span><strong>{formatNumberPtBr(row.available)}</strong></div>
+                          <div><span className="block text-gray-500">A receber</span><strong>{formatNumberPtBr(row.in_transit_in ?? 0)}</strong></div>
+                          <div><span className="block text-gray-500">Enviado</span><strong>{formatNumberPtBr(row.in_transit_out ?? 0)}</strong></div>
+                          <div><span className="block text-gray-500">Mín. local</span><strong>{formatNumberPtBr(row.provisional_location_min_stock ?? row.min_stock ?? 0)}</strong></div>
+                        </div>
+                        <Link to={`/admin/products/${row.product_id}/lifecycle`} className="mt-3 inline-flex min-h-9 items-center text-xs font-black text-emerald-700 underline dark:text-emerald-300">
+                          Ver Vida do Produto
+                        </Link>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </article>
+            );
+          })}
+        </div>
+        <div className="hidden overflow-x-auto rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800 lg:block">
           <table className="min-w-[1300px] w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-900/40">
               <tr>
