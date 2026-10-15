@@ -10,6 +10,7 @@ import { useCurrentStore } from '@/hooks/store/useCurrentStore';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useRefreshFrame } from '@/hooks/useRefreshFrame';
 import { StockDiscrepancyService, type StockDiscrepancyOccurrence, type StockDiscrepancyStatus } from '@/services/stockDiscrepancyService';
+import { stockService, type StockTransferSummaryRow } from '@/services/stockService';
 
 const STATUS_LABELS: Record<StockDiscrepancyStatus, string> = {
   open: 'Aberta',
@@ -105,6 +106,7 @@ export default function StockDiscrepanciesPage() {
   const { storeId, loading: loadingStore } = useCurrentStore();
   const { hasPermission } = usePermissions(storeId ?? null);
   const canResolve = hasPermission('stock.manage') || hasPermission('stock.adjust');
+  const canViewTransfers = hasPermission('transfers.view');
   const canOpenPurchases = hasPermission('purchases.view') || hasPermission('purchases.confirm') || hasPermission('purchases.cancel');
   const canTreatPurchaseIssues = hasPermission('purchases.confirm');
   const canCancelPurchaseIssues = hasPermission('purchases.cancel');
@@ -118,6 +120,7 @@ export default function StockDiscrepanciesPage() {
   const [occurrences, setOccurrences] = useState<StockDiscrepancyOccurrence[]>([]);
   const [allOccurrences, setAllOccurrences] = useState<StockDiscrepancyOccurrence[]>([]);
   const [purchaseIssues, setPurchaseIssues] = useState<PurchaseReceiptIssueQueueItem[]>([]);
+  const [transferDivergences, setTransferDivergences] = useState<StockTransferSummaryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<StockDiscrepancyStatus | 'all'>(() => focusedOrderId ? 'all' : requestedStatus || 'open');
   const [purchaseIssueStatus, setPurchaseIssueStatus] = useState<PurchaseIssueStatus | 'all'>('all');
@@ -144,7 +147,7 @@ export default function StockDiscrepanciesPage() {
     if (!storeId) return;
     try {
       setLoading(true);
-      const [filtered, all, purchaseIssueResult] = await Promise.all([
+      const [filtered, all, purchaseIssueResult, transferred] = await Promise.all([
         StockDiscrepancyService.list(storeId, status, startDate, endDate),
         StockDiscrepancyService.list(storeId, 'all', startDate, endDate),
         supabase.rpc('list_purchase_receipt_issues_safe', {
@@ -154,18 +157,25 @@ export default function StockDiscrepanciesPage() {
           p_end_date: endDate || null,
           p_limit: 500,
         }),
+        canViewTransfers
+          ? stockService.getStockTransfersByStore(storeId).catch((error) => {
+              console.warn('Não foi possível consultar divergências de transferência:', error);
+              return [] as StockTransferSummaryRow[];
+            })
+          : Promise.resolve([] as StockTransferSummaryRow[]),
       ]);
       if (purchaseIssueResult.error) throw purchaseIssueResult.error;
       setOccurrences(filtered);
       setAllOccurrences(all);
       setPurchaseIssues((purchaseIssueResult.data ?? []) as PurchaseReceiptIssueQueueItem[]);
+      setTransferDivergences(transferred.filter((transfer) => transfer.status === 'divergent'));
     } catch (error) {
       console.error('Erro ao carregar divergências operacionais:', error);
       toast.error(error instanceof Error ? error.message : 'Não foi possível carregar as divergências.');
     } finally {
       setLoading(false);
     }
-  }, [storeId, status, purchaseIssueStatus, startDate, endDate]);
+  }, [storeId, status, purchaseIssueStatus, startDate, endDate, canViewTransfers]);
 
   useRefreshFrame(load);
 
@@ -203,6 +213,17 @@ export default function StockDiscrepanciesPage() {
   }), [purchaseIssues]);
 
   const term = search.trim().toLocaleLowerCase('pt-BR');
+  const visibleTransferDivergences = transferDivergences.filter((transfer) => {
+    const date = (transfer.received_at || transfer.requested_at || '').slice(0, 10);
+    if (startDate && date < startDate) return false;
+    if (endDate && date > endDate) return false;
+    if (!term) return true;
+    return [
+      transfer.transfer_code || '',
+      transfer.source_location_name,
+      transfer.destination_location_name,
+    ].some((value) => value.toLocaleLowerCase('pt-BR').includes(term));
+  });
   const visibleOccurrences = occurrences.filter((occurrence) => {
     if (focusedOrderId && occurrence.order_id !== focusedOrderId) return false;
     if (!term) return true;
@@ -337,7 +358,7 @@ export default function StockDiscrepanciesPage() {
             <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-600 dark:text-amber-300">Auditoria operacional</p>
             <h1 className="mt-1 text-2xl font-black text-gray-900 dark:text-white">Divergências de estoque</h1>
             <p className="mt-1 max-w-3xl text-sm text-gray-500 dark:text-gray-400">
-              Centraliza divergências físicas de vendas e ressalvas de recebimento de compras. Cada fluxo mantém seu próprio estado e histórico de tratamento.
+              Consulte divergências físicas de vendas, ressalvas de compras e diferenças registradas no recebimento de transferências. Cada fluxo mantém seu histórico.
             </p>
             {focusedOrderId && <p className="mt-2 text-xs font-black text-teal-700 dark:text-teal-300">Exibindo somente a divergência vinculada à venda selecionada.</p>}
           </div>
@@ -426,6 +447,48 @@ export default function StockDiscrepanciesPage() {
             </div>
           )}
         </section>
+
+        {!focusedOrderId && canViewTransfers && (
+          <section className="space-y-3 border-t border-gray-200 pt-5 dark:border-gray-800">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-purple-700 dark:text-purple-300">Movimentação entre estoques</p>
+              <h2 className="mt-1 text-lg font-black text-gray-900 dark:text-white">Divergências de transferências ({visibleTransferDivergences.length})</h2>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                A diferença é tratada no recebimento da TRF, com perda, retorno à origem ou falta aceita. Esta lista apenas consulta o registro já auditado — não gera uma segunda baixa.
+              </p>
+            </div>
+            {loading ? <LoadingSpinner /> : visibleTransferDivergences.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-gray-300 p-5 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                Nenhuma transferência com divergência neste período ou filtro.
+              </div>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2">
+                {visibleTransferDivergences.map((transfer) => (
+                  <article key={transfer.id} className="rounded-2xl border border-amber-200 bg-white p-4 dark:border-amber-900/60 dark:bg-gray-900">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="break-all font-black text-gray-900 dark:text-gray-100">{transfer.transfer_code || 'Transferência'}</span>
+                      <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-bold text-amber-900 dark:bg-amber-950/50 dark:text-amber-200">
+                        Divergência registrada
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                      {transfer.source_location_name} → {transfer.destination_location_name}
+                    </p>
+                    <p className="mt-2 text-sm font-semibold text-gray-800 dark:text-gray-200">
+                      Diferença: {formatQuantity(transfer.total_divergence_qty)} unidade(s)
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      Recebimento: {transfer.received_at ? new Date(transfer.received_at).toLocaleString('pt-BR') : 'Não informado'}
+                    </p>
+                    <button type="button" onClick={() => navigate(`/admin/transfers/${transfer.id}`)} className="mt-3 min-h-10 rounded-xl border border-amber-200 px-3 py-2 text-xs font-black text-amber-800 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-200 dark:hover:bg-amber-950/30">
+                      Ver TRF e histórico
+                    </button>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
         {!focusedOrderId && (
           <section className="space-y-3 border-t border-gray-200 pt-5 dark:border-gray-800">
