@@ -120,7 +120,16 @@ export default function InventoryByLocationPage() {
   const [selectedLocation, setSelectedLocation] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [selectedAction, setSelectedAction] = useState('all');
-  const [groupBy, setGroupBy] = useState<'none' | 'product' | 'location'>('none');
+  const [groupBy, setGroupBy] = useState<'none' | 'product' | 'location'>('product');
+  const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(new Set());
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  const toggleGroup = (key: string) => setExpandedGroupIds((current) => {
+    const next = new Set(current);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    return next;
+  });
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [showInactives, setShowInactives] = useState(false);
 
@@ -202,14 +211,14 @@ export default function InventoryByLocationPage() {
   const groupedRows = useMemo(() => {
     if (groupBy === 'none') return null;
 
-    const groups = new Map<string, { label: string; rows: any[] }>();
+    const groups = new Map<string, { key: string; label: string; rows: any[] }>();
 
     sortedRows.forEach((row) => {
       const key = groupBy === 'product' ? row.product_id : row.location_id;
       const label = groupBy === 'product' ? row.product_name : row.location_name;
 
       if (!groups.has(key)) {
-        groups.set(key, { label, rows: [] });
+        groups.set(key, { key, label, rows: [] });
       }
       groups.get(key)!.rows.push(row);
     });
@@ -277,15 +286,17 @@ export default function InventoryByLocationPage() {
     selectedLocation !== 'all' ||
     selectedStatus !== 'all' ||
     selectedAction !== 'all' ||
-    groupBy !== 'none' ||
-    sortConfig !== null;
+    groupBy !== 'product' ||
+    sortConfig !== null ||
+    showInactives;
 
   const clearFilters = () => {
     setSearch('');
     setSelectedLocation('all');
     setSelectedStatus('all');
     setSelectedAction('all');
-    setGroupBy('none');
+    setGroupBy('product');
+    setExpandedGroupIds(new Set());
     setSortConfig(null);
     setShowInactives(false);
   };
@@ -471,21 +482,21 @@ export default function InventoryByLocationPage() {
       >
 
       {/* Cards gerenciais */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-8 gap-4">
-        <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8">
+        <div className="rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="text-sm text-gray-500">Posições</div>
-          <div className="text-2xl font-bold">{filteredRows.length}</div>
+          <div className="text-xl font-bold">{filteredRows.length}</div>
         </div>
 
-        <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+        <div className="rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="text-sm text-gray-500">Locais</div>
-          <div className="text-2xl font-bold">{filteredLocationsCount}</div>
+          <div className="text-xl font-bold">{filteredLocationsCount}</div>
         </div>
 
         <button
           type="button"
           onClick={() => setSelectedAction((current) => (current === 'buy' ? 'all' : 'buy'))}
-          className="text-left rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700 transition hover:border-red-300 dark:hover:border-red-700"
+          className="text-left rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700 transition hover:border-red-300 dark:hover:border-red-700"
           title="Filtrar itens sugeridos para compra"
         >
           <div className="text-sm text-gray-500 flex items-center gap-1">
@@ -494,7 +505,7 @@ export default function InventoryByLocationPage() {
           </div>
           <div className="mt-2 flex items-center gap-2">
             <ShoppingCart size={18} className="text-red-500" />
-            <span className="text-2xl font-bold text-red-600 dark:text-red-400">
+            <span className="text-xl font-bold text-red-600 dark:text-red-400">
               {filteredSummary.recommendedBuy}
             </span>
           </div>
@@ -503,7 +514,7 @@ export default function InventoryByLocationPage() {
         <button
           type="button"
           onClick={() => setSelectedAction((current) => (current === 'transfer' ? 'all' : 'transfer'))}
-          className="text-left rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700 transition hover:border-blue-300 dark:hover:border-blue-700"
+          className="text-left rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700 transition hover:border-blue-300 dark:hover:border-blue-700"
           title="Filtrar itens sugeridos para transferência"
         >
           <div className="text-sm text-gray-500 flex items-center gap-1">
@@ -512,68 +523,89 @@ export default function InventoryByLocationPage() {
           </div>
           <div className="mt-2 flex items-center gap-2">
             <ArrowRightLeft size={18} className="text-blue-500" />
-            <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+            <span className="text-xl font-bold text-blue-600 dark:text-blue-400">
               {filteredSummary.recommendedTransfer}
             </span>
           </div>
         </button>
 
-        <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+        <div className="rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="text-sm text-gray-500 flex items-center gap-1">
             Locais críticos
             <InfoTooltip text="Quantidade de posições por local sem estoque ou abaixo do mínimo provisório." />
           </div>
           <div className="mt-2 flex items-center gap-2">
             <AlertTriangle size={18} className="text-amber-500" />
-            <span className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+            <span className="text-xl font-bold text-amber-600 dark:text-amber-400">
               {filteredSummary.locationStockout + filteredSummary.locationCritical}
             </span>
           </div>
         </div>
 
-        <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+        <div className="rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="text-sm text-gray-500 flex items-center gap-1">
             Disponível
             <InfoTooltip text="Soma do disponível das posições filtradas." />
           </div>
           <div className="mt-2 flex items-center gap-2">
             <Archive size={18} className="text-emerald-500" />
-            <span className="text-2xl font-bold">
+            <span className="text-xl font-bold">
               {formatNumberPtBr(filteredSummary.available)}
             </span>
           </div>
         </div>
 
-        <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+        <div className="rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="text-sm text-gray-500 flex items-center gap-1">
             Trânsito entrada
             <InfoTooltip text="Quantidade total a caminho desta localização, ainda não recebida." />
           </div>
           <div className="mt-2 flex items-center gap-2">
             <Truck size={18} className="text-sky-500" />
-            <span className="text-2xl font-bold text-sky-600 dark:text-sky-400">
+            <span className="text-xl font-bold text-sky-600 dark:text-sky-400">
               {formatNumberPtBr(totalInTransitIn)}
             </span>
           </div>
         </div>
 
-        <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+        <div className="rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="text-sm text-gray-500 flex items-center gap-1">
             Trânsito saída
             <InfoTooltip text="Quantidade total enviada desta localização, ainda não recebida no destino." />
           </div>
           <div className="mt-2 flex items-center gap-2">
             <Truck size={18} className="text-amber-500" />
-            <span className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+            <span className="text-xl font-bold text-amber-600 dark:text-amber-400">
               {formatNumberPtBr(totalInTransitOut)}
             </span>
           </div>
         </div>
       </div>
 
-      {/* Filtros */}
-      <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700 space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
+      {/* Filtros compactos e recolhíveis, inclusive quando há critérios ativos. */}
+      <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((open) => !open)}
+            aria-expanded={filtersOpen}
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-800 dark:border-gray-600 dark:text-gray-100"
+          >
+            {filtersOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            Filtros {hasFilters ? '• aplicados' : ''}
+          </button>
+          {hasFilters && (
+            <button type="button" onClick={clearFilters} className="min-h-10 rounded-xl border border-red-200 px-3 text-xs font-bold text-red-700 dark:border-red-900 dark:text-red-300">
+              Limpar filtros
+            </button>
+          )}
+          <span className="ml-auto text-xs font-medium text-gray-500 dark:text-gray-400">
+            {filteredRows.length} de {rows.length} posições
+          </span>
+        </div>
+        {filtersOpen && (
+          <div className="mt-3 space-y-3 border-t border-gray-100 pt-3 dark:border-gray-700">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
           <input
             type="text"
             placeholder="Buscar por produto ou local"
@@ -584,7 +616,13 @@ export default function InventoryByLocationPage() {
 
           <select
             value={selectedLocation}
-            onChange={(e) => setSelectedLocation(e.target.value)}
+            onChange={(e) => {
+              const nextLocation = e.target.value;
+              setSelectedLocation(nextLocation);
+              setGroupBy(nextLocation === 'all' ? 'product' : 'location');
+              setExpandedGroupIds(nextLocation === 'all' ? new Set() : new Set([nextLocation]));
+              setFiltersOpen(false);
+            }}
             className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2 text-sm outline-none"
           >
             <option value="all">Todos os locais</option>
@@ -597,7 +635,7 @@ export default function InventoryByLocationPage() {
 
           <select
             value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
+            onChange={(e) => { setSelectedStatus(e.target.value); setFiltersOpen(false); }}
             className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2 text-sm outline-none"
           >
             <option value="all">Todos os status</option>
@@ -610,7 +648,7 @@ export default function InventoryByLocationPage() {
 
           <select
             value={selectedAction}
-            onChange={(e) => setSelectedAction(e.target.value)}
+            onChange={(e) => { setSelectedAction(e.target.value); setFiltersOpen(false); }}
             className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2 text-sm outline-none"
           >
             <option value="all">Todas as ações</option>
@@ -623,7 +661,11 @@ export default function InventoryByLocationPage() {
 
           <select
             value={groupBy}
-            onChange={(e) => setGroupBy(e.target.value as any)}
+            onChange={(e) => {
+              setGroupBy(e.target.value as 'none' | 'product' | 'location');
+              setExpandedGroupIds(new Set());
+              setFiltersOpen(false);
+            }}
             className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2 text-sm outline-none"
           >
             <option value="none">Sem agrupamento</option>
@@ -674,10 +716,7 @@ export default function InventoryByLocationPage() {
           )}
         </div>
 
-        {hasFilters && (
-          <p className="text-xs text-gray-400">
-            {filteredRows.length} de {rows.length} posição{rows.length !== 1 ? 'ões' : ''} exibida{filteredRows.length !== 1 ? 's' : ''}
-          </p>
+          </div>
         )}
       </div>
 
@@ -685,10 +724,13 @@ export default function InventoryByLocationPage() {
       <div className="space-y-4">
         <div className="flex items-center">
           <h2 className="font-semibold text-gray-900 dark:text-white">
-            Posição por local
+            {groupBy === 'product' ? 'Produtos — toque para ver os locais' : groupBy === 'location' ? 'Estoque agrupado por local' : 'Posição por local'}
           </h2>
         </div>
 
+        <p className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs font-medium text-sky-900 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-200">
+          O disponível é o saldo físico menos as reservas, conforme o estoque registrado. Remessas já enviadas saíram do físico na origem; por isso não são descontadas novamente. A entrada em trânsito só fica disponível após o recebimento. Pedidos em rota de entrega não são transferências entre estoques.
+        </p>
         <div className="overflow-x-auto rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
           <table className="min-w-[1300px] w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-900/40">
@@ -937,19 +979,40 @@ export default function InventoryByLocationPage() {
                   return sortedRows.map(renderRow);
                 }
 
-                return groupedRows?.map((group) => (
-                  <Fragment key={group.label}>
-                    <tr className="bg-gray-50/50 dark:bg-gray-900/20">
-                      <td colSpan={12} className="px-4 py-2 font-bold text-[#19A999] border-y border-gray-100 dark:border-gray-700">
-                        {groupBy === 'product' ? 'Produto: ' : 'Local: '}{group.label}
-                        <span className="ml-2 font-normal text-xs text-gray-400">
-                          ({group.rows.length} posiç{group.rows.length === 1 ? 'ão' : 'ões'})
-                        </span>
-                      </td>
-                    </tr>
-                    {group.rows.map(renderRow)}
-                  </Fragment>
-                ));
+                return groupedRows?.map((group) => {
+                  const opened = expandedGroupIds.has(group.key);
+                  const total = (field: string) => group.rows.reduce((acc, row) => acc + Number(row[field] ?? 0), 0);
+                  return (
+                    <Fragment key={group.key}>
+                      <tr className="border-t border-gray-200 bg-gray-50/70 dark:border-gray-700 dark:bg-gray-900/40">
+                        <td colSpan={12} className="p-0">
+                          <button
+                            type="button"
+                            onClick={() => toggleGroup(group.key)}
+                            aria-expanded={opened}
+                            className="flex min-h-14 w-full flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-800"
+                          >
+                            <span className="inline-flex min-w-44 flex-1 items-center gap-2 font-bold text-gray-900 dark:text-gray-100">
+                              {opened ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                              {groupBy === 'product' ? group.label : `Local: ${group.label}`}
+                            </span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">{group.rows.length} posição(ões)</span>
+                            <span className="text-xs font-semibold">Físico: {formatNumberPtBr(total('on_hand'))}</span>
+                            <span className="text-xs font-semibold">Reservado: {formatNumberPtBr(total('reserved'))}</span>
+                            <span className="text-xs font-black text-emerald-700 dark:text-emerald-300">Disponível: {formatNumberPtBr(total('available'))}</span>
+                            {total('in_transit_in') > 0 && (
+                              <span className="text-xs font-bold text-sky-700 dark:text-sky-300">A receber: +{formatNumberPtBr(total('in_transit_in'))}</span>
+                            )}
+                            {total('in_transit_out') > 0 && (
+                              <span className="text-xs font-bold text-amber-700 dark:text-amber-300">Enviado: {formatNumberPtBr(total('in_transit_out'))}</span>
+                            )}
+                          </button>
+                        </td>
+                      </tr>
+                      {opened && group.rows.map(renderRow)}
+                    </Fragment>
+                  );
+                });
               })()}
 
               {!hasAnyData && (
