@@ -16,6 +16,7 @@ import OrderPaymentProofPanel from './OrderPaymentProofPanel';
 import { usePermissions } from '@/hooks/usePermissions';
 import { isCurrentOrderStatus } from '@/utils/adminOrderVisibility';
 import { formatTimeInRoute } from '@/utils/orders/timeInRoute';
+import { getUnsafeCancelReason } from '@/utils/orders/orderCancellationSafety';
 
 function getAutomaticExpirationAt(order: Order): string | null {
     const metadata = (order as Order & { commercial_metadata?: Record<string, unknown> }).commercial_metadata;
@@ -437,6 +438,8 @@ export default function Orders() {
         const labels: Record<string, string> = {
             insufficient_reserved_stock: 'A reserva deste pedido ficou inconsistente. Atualize a tela e tente novamente.',
             insufficient_stock: 'Não há estoque físico suficiente para concluir este pedido.',
+            refund_workflow_required: 'Este pedido tem pagamento confirmado ou estorno pendente. O cancelamento está bloqueado até que o estorno financeiro seguro esteja disponível.',
+            delivery_return_reversal_required: 'Este pedido já saiu para entrega. É necessária a reversão auditável de estoque e financeiro antes de cancelar.',
             no_active_reservations: 'Este pedido não possui reserva ativa para baixa de estoque.',
             order_not_confirmed: 'Este pedido ainda não está em uma etapa que permita finalização.',
             access_denied: 'Você não tem permissão para alterar este pedido.',
@@ -547,6 +550,11 @@ export default function Orders() {
     async function updateStatus(orderId: string, newStatus: OrderStatus) {
         try {
             if (newStatus === 'cancelled') {
+                const currentOrder = orders.find((item) => item.id === orderId);
+                if (currentOrder) {
+                    const blockedReason = getUnsafeCancelReason(currentOrder.status, getPublicOrderFields(currentOrder).payment_status);
+                    if (blockedReason) throw new Error(blockedReason);
+                }
                 const { data, error } = await supabase.rpc('admin_cancel_public_order_safe', { p_order_id: orderId, p_reason: 'Cancelado pelo painel administrativo' });
                 if (error) throw error;
                 if (data?.ok === false) throw new Error(data?.error || 'Erro ao cancelar pedido.');
@@ -594,15 +602,17 @@ export default function Orders() {
 
     async function cancelOrder(order: Order) {
         const publicOrder = getPublicOrderFields(order);
-        const isPaid = publicOrder.payment_status === 'paid';
-        const description = isPaid
-            ? 'Este pedido já tem pagamento confirmado. Ao cancelar, será necessário registrar o estorno e avisar o cliente.'
-            : 'O pedido será cancelado e deixará de seguir o fluxo operacional.';
+        const blockedReason = getUnsafeCancelReason(order.status, publicOrder.payment_status);
+        if (blockedReason) {
+            toast.warning(getOrderActionErrorMessage({ message: blockedReason }), { duration: 8000 });
+            return;
+        }
+        const description = 'O pedido será cancelado e deixará de seguir o fluxo operacional.';
 
         const confirmed = await systemConfirm({
             title: 'Cancelar pedido?',
             description,
-            confirmLabel: isPaid ? 'Cancelar com estorno' : 'Cancelar pedido',
+            confirmLabel: 'Cancelar pedido',
             cancelLabel: 'Manter pedido',
             tone: 'danger',
         });
@@ -838,12 +848,24 @@ export default function Orders() {
                                                     {canManageOrders && <div className="md:col-span-2 mt-2 flex flex-col gap-2 border-t border-gray-200 pt-4 dark:border-gray-700 sm:flex-row sm:flex-wrap sm:justify-end">
                                                         {order.status === 'reserved' && <>
                                                             {canUseTimer && <button onClick={() => extendReservation(order)} className="w-full rounded-lg bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-600 transition hover:bg-indigo-100 sm:w-auto" title={`Adicionar +${storeData?.config?.extension_minutes || 10} minutos ao prazo`}>Prorrogar (+{storeData?.config?.extension_minutes || 10}min)</button>}
-                                                            {canCancelOrders && <button onClick={() => void cancelOrder(order)} className="w-full rounded-lg bg-red-50 px-4 py-2 text-sm font-bold text-red-600 transition hover:bg-red-100 sm:w-auto">{publicOrder.payment_status === 'paid' ? 'Cancelar com estorno' : 'Recusar / Cancelar'}</button>}
+                                                            {canCancelOrders && (getUnsafeCancelReason(order.status, publicOrder.payment_status) ? (
+                                                                <span className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+                                                                    Cancelamento protegido · estorno necessário
+                                                                </span>
+                                                            ) : (
+                                                                <button onClick={() => void cancelOrder(order)} className="w-full rounded-lg bg-red-50 px-4 py-2 text-sm font-bold text-red-600 transition hover:bg-red-100 sm:w-auto">Recusar / Cancelar</button>
+                                                            ))}
                                                             <button onClick={async () => { await acceptOrder(order); }} className="flex w-full items-center justify-center gap-2 rounded-lg bg-teal-600 px-6 py-2 text-sm font-bold text-white shadow-lg shadow-teal-200 transition hover:bg-teal-700 sm:w-auto"><Clock size={16} /> Aceitar pedido</button>
                                                         </>}
                                                         {order.status === 'confirmed' && <>
                                                             {canUseTimer && <button onClick={() => extendReservation(order)} className="w-full rounded-lg bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-600 transition hover:bg-indigo-100 sm:w-auto">Prorrogar (+{storeData?.config?.extension_minutes || 10}min)</button>}
-                                                            {canCancelOrders && <button onClick={() => void cancelOrder(order)} className="w-full rounded-lg bg-red-50 px-4 py-2 text-sm font-bold text-red-600 transition hover:bg-red-100 sm:w-auto">{publicOrder.payment_status === 'paid' ? 'Cancelar com estorno' : 'Cancelar'}</button>}
+                                                            {canCancelOrders && (getUnsafeCancelReason(order.status, publicOrder.payment_status) ? (
+                                                                <span className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+                                                                    Cancelamento protegido · estorno necessário
+                                                                </span>
+                                                            ) : (
+                                                                <button onClick={() => void cancelOrder(order)} className="w-full rounded-lg bg-red-50 px-4 py-2 text-sm font-bold text-red-600 transition hover:bg-red-100 sm:w-auto">Cancelar</button>
+                                                            ))}
                                                             {publicOrder.fulfillment_type === 'delivery' ? (
                                                                 <button onClick={() => updateStatus(order.id, 'out_for_delivery' as OrderStatus)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-purple-600 px-6 py-2 text-sm font-bold text-white shadow-lg shadow-purple-200 transition hover:bg-purple-700 sm:w-auto"><Truck size={16} /> Saiu para entrega</button>
                                                             ) : (
@@ -854,7 +876,13 @@ export default function Orders() {
                                                             )}
                                                         </>}
                                                         {order.status === 'ready' && <>
-                                                            {canCancelOrders && <button onClick={() => void cancelOrder(order)} className="w-full rounded-lg bg-red-50 px-4 py-2 text-sm font-bold text-red-600 transition hover:bg-red-100 sm:w-auto">{publicOrder.payment_status === 'paid' ? 'Cancelar com estorno' : 'Cancelar'}</button>}
+                                                            {canCancelOrders && (getUnsafeCancelReason(order.status, publicOrder.payment_status) ? (
+                                                                <span className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+                                                                    Cancelamento protegido · estorno necessário
+                                                                </span>
+                                                            ) : (
+                                                                <button onClick={() => void cancelOrder(order)} className="w-full rounded-lg bg-red-50 px-4 py-2 text-sm font-bold text-red-600 transition hover:bg-red-100 sm:w-auto">Cancelar</button>
+                                                            ))}
                                                             {publicOrder.fulfillment_type === 'delivery' ? <button onClick={() => updateStatus(order.id, 'out_for_delivery' as OrderStatus)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-purple-600 px-6 py-2 text-sm font-bold text-white shadow-lg shadow-purple-200 transition hover:bg-purple-700 sm:w-auto"><Truck size={16} /> Saiu para entrega</button> : <button onClick={() => publicOrder.payment_status === 'paid' ? updateStatus(order.id, 'completed') : setFinalizingOrder(order)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-6 py-2 text-sm font-bold text-white shadow-lg shadow-green-200 transition hover:bg-green-700 sm:w-auto"><CheckCircle size={16} /> Finalizar retirada</button>}
                                                         </>}
                                                         {order.status === 'out_for_delivery' && <button onClick={() => publicOrder.payment_status === 'paid' ? updateStatus(order.id, 'completed') : setFinalizingOrder(order)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#21A896] px-6 py-2 text-sm font-bold text-white transition hover:bg-[#1A867A] sm:w-auto"><CheckCircle size={16} /> {publicOrder.payment_status === 'paid' ? 'Confirmar entrega' : 'Finalizar entrega e pagamento'}</button>}

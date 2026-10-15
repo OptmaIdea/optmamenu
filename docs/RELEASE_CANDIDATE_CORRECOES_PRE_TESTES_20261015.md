@@ -79,6 +79,16 @@ Todos os três commits receberam Vercel `READY` no domínio de homologação, ve
 | E3 — Vida do Produto: vendas por canal, quantidades/período e receita sustentada | Pendente |
 | E4 — Dashboard com sugestões de compra justificadas pelos dados disponíveis | Pendente |
 
+## Mitigação P0 adicional — cancelamento não é estorno
+
+- **Causa confirmada:** `admin_cancel_public_order_safe_internal_0d` cancela reserva e pedido, mas não realiza estorno financeiro nem devolução do estoque já baixado no despacho. A interface anterior oferecia indevidamente **Cancelar com estorno** para pedido pago.
+- **Mitigação aplicada:** `admin_cancel_public_order_safe` bloqueia, inclusive no servidor, status `out_for_delivery` e pagamentos diferentes de `pending`/`failed`; mantém permissão existente, idempotência de pedido já cancelado, `FOR UPDATE` e cancelamento simples não pago pré-despacho.
+- Migration Supabase aplicada: `20261015123159_rc_block_unsafe_paid_and_dispatched_order_cancellation`; espelho no GitHub em `supabase/migrations/20261015123159_rc_block_unsafe_paid_and_dispatched_order_cancellation.sql`.
+- Frontend informa que é preciso estorno seguro e não promete estorno automático.
+- **LIMITAÇÃO EXPRESSA:** a operação completa de devolução + cancelamento + reembolso atômico NÃO foi implementada. O bloqueio previne inconsistência adicional enquanto a solução definitiva é construída e validada.
+- [ ] Retestar negação da RPC para pedido pago e em rota; verificar que pedido, estoque e financeiro não sofrem alteração.
+- [ ] Retestar cancelamento pré-despacho não pago com reserva ativa e bloqueio para perfil sem `orders.cancel`.
+
 ## Critérios de aceite para Release Candidate
 
 - [ ] Todos os fluxos P0 corrigidos, com reteste real em desktop, tablet e celular.
