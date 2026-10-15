@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { CartItem, Category, Product, StoreConfig } from '@/types';
 import { ProductCard } from '@/pages/store/ProductCard';
 import { ProductModal } from '@/pages/store/ProductModal';
@@ -22,6 +22,7 @@ import {
     ArrowUp,
     BadgePercent,
     BellRing,
+    ShoppingCart,
     ChevronDown,
     Loader2,
     Layers3,
@@ -108,6 +109,23 @@ export default function Catalog() {
     } = useCartStore();
 
     const { isAuthenticated, customer } = useCustomerAuth();
+    const cartItemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+    const cartHref = `/checkout?store=${encodeURIComponent(storeSlug || '')}`;
+    const cartHeaderIcon = (
+        <Link
+            to={cartHref}
+            className="relative hidden h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white md:inline-flex"
+            aria-label={cartItemCount > 0 ? `Abrir carrinho com ${cartItemCount} ${cartItemCount === 1 ? 'item' : 'itens'}` : 'Abrir carrinho vazio'}
+            title={cartItemCount > 0 ? `Carrinho: ${cartItemCount} ${cartItemCount === 1 ? 'item' : 'itens'}` : 'Carrinho vazio'}
+        >
+            <ShoppingCart className={`h-5 w-5 ${cartItemCount === 0 ? 'opacity-65' : ''}`} />
+            {cartItemCount > 0 && (
+                <span className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full border border-white/70 bg-white px-1 text-[10px] font-black text-emerald-800">
+                    {cartItemCount > 99 ? '99+' : cartItemCount}
+                </span>
+            )}
+        </Link>
+    );
 
     const [store, setStore] = useState<Store | null>(null);
     const [categories, setCategories] = useState<Category[]>([]);
@@ -958,11 +976,14 @@ export default function Catalog() {
                                         </span>
                                     )}
                                 </button>
+                                {cartHeaderIcon}
                                 <span className="block max-w-[40vw] truncate text-xs font-black text-white/95 sm:text-sm">
                                     Olá, {customer?.nickname || customer?.full_name || 'cliente'}
                                 </span>
                             </>
                         ) : (
+                            <>
+                            {cartHeaderIcon}
                             <button
                                 type="button"
                                 onClick={() => window.dispatchEvent(new CustomEvent('optmamenu:open-customer-auth'))}
@@ -970,6 +991,7 @@ export default function Catalog() {
                             >
                                 Entrar
                             </button>
+                            </>
                         )}
                     </div>
                 </div>
