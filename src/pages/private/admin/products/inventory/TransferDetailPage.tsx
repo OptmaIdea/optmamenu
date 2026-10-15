@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { ArrowLeft, CheckCircle2, RotateCcw, Send, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { systemConfirm } from '@/components/common/SystemDialogProvider';
 
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import PageContainer from '@/components/common/PageContainer';
@@ -170,7 +171,13 @@ export default function TransferDetailPage() {
             toast.error('Você não tem permissão para enviar transferências.');
             return;
         }
-        if (!window.confirm('Enviar esta transferência agora? O estoque será baixado da origem e a ação não deve ser feita se a remessa ainda não saiu fisicamente.')) return;
+        const confirmed = await systemConfirm({
+            title: 'Confirmar envio da transferência',
+            description: `A transferência ${transfer.transfer_code || ''} será marcada como enviada e o saldo sairá do estoque de origem. Confirme apenas quando os itens tiverem saído fisicamente.`,
+            confirmLabel: 'Enviar transferência',
+            cancelLabel: 'Voltar',
+        });
+        if (!confirmed) return;
 
         try {
             setActionLoading(true);
