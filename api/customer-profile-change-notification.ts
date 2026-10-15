@@ -83,6 +83,11 @@ export default async function handler(req: any, res: any) {
         || process.env.VITE_SUPABASE_ANON_KEY
         || '';
 
+    const serverProof = String(process.env.CUSTOMER_EMAIL_SERVER_PROOF || '').trim();
+    if (!serverProof) {
+        return json(res, 503, { ok: false, error: 'secure_email_rpc_not_configured' });
+    }
+
     const resendApiKey =
         process.env.RESEND_API_KEY
         || process.env.RESEND_KEY
@@ -225,12 +230,13 @@ export default async function handler(req: any, res: any) {
         supabaseUrl,
         anonKey,
         authorization,
-        'mark_customer_self_sensitive_change_notice_safe',
+        'mark_customer_self_sensitive_change_notice_server_safe',
         {
             p_audit_id: auditId,
             p_provider: provider,
             p_provider_message_id: messageId || null,
             p_failed: !providerResponse.ok,
+            p_server_proof: serverProof,
         },
     ).catch(() => undefined);
 
