@@ -66,6 +66,8 @@ export default async function handler(req: any, res: any) {
         || process.env.VITE_SUPABASE_ANON_KEY
         || '';
 
+    const serverProof = String(process.env.CUSTOMER_EMAIL_SERVER_PROOF || '').trim();
+
     const resendApiKey =
         process.env.RESEND_API_KEY
         || process.env.RESEND_KEY
@@ -111,6 +113,7 @@ export default async function handler(req: any, res: any) {
             providerReachable,
             providerStatus,
             senderConfigured: Boolean(emailFrom),
+            secureRpcConfigured: Boolean(serverProof),
             supabaseConfigured: Boolean(supabaseUrl && anonKey),
         });
     }
@@ -132,6 +135,10 @@ export default async function handler(req: any, res: any) {
         });
     }
 
+    if (!serverProof) {
+        return json(res, 503, { ok: false, error: 'secure_email_rpc_not_configured' });
+    }
+
     if ((!resendApiKey && !brevoApiKey) || !emailFrom) {
         return json(res, 503, {
             ok: false,
@@ -149,8 +156,8 @@ export default async function handler(req: any, res: any) {
         supabaseUrl,
         anonKey,
         authorization,
-        'create_customer_self_email_verification_challenge_safe',
-        { p_token_hash: tokenHash },
+        'create_customer_self_email_verification_challenge_server_safe',
+        { p_token_hash: tokenHash, p_server_proof: serverProof },
     );
 
     const challengeData = challenge.payload;
@@ -266,12 +273,13 @@ export default async function handler(req: any, res: any) {
         supabaseUrl,
         anonKey,
         authorization,
-        'mark_customer_self_email_verification_delivery_safe',
+        'mark_customer_self_email_verification_delivery_server_safe',
         {
             p_challenge_id: challengeId,
             p_provider_message_id: messageId || null,
             p_provider: provider,
             p_failed: !providerResponse.ok,
+            p_server_proof: serverProof,
         },
     ).catch(() => undefined);
 
