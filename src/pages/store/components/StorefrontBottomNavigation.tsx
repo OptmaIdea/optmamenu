@@ -168,6 +168,27 @@ export function StorefrontBottomNavigation({
                 </div>
             </nav>
 
+            <Link
+                to={checkoutPath}
+                aria-label={`Abrir ${cartLabel.toLowerCase()} com ${cartCount} ${cartCount === 1 ? 'item' : 'itens'}`}
+                className="fixed bottom-5 left-5 z-[85] hidden min-h-14 items-center gap-3 rounded-2xl bg-emerald-600 px-4 py-3 text-white shadow-xl transition hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 md:flex"
+            >
+                <ShoppingCart className="h-6 w-6 shrink-0" aria-hidden="true" />
+                <span className="min-w-0">
+                    <span className="block text-xs font-black uppercase tracking-wide">{cartLabel}</span>
+                    <span className="block whitespace-nowrap text-sm font-bold">
+                        {cartCount > 0
+                            ? `${cartCount} ${cartCount === 1 ? 'item' : 'itens'} · R$ ${formatBRL(cartTotal)}`
+                            : 'Carrinho vazio'}
+                    </span>
+                </span>
+                {cartCount > 0 && (
+                    <span className="flex min-h-6 min-w-6 items-center justify-center rounded-full bg-white px-1 text-xs font-black text-emerald-700">
+                        {cartCount > 99 ? '99+' : cartCount}
+                    </span>
+                )}
+            </Link>
+
             <button
                 type="button"
                 onClick={() => setMenuOpen(true)}
