@@ -20,9 +20,15 @@ export interface SystemConfirmOptions {
   tone?: SystemDialogTone;
 }
 
-type PendingDialog = SystemConfirmOptions & {
-  resolve: (confirmed: boolean) => void;
-};
+export interface SystemPromptOptions extends SystemConfirmOptions {
+  inputLabel: string;
+  placeholder?: string;
+}
+
+type PendingDialog =
+  | (SystemConfirmOptions & { kind: 'confirm'; resolve: (confirmed: boolean) => void })
+  | (SystemConfirmOptions & { kind: 'notice'; resolve: () => void })
+  | (SystemPromptOptions & { kind: 'prompt'; resolve: (answer: string | null) => void });
 
 type SystemDialogContextValue = {
   confirm: (options: SystemConfirmOptions) => Promise<boolean>;
@@ -30,10 +36,20 @@ type SystemDialogContextValue = {
 
 const SystemDialogContext = createContext<SystemDialogContextValue | null>(null);
 let imperativeConfirm: ((options: SystemConfirmOptions) => Promise<boolean>) | null = null;
+let imperativeNotice: ((options: SystemConfirmOptions) => Promise<void>) | null = null;
+let imperativePrompt: ((options: SystemPromptOptions) => Promise<string | null>) | null = null;
 
 export function systemConfirm(options: SystemConfirmOptions) {
   if (!imperativeConfirm) return Promise.resolve(false);
   return imperativeConfirm(options);
+}
+
+export function systemNotice(options: SystemConfirmOptions): Promise<void> {
+  return imperativeNotice?.(options) ?? Promise.resolve();
+}
+
+export function systemPrompt(options: SystemPromptOptions): Promise<string | null> {
+  return imperativePrompt?.(options) ?? Promise.resolve(null);
 }
 
 export function useSystemDialog() {
@@ -44,27 +60,45 @@ export function useSystemDialog() {
 
 export function SystemDialogProvider({ children }: { children: ReactNode }) {
   const [pending, setPending] = useState<PendingDialog | null>(null);
+  const [promptValue, setPromptValue] = useState('');
   const confirmButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const confirm = useCallback((options: SystemConfirmOptions) => (
     new Promise<boolean>((resolve) => {
-      setPending({ ...options, resolve });
+      setPending({ ...options, kind: 'confirm', resolve });
+    })
+  ), []);
+
+  const notice = useCallback((options: SystemConfirmOptions) => (
+    new Promise<void>((resolve) => setPending({ ...options, kind: 'notice', resolve }))
+  ), []);
+
+  const prompt = useCallback((options: SystemPromptOptions) => (
+    new Promise<string | null>((resolve) => {
+      setPromptValue('');
+      setPending({ ...options, kind: 'prompt', resolve });
     })
   ), []);
 
   useEffect(() => {
     imperativeConfirm = confirm;
+    imperativeNotice = notice;
+    imperativePrompt = prompt;
     return () => {
       if (imperativeConfirm === confirm) imperativeConfirm = null;
+      if (imperativeNotice === notice) imperativeNotice = null;
+      if (imperativePrompt === prompt) imperativePrompt = null;
     };
-  }, [confirm]);
+  }, [confirm, notice, prompt]);
 
   const finish = useCallback((confirmed: boolean) => {
     setPending((current) => {
-      current?.resolve(confirmed);
+      if (current?.kind === 'confirm') current.resolve(confirmed);
+      else if (current?.kind === 'notice') current.resolve();
+      else if (current?.kind === 'prompt') current.resolve(confirmed ? promptValue.trim() || null : null);
       return null;
     });
-  }, []);
+  }, [promptValue]);
 
   useEffect(() => {
     if (!pending) return undefined;
@@ -150,21 +184,38 @@ export function SystemDialogProvider({ children }: { children: ReactNode }) {
               </div>
             )}
 
-            <div className="mt-6 grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => finish(false)}
-                className="min-h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
-              >
-                {pending.cancelLabel ?? 'Cancelar'}
-              </button>
+            {pending.kind === 'prompt' && (
+              <label className="mt-5 block text-sm font-bold text-slate-700 dark:text-slate-200">
+                {pending.inputLabel}
+                <textarea
+                  value={promptValue}
+                  onChange={(event) => setPromptValue(event.target.value)}
+                  placeholder={pending.placeholder}
+                  rows={3}
+                  autoFocus
+                  className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                />
+              </label>
+            )}
+
+            <div className={`mt-6 grid gap-3 ${pending.kind === 'notice' ? 'grid-cols-1' : 'grid-cols-2'}`}>
+              {pending.kind !== 'notice' && (
+                <button
+                  type="button"
+                  onClick={() => finish(false)}
+                  className="min-h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+                >
+                  {pending.cancelLabel ?? 'Cancelar'}
+                </button>
+              )}
               <button
                 ref={confirmButtonRef}
                 type="button"
                 onClick={() => finish(true)}
-                className={`min-h-12 rounded-2xl px-4 text-sm font-black text-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${toneClasses.button}`}
+                disabled={pending.kind === 'prompt' && promptValue.trim().length === 0}
+                className={`min-h-12 rounded-2xl px-4 text-sm font-black text-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 ${toneClasses.button}`}
               >
-                {pending.confirmLabel ?? 'Confirmar'}
+                {pending.confirmLabel ?? (pending.kind === 'notice' ? 'Entendi' : 'Confirmar')}
               </button>
             </div>
           </section>
