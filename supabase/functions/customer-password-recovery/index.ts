@@ -79,6 +79,7 @@ Deno.serve(async (req: Request) => {
   const storeId = String(input.storeId || "");
   const phone = String(input.phone || "").trim();
   const action = String(input.action || "");
+  const deviceTokenHash = String(input.deviceTokenHash || "").trim().toLowerCase();
   if (!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(storeId) || phone.length < 8 || phone.length > 32) {
     return response({ ok: false, error: "invalid_request" }, 400, origin);
   }
@@ -96,11 +97,12 @@ Deno.serve(async (req: Request) => {
     if (newPassword.length < 8 || newPassword.length > 72 || !/[A-Za-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
       return response({ ok: false, error: "weak_password" }, 200, origin);
     }
-    const { data, error } = await service.rpc("customer_reset_password_with_otp_service_safe", {
+    const { data, error } = await service.rpc("customer_reset_password_with_otp_known_device_service_safe", {
       p_store_id: storeId,
       p_phone: phone,
       p_otp: otp,
       p_new_password: newPassword,
+      p_device_token_hash: /^[0-9a-f]{64}$/.test(deviceTokenHash) ? deviceTokenHash : null,
     });
     if (error) {
       console.error("customer_password_recovery_failed", { code: error.code || "db_error" });
@@ -108,7 +110,7 @@ Deno.serve(async (req: Request) => {
     }
     if (data?.ok) {
       await notifyPasswordChanged(service, storeId, phone);
-      return response({ ok: true, sessionsRevoked: true }, 200, origin);
+      return response({ ok: true, sessionsRevoked: true, currentDevicePreserved: Boolean(data.current_device_preserved) }, 200, origin);
     }
     return response({ ok: false, error: data?.error === "otp_locked" ? "otp_locked" : (data?.error === "weak_password" ? "weak_password" : "invalid_or_expired_otp") }, 200, origin);
   }
