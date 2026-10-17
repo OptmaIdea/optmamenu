@@ -1,5 +1,6 @@
 import { supabaseCustomer, supabaseCustomerAuth, supabasePublic } from '@/lib/supabase';
 import { useCustomerAuth } from '@/store/useCustomerAuth';
+import { useCartStore } from '@/store/useCartStore';
 import { clearCustomerToken, getCustomerToken, setCustomerToken } from '@/lib/jwt';
 import type { Customer } from '@/types';
 
@@ -707,8 +708,11 @@ export const AuthService = {
     },
 
     async logoutCustomer() {
+        // Immediately tear down customer UI and close a previously open cart
+        // before asynchronously revoking the refresh session.
         clearPersistedCustomerSession();
-        await supabaseCustomerAuth.auth.signOut().catch(() => undefined);
+        useCartStore.getState().closeCart();
         useCustomerAuth.getState().logout?.();
+        await supabaseCustomerAuth.auth.signOut().catch(() => undefined);
     },
 };
