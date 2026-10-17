@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Mail, Lock, ArrowRight, AlertCircle, Store, CheckCircle, Eye, EyeOff } from 'lucide-react';
@@ -36,6 +36,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
 
   const [loading, setLoading] = useState(false);
+  const loginInProgressRef = useRef(false);
   const [selectingStore, setSelectingStore] = useState(false);
   const [storeOptions, setStoreOptions] = useState<LoginStoreOption[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState('');
@@ -88,9 +89,21 @@ export default function Login() {
     return (data ?? []) as LoginStoreOption[];
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-
+    if (loginInProgressRef.current) return;
+    // Gerenciadores de senha podem preencher os campos sem disparar onChange do React.
+    // Ler o formulário real no envio evita exigir um segundo clique ou digitação.
+    const fields = new FormData(e.currentTarget);
+    const submittedEmail = String(fields.get('email') || email).trim();
+    const submittedPassword = String(fields.get('password') || password);
+    if (!submittedEmail || !submittedPassword) {
+      setError('Informe seu e-mail e sua senha para entrar.');
+      return;
+    }
+    loginInProgressRef.current = true;
+    setEmail(submittedEmail);
+    setPassword(submittedPassword);
     setLoading(true);
     setError('');
     setStoreOptions([]);
@@ -99,8 +112,8 @@ export default function Login() {
 
     try {
       const { error: loginError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+        email: submittedEmail,
+        password: submittedPassword,
       });
 
       if (loginError) throw loginError;
@@ -136,6 +149,7 @@ export default function Login() {
 
       setError(message);
     } finally {
+      loginInProgressRef.current = false;
       setLoading(false);
     }
   };
