@@ -120,7 +120,8 @@ Deno.serve(async (req: Request) => {
   }
   if (!issued?.ok) {
     if (issued?.error === "rate_limited" || issued?.error === "daily_limit_reached") {
-      return response({ ok: false, error: "rate_limited" }, 429, origin);
+      // Never identify a registered/verified account by a different response.
+      return response(genericConfirmation, 200, origin);
     }
     return response(genericConfirmation, 200, origin);
   }
@@ -179,5 +180,6 @@ Deno.serve(async (req: Request) => {
     ...(!sent ? { used: true, consumed_at: new Date().toISOString() } : {}),
   }).eq("id", otpId);
 
-  return response(sent ? genericConfirmation : { ok: false, error: "email_unavailable" }, sent ? 200 : 503, origin);
+  // Delivery failures are server-observable, but do not enumerate registered accounts.
+  return response(genericConfirmation, 200, origin);
 });
