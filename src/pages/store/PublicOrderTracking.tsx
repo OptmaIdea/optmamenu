@@ -54,6 +54,7 @@ export default function PublicOrderTracking() {
 
   useEffect(() => {
     let active = true;
+    let shouldCheckPayment = true;
 
     async function load() {
       if (!publicOrderToken) {
@@ -70,6 +71,8 @@ export default function PublicOrderTracking() {
           return;
         }
         setData(result);
+        shouldCheckPayment = !(['paid','refunded'].includes(result.order.payment_status || '')
+            || ['cancelled','expired'].includes(result.order.status || ''));
       } catch (err) {
         console.error('Erro ao consultar pedido público:', err);
         if (active) setError('Não foi possível carregar o pedido agora.');
@@ -78,9 +81,18 @@ export default function PublicOrderTracking() {
       }
     }
 
-    load();
+    void load();
+    // A situação financeira pode mudar pelo webhook/API depois de criado o pedido.
+    // Reconsulta leve e apenas na guia visível, parando quando a cobrança for finalizada.
+    const timer = window.setInterval(() => {
+      if (shouldCheckPayment && document.visibilityState === 'visible') void load();
+    }, 12000);
+    const checkOnFocus = () => { if (shouldCheckPayment) void load(); };
+    window.addEventListener('focus', checkOnFocus);
     return () => {
       active = false;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', checkOnFocus);
     };
   }, [publicOrderToken]);
 
