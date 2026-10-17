@@ -194,8 +194,11 @@ export default async function handler(req: any, res: any) {
     // A confirmação precisa ser pública inclusive quando o cardápio está em um Preview
     // protegido da Vercel. O token segue direto para a Edge Function pública do Supabase;
     // assim o cliente nunca é redirecionado para o login da Vercel.
+    // Return destination is a fixed environment marker, never a client-supplied URL.
+    const requestedHost = String(req.headers.host || '').split(':')[0].trim().toLowerCase();
+    const confirmSource = requestedHost === 'homologacao.optmamenu.com.br' ? '&source=homologacao' : '';
     const confirmUrl =
-        `${supabaseUrl}/functions/v1/confirm-customer-email?token=${encodeURIComponent(token)}`;
+        `${supabaseUrl}/functions/v1/confirm-customer-email?token=${encodeURIComponent(token)}${confirmSource}`;
     const safeSenderName = storeName
         .replace(/[<>\r\n"]/g, ' ')
         .replace(/\s+/g, ' ')
