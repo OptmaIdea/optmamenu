@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Loader2, ShieldCheck } from 'lucide-react';
 import { AuthService } from '@/services/customerAuth';
 import { CustomerService } from '@/services/customerService';
+import { PublicStorefrontService } from '@/services/publicStorefrontService';
 import { CustomerOrderCancellationPanel } from '@/pages/store/components/CustomerOrderCancellationPanel';
 import { OrderCancellationRequestService, type CancellationRequest } from '@/services/orderCancellationRequestService';
 
@@ -24,6 +25,12 @@ export function PublicOrderCancellationAccess({
       // Resolve the actual owner using the independently authenticated customer JWT.
       const session = await AuthService.restoreSession();
       if (!session?.customer) {
+        setOwnOrder(null);
+        setChecked(true);
+        return;
+      }
+      const storefront = await PublicStorefrontService.getStorefrontBySlug(storeSlug);
+      if (!storefront.ok || !storefront.store || String(storefront.store.id) !== String(session.customer.store_id)) {
         setOwnOrder(null);
         setChecked(true);
         return;
