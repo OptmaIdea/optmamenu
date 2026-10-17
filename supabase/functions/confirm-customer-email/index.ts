@@ -178,10 +178,13 @@ const PUBLIC_APP_ORIGIN = (Deno.env.get("OPTMAMENU_APP_URL") || "https://optmame
 function redirectResult(
   result: "success" | "invalid" | "used" | "expired" | "error",
   storeSlug?: string | null,
+  source?: string | null,
 ) {
+  const isHomologation = source === "homologacao";
+  const returnOrigin = isHomologation ? "https://homologacao.optmamenu.com.br" : PUBLIC_APP_ORIGIN;
   const base = storeSlug
-    ? `${PUBLIC_APP_ORIGIN}/s/${encodeURIComponent(storeSlug)}`
-    : PUBLIC_APP_ORIGIN;
+    ? `${returnOrigin}/${isHomologation ? "loja" : "s"}/${encodeURIComponent(storeSlug)}`
+    : returnOrigin;
   const target = new URL(base);
   // Não use o parâmetro legado "emailVerification": versões antigas da loja
   // tentavam restaurar/login de sessão ao recebê-lo. O resultado novo é apenas
@@ -201,13 +204,15 @@ function redirectResult(
 Deno.serve(async (req: Request) => {
   if (req.method !== "GET") return redirectResult("invalid");
   const url = new URL(req.url);
+  const source = url.searchParams.get("source") === "homologacao" ? "homologacao" : null;
+  const redirect = (result: "success" | "invalid" | "used" | "expired" | "error", slug?: string | null) => redirectResult(result, slug, source);
 
   const token = String(url.searchParams.get("token") || "").trim();
-  if (!token || token.length < 20) return redirectResult("invalid");
+  if (!token || token.length < 20) return redirect("invalid");
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  if (!supabaseUrl || !serviceRoleKey) return redirectResult("error");
+  if (!supabaseUrl || !serviceRoleKey) return redirect("error");
 
   const service = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const tokenHash = await sha256Hex(token);
@@ -216,19 +221,19 @@ Deno.serve(async (req: Request) => {
     .select("id, store_id, customer_id, email, expires_at, used_at")
     .eq("token_hash", tokenHash).maybeSingle();
 
-  if (!challenge) return redirectResult("invalid");
+  if (!challenge) return redirect("invalid");
   const { data: store } = await service.from("stores").select("name, slug, logo_url").eq("id", challenge.store_id).maybeSingle();
   const storeName = String(store?.name || store?.slug || "a loja");
   const storeSlug = String(store?.slug || "").trim() || null;
 
-  if (challenge.used_at) return redirectResult("used", storeSlug);
-  if (new Date(challenge.expires_at).getTime() <= Date.now()) return redirectResult("expired", storeSlug);
+  if (challenge.used_at) return redirect("used", storeSlug);
+  if (new Date(challenge.expires_at).getTime() <= Date.now()) return redirect("expired", storeSlug);
 
   const { data: customer } = await service.from("customers")
     .select("id, email, full_name, nickname").eq("id", challenge.customer_id).eq("store_id", challenge.store_id).maybeSingle();
 
   if (!customer || String(customer.email || "").trim().toLowerCase() !== String(challenge.email).trim().toLowerCase()) {
-    return redirectResult("invalid", storeSlug);
+    return redirect("invalid", storeSlug);
   }
 
   const now = new Date().toISOString();
@@ -236,7 +241,7 @@ Deno.serve(async (req: Request) => {
     .update({ email_verified: true, updated_at: now })
     .eq("id", challenge.customer_id).eq("store_id", challenge.store_id);
 
-  if (updateError) return redirectResult("error", storeSlug);
+  if (updateError) return redirect("error", storeSlug);
 
   // Confirmação concluída primeiro; o e-mail abaixo é apenas um aviso transacional
   // best-effort e nunca desfaz a verificação se o provedor estiver indisponível.
@@ -257,5 +262,5 @@ Deno.serve(async (req: Request) => {
     })
     .eq("id", challenge.id);
 
-  return redirectResult("success", storeSlug);
+  return redirect("success", storeSlug);
 });
