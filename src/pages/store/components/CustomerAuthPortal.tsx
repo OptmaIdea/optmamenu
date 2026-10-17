@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
     Eye,
     EyeOff,
@@ -12,6 +12,7 @@ import {
 import { AuthService } from '@/services/customerAuth';
 import { PublicStorefrontService } from '@/services/publicStorefrontService';
 import { useCustomerAuth } from '@/store/useCustomerAuth';
+import { useCartStore } from '@/store/useCartStore';
 
 type AuthMode = 'login' | 'register' | 'recover';
 type AuthStep = 'form' | 'otp' | 'password_setup' | 'recovery_otp';
@@ -104,6 +105,8 @@ function PasswordField({
 }
 
 export function CustomerAuthPortal({ storeSlug, storeId, hideTrigger = false }: CustomerAuthPortalProps) {
+    const navigate = useNavigate();
+    const closeCart = useCartStore(state => state.closeCart);
     const {
         customer,
         isAuthenticated,
@@ -285,6 +288,8 @@ export function CustomerAuthPortal({ storeSlug, storeId, hideTrigger = false }: 
         setError('');
         try {
             await AuthService.resetPasswordWithCode(digits, resolvedStoreId, otp, password);
+            closeCart();
+            if (storeSlug) navigate(`/loja/${encodeURIComponent(storeSlug)}`, { replace: true });
             resetFlow('login');
             setNotice('Senha redefinida. Entre com sua nova senha; por segurança, os dispositivos anteriores precisarão ser confirmados novamente.');
         } catch (recoveryError) {
