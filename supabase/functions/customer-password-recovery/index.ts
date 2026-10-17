@@ -26,6 +26,37 @@ function senderEmail(v: unknown) {
   return raw.match(/<([^<>\s]+@[^<>\s]+)>/)?.[1]
     || raw.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || "";
 }
+async function notifyPasswordChanged(service: any, storeId: string, phone: string) {
+  try {
+    const { data: normalized } = await service.rpc("normalize_br_customer_phone", { p_phone: phone });
+    if (!normalized?.valid) return;
+    const { data: person } = await service.from("customers")
+      .select("email,email_verified,full_name,nickname").eq("store_id",storeId)
+      .eq("phone_match_key",normalized.match_key).eq("status","active").maybeSingle();
+    if (!person?.email_verified || !person.email) return;
+    const { data: shop } = await service.from("stores")
+      .select("name,slug").eq("id",storeId).maybeSingle();
+    const name = String(shop?.name || shop?.slug || "Loja").slice(0,60);
+    const key = normalizeSecret(Deno.env.get("BREVO_API_KEY") || Deno.env.get("SENDINBLUE_API_KEY"));
+    if (!key) return;
+    const from = senderEmail(Deno.env.get("CUSTOMER_EMAIL_FROM") || Deno.env.get("BREVO_SENDER_EMAIL")) || "naoresponda@auth.optmamenu.com.br";
+    const html = '<html lang="pt-BR"><body style="margin:0;background:#f3f6f8;font-family:Arial,sans-serif;color:#172033"><div style="max-width:600px;margin:32px auto;background:white;border-radius:20px;padding:32px">'
+      + '<p style="font-size:22px;font-weight:800;color:#047857">' + escapeHtml(name) + '</p>'
+      + '<p style="font-size:12px;font-weight:700;color:#047857">AVISO DE SEGURANÇA</p><h1>Sua senha foi alterada</h1>'
+      + '<p>Olá, ' + escapeHtml(person.full_name || person.nickname || "Cliente") + '.</p>'
+      + '<p>Confirmamos que a senha da sua conta foi alterada. Outros dispositivos podem exigir nova autenticação.</p>'
+      + '<p style="background:#fff7ed;border-radius:12px;padding:16px">Não foi você? Entre em contato com a loja imediatamente.</p>'
+      + '<hr style="border:0;border-top:1px solid #e8ecef;margin:24px 0"><p style="font-size:12px;color:#7a8493">Mensagem automática de segurança, sem finalidade publicitária. Tecnologia OptmaMenu.</p></div></body></html>';
+    const result = await fetch("https://api.brevo.com/v3/smtp/email",{
+      method:"POST",headers:{"api-key":key,"Content-Type":"application/json","accept":"application/json"},
+      body:JSON.stringify({sender:{name,email:from},to:[{email:person.email}],subject:"Aviso de segurança: senha alterada — "+name,htmlContent:html})
+    });
+    if (!result.ok) console.warn("customer_password_changed_email_rejected",{status:result.status});
+  } catch (e) {
+    console.warn("customer_password_changed_email_failed",{reason:e instanceof Error ? e.name : "unknown"});
+  }
+}
+
 const genericConfirmation = {
   ok: true,
   message: "Se houver uma conta ativa com e-mail confirmado, enviaremos um código válido por 5 minutos.",
@@ -75,9 +106,11 @@ Deno.serve(async (req: Request) => {
       console.error("customer_password_recovery_failed", { code: error.code || "db_error" });
       return response({ ok: false, error: "recovery_unavailable" }, 503, origin);
     }
-    return response(data?.ok
-      ? { ok: true, sessionsRevoked: true }
-      : { ok: false, error: data?.error === "otp_locked" ? "otp_locked" : (data?.error === "weak_password" ? "weak_password" : "invalid_or_expired_otp") }, 200, origin);
+    if (data?.ok) {
+      await notifyPasswordChanged(service, storeId, phone);
+      return response({ ok: true, sessionsRevoked: true }, 200, origin);
+    }
+    return response({ ok: false, error: data?.error === "otp_locked" ? "otp_locked" : (data?.error === "weak_password" ? "weak_password" : "invalid_or_expired_otp") }, 200, origin);
   }
 
   if (action !== "request_email") {
