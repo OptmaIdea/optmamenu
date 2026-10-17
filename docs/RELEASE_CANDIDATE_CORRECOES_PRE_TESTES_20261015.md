@@ -148,3 +148,43 @@ Um pacote por vez: reprodução, causa-raiz, alteração mínima, teste automati
 
 **Proibição de fechamento contábil fictício:** registros antigos só podem ser reconciliados/fechados como exatos se houver provas de contagem e autorização/auditoria. Uma diferença real não deve ser apagada para simular 100% correto.
 
+
+## Atualização operacional — 17/10/2026
+
+### Evidências da transferência TRF-20261015-144225-589
+- Origem Estoque Principal: **190 unidades antes, saída de 30, 160 depois**, comprovado por `stock_movements.previous_stock/new_stock`.
+- Destino Loja SJN: **114 unidades antes, entrada de 27, 141 depois**.
+- Divergência: **3 unidades perdidas** (`loss`, motivo `quebra`), sem retorno à origem. O total físico consolidado diminuiu 3 nesta transferência. A divergência permanece visível para auditoria, mas já teve resolução registrada.
+- Saldos físicos atuais devem ser consultados separadamente; não presumir que são os mesmos de 15/10.
+
+### Corrigido em código, ainda depende de reteste humano
+- `99d5fb444ad2`: status financeiro `payment_status` exposto na consulta pública por token, textos explicitando pagamento pendente; checkout não chama pedido antecipado de "finalizado pelo WhatsApp"; Pix Sandbox devidamente descrito como simulado, não QR de instituição bancária. Migration aplicada `20261017145430_rc_public_order_explicit_payment_status`.
+- `24314ffce56`: login admin lê credenciais do formulário DOM no submit (compatível com autofill do navegador) e previne repetição de envio enquanto há requisição.
+- `2f17e8da8c77`: RPC de consulta de **pedidos de clientes em entrega** por produto com permissão de membro da loja; migration `20261017145756_rc_inventory_customer_delivery_in_route_summary`; separa fisicamente trânsito de transferências e pedidos em rota sem baixar estoque duas vezes.
+- `fade841ddc6e`: reconstrução de `/inventory` para resumo compacto por produto (desktop tabela com físico/reservado/em entrega/a receber/disponível/mín/máx/situação; mobile cards e locais em expansão); relatório operacional avançado preservado recolhido, filtros também recolhíveis.
+- `edc828a8174`: página pública do pedido reconsulta status financeiro ao retornar foco e periodicamente até finalização, evitando informação `pending` congelada após confirmação por webhook.
+- `c167a5841ae3`: apresentação de status financeiros com testes de regressão para pendente, pago, estorno e falha; confirmação somente quando `payment_status='paid'`.
+
+### Provas de banco, sem criar cobranças
+- Pedidos em teste `PED-20261017-144055-7394` (Pix) e `PED-20261017-144229-39D2` (débito): ambos `payment_status='pending'`, não pagos, cancelados. O primeiro tinha intenção online pendente; segundo sem intenção de pagamento vinculada.
+- O texto antigo confundia pedido registrado/método escolhido com dinheiro recebido. O banco não indicou confirmação antecipada indevida nesses registros.
+- Um pedido de cliente `out_for_delivery` contém **7 abacates**; agora pode aparecer no indicador Em entrega. É **movimento operacional** e não entra novamente na fórmula de estoque.
+- RPC de entrega executável por `authenticated`, negada a `anon`, exigindo `is_store_member`.
+
+### Importante: escopo ainda pendente
+- PIX Sandbox é um simulador `OPTMAPAY://PIX/v1`, NÃO um BR Code bancário real. Para testar cobrança Pix por API de banco/PSP real é necessária frente de integração autorizada, credenciais apropriadas, segregação de ambiente e comprovação de webhook. Não simular conclusão financeira por copiar código ou enviar comprovante.
+- Provar no navegador: pedido Pix Sandbox pendente -> confirmação simulada legítima -> `paid` por callback seguro -> atualização da página pública; cartão antes/depois da autorização, falha/retry; não emitir confirmação financeira antes de retorno positivo do servidor.
+- Login autofill do painel admin exige reteste. Login da área do cliente, caso tenha sintoma idêntico, deve ser verificado na frente Clientes, sem alterar sua autenticação nesta rodada.
+- Nova apresentação da tela de estoque exige reteste em mobile e tablet, inclusive agrupamento por local e coerência de mínimo/máximo.
+- Implementação de ocorrências expandidas com snapshots completos na Vida do Produto continua pendente (pacote separado).
+- Cancelamento pelo cliente estilo marketplace vai para conversa Clientes; bloqueio P0 de cancelamento pago/despachado continua até estorno e reversão auditável.
+- Fronteira Financeiro (extrato, depósito, traduções, fechamentos) permanece adiada.
+
+### Roteiro de aceite P0/P1 (não declarar RC sem reteste)
+- [ ] Pix Sandbox: criar pedido de retirada, verificar `pending` antes da confirmação, validar simulação sem banco real, confirmar via caminho oficialmente suportado, verificar `paid` e Realtime/poll da página pública.
+- [ ] Cartão Sandbox: criar pedido, constatar `payment_status=pending`, autorizar com cartão fictício, conferir `paid` somente após retorno; negar cartão e confirmar que permanece pendente.
+- [ ] Pedidos com pagamento não confirmado: não mostrar "Pago" nem "Venda concluída" no cliente ou no administrativo; demonstrar valor não lançado no Livro Diário como recebimento.
+- [ ] `/inventory`: verificar Abacate em entrega 7, disponível físico sem abatimento duplicado, transferências a receber separadas. Filtrar Estoque Principal/Loja SJN, conferir cabeçalhos, expandir tudo/recolher tudo em Android, desktop e tablet retrato/paisagem.
+- [ ] Login administrativo com autofill de e-mail/senha no Chrome desktop e mobile: um clique em Entrar deve disparar somente uma requisição e redirecionamento.
+- [ ] Verificar erros de rede e spinner; nenhuma tela branca, nenhuma regressão de RLS e de gestão multi-loja.
+
