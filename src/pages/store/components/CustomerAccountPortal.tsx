@@ -3009,7 +3009,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                                             }}
                                                         />
 
-                                                        {order.status === 'reserved' && order.payment_status !== 'paid' && (
+                                                        {order.status === 'reserved' && ['pending', 'failed'].includes(order.payment_status || 'pending') && (
                                                             <button
                                                                 type="button"
                                                                 onClick={() => void cancelCustomerOrder(order)}
