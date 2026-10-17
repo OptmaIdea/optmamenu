@@ -47,6 +47,8 @@ import { formatBRL } from '@/utils/pricing';
 import { toast } from 'sonner';
 import { systemConfirm } from '@/components/common/SystemDialogProvider';
 import { CustomerLoyaltyRewardDetails } from './CustomerLoyaltyRewardDetails';
+import { CustomerOrderCancellationPanel } from './CustomerOrderCancellationPanel';
+import { OrderCancellationRequestService, type CancellationRequest } from '@/services/orderCancellationRequestService';
 import { GelinharesTestNotice, hasAcknowledgedGelinharesTest, isGelinharesTestEnvironment } from './GelinharesTestNotice';
 import { loyaltyVoucherEligibility } from './loyaltyVoucherEligibility';
 import { CUSTOMER_LOYALTY_SECTIONS, getStampCampaignSummary, type CustomerLoyaltySection } from './customerLoyaltySections';
@@ -427,6 +429,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     const [showAddressForm, setShowAddressForm] = useState(false);
 
     const [orders, setOrders] = useState<CustomerOrderSummary[]>([]);
+    const [cancellationRequests, setCancellationRequests] = useState<CancellationRequest[]>([]);
     const [ordersRefreshing, setOrdersRefreshing] = useState(false);
     const [ordersUpdatedAt, setOrdersUpdatedAt] = useState<Date | null>(null);
     const [loyaltySaving, setLoyaltySaving] = useState(false);
@@ -883,6 +886,11 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
 
             ordersRef.current = nextOrders;
             setOrders(nextOrders);
+            void OrderCancellationRequestService.myRequests()
+                .then(setCancellationRequests)
+                .catch(() => {
+                    // A falta temporária da consulta de solicitações não oculta os pedidos.
+                });
             setOrdersUpdatedAt(new Date());
         } catch (loadError) {
             if (showSpinner) toast.error('Não foi possível atualizar seus pedidos agora.');
@@ -2990,6 +2998,16 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                                                 Continuar pagamento
                                                             </button>
                                                         )}
+
+                                                        <CustomerOrderCancellationPanel
+                                                            orderId={order.id}
+                                                            orderStatus={order.status}
+                                                            paymentStatus={order.payment_status}
+                                                            requests={cancellationRequests}
+                                                            onChanged={async () => {
+                                                                setCancellationRequests(await OrderCancellationRequestService.myRequests());
+                                                            }}
+                                                        />
 
                                                         {order.status === 'reserved' && order.payment_status !== 'paid' && (
                                                             <button
