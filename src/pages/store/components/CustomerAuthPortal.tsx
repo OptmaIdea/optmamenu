@@ -287,11 +287,13 @@ export function CustomerAuthPortal({ storeSlug, storeId, hideTrigger = false }: 
         setLoading(true);
         setError('');
         try {
-            await AuthService.resetPasswordWithCode(digits, resolvedStoreId, otp, password);
+            const recovery = await AuthService.resetPasswordWithCode(digits, resolvedStoreId, otp, password);
             closeCart();
             if (storeSlug) navigate(`/loja/${encodeURIComponent(storeSlug)}`, { replace: true });
             resetFlow('login');
-            setNotice('Senha redefinida. Entre com sua nova senha; por segurança, os dispositivos anteriores precisarão ser confirmados novamente.');
+            setNotice(recovery.currentDevicePreserved
+                ? 'Senha redefinida. Entre com a nova senha; este aparelho já confiável não precisa de outro SMS. As outras sessões foram desconectadas.'
+                : 'Senha redefinida. Entre com a nova senha; dispositivos novos ou com confiança expirada exigem confirmação SMS.');
         } catch (recoveryError) {
             setError(recoveryError instanceof Error ? recoveryError.message : 'Não foi possível redefinir a senha.');
         } finally {
