@@ -685,7 +685,7 @@ export default function Checkout() {
                 notes: [
                     notes.trim(),
                     cpf.trim() ? `CPF: ${onlyDigits(cpf)}` : '',
-                    `Pagamento: ${paymentDescription}`,
+                    `Forma de pagamento escolhida (ainda não confirmada): ${paymentDescription}`,
                     changeNote,
                     locationNote,
                 ].filter(Boolean).join('\n') || null,
@@ -723,9 +723,10 @@ export default function Checkout() {
             const trackingUrl = `${window.location.origin}/p/${encodeURIComponent(result.order.public_order_token)}`;
             const firstName = clientName.trim().split(/\s+/)[0] || 'Cliente';
             const message = [
-                `Olá! Acabei de fazer o pedido nº *${compactOrderCode(result.order.order_code)}* pelo catálogo.`,
+                `Olá! Registrei o pedido nº *${compactOrderCode(result.order.order_code)}* pelo catálogo.`,
                 '',
                 `Meu nome é *${firstName}*.`,
+                ...(paymentTiming === 'pay_now' ? ['*Pagamento ainda não confirmado; estou aguardando o processamento.*'] : ['*Pagamento programado para o recebimento.*']),
                 '',
                 'Veja o link para acompanhamento do pedido ↓↓:',
                 '',
@@ -1386,7 +1387,7 @@ export default function Checkout() {
                         aria-disabled={!checkoutValid || loading || (isTestStore && !testAcknowledged)}
                         className={`flex min-h-14 flex-1 items-center justify-center gap-3 rounded-2xl px-5 text-base font-black text-white sm:flex-none ${checkoutValid && !loading ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-300'}`}
                     >
-                        {loading ? 'Criando pedido...' : isTestStore && !testAcknowledged ? 'Reconheça o aviso de testes' : checkoutValid ? 'Finalizar pelo WhatsApp' : 'Confirme os dados'}
+                        {loading ? 'Registrando pedido...' : isTestStore && !testAcknowledged ? 'Reconheça o aviso de testes' : checkoutValid ? paymentTiming === 'pay_now' ? 'Criar pedido e ir para pagamento' : 'Registrar pedido' : 'Confirme os dados'}
                         {!loading && <Send size={19} />}
                     </button>
                 </div>

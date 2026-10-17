@@ -424,7 +424,7 @@ export default function PublicOrderOptmaPayCard({ token }: { token: string }) {
                   : 'Pagar agora com OptmaPay'}
           </h2>
           <p className="mt-1 text-sm text-slate-600">
-            Cada código é válido por 15 minutos. O sistema faz até duas atualizações automáticas; depois disso, um novo ciclo deve ser gerado manualmente.
+            Este código é gerado pela integração OptmaPay Sandbox (simulador), e não por um banco real. A confirmação deve vir da API/webhook do Sandbox. Não envie comprovante e não tente pagar com sua conta bancária. Cada código vale 15 minutos.
           </p>
         </div>
       </div>
@@ -491,7 +491,7 @@ export default function PublicOrderOptmaPayCard({ token }: { token: string }) {
 
           <div>
             <label className="text-xs font-black uppercase tracking-wide text-slate-500">
-              Código PIX Sandbox
+              Código de pagamento do simulador Pix
             </label>
             <textarea
               readOnly
@@ -516,7 +516,7 @@ export default function PublicOrderOptmaPayCard({ token }: { token: string }) {
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-violet-300 px-4 py-3 text-sm font-black text-violet-700"
             >
-              Abrir OptmaPay
+              Conhecer o ambiente OptmaPay
               <ExternalLink className="h-4 w-4" />
             </a>
             <button

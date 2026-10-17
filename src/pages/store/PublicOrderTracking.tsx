@@ -118,6 +118,7 @@ export default function PublicOrderTracking() {
 
   const { order, store } = data;
   const isTestStore = isGelinharesTestEnvironment(store.slug);
+  const isPaid = order.payment_status === 'paid';
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900">
@@ -148,6 +149,12 @@ export default function PublicOrderTracking() {
           </div>
         </section>
 
+        <section aria-label="Situação do pagamento" className={`rounded-2xl border p-4 text-sm ${isPaid ? 'border-emerald-200 bg-emerald-50 text-emerald-950' : 'border-amber-200 bg-amber-50 text-amber-950'}`}>
+          <p className="font-black">{isPaid ? 'Pagamento confirmado' : 'Pagamento ainda não confirmado'}</p>
+          <p className="mt-1">{isPaid
+            ? 'O pagamento foi confirmado pelo sistema.'
+            : 'A escolha da forma de pagamento não significa que a cobrança foi realizada. O pedido foi registrado, mas continua aguardando confirmação financeira.'}</p>
+        </section>
         {publicOrderToken && <PublicOrderOptmaPayCard token={publicOrderToken} />}
         {!isTestStore && publicOrderToken && <PublicOrderPaymentProofCard token={publicOrderToken} />}
         {isTestStore && (
@@ -187,7 +194,8 @@ export default function PublicOrderTracking() {
           <div><span className="block text-xs text-slate-500">Cliente</span><strong>{order.customer_name || 'Cliente não identificado'}</strong></div>
           <div><span className="block text-xs text-slate-500">Criado em</span><strong>{formatDateTime(order.created_at)}</strong></div>
           <div><span className="block text-xs text-slate-500">Entrega/retirada</span><strong>{order.delivery_method_name || order.fulfillment_type}</strong></div>
-          <div><span className="block text-xs text-slate-500">Pagamento</span><strong>{order.payment_method_name || 'A combinar'}</strong></div>
+          <div><span className="block text-xs text-slate-500">Forma escolhida</span><strong>{order.payment_method_name || 'A combinar'}</strong></div>
+          <div><span className="block text-xs text-slate-500">Situação financeira</span><strong className={isPaid ? 'text-emerald-700' : 'text-amber-700'}>{isPaid ? 'Pago' : order.payment_status === 'refunded' ? 'Estornado' : 'Aguardando pagamento'}</strong></div>
         </section>
 
         <div className="text-center">

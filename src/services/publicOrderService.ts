@@ -170,6 +170,7 @@ export interface PublicOrderTrackingResponse {
     order?: {
         order_code: string;
         status: string;
+        payment_status?: string | null;
         customer_name?: string | null;
         subtotal: number;
         delivery_fee: number;
