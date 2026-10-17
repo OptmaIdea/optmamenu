@@ -268,12 +268,13 @@ export const AuthService = {
         }
     },
 
-    async resetPasswordWithCode(phone: string, storeId: string, otp: string, newPassword: string): Promise<void> {
+    async resetPasswordWithCode(phone: string, storeId: string, otp: string, newPassword: string): Promise<{ currentDevicePreserved: boolean }> {
+        const deviceTokenHash = await getDeviceTokenHash();
         const { data, error } = await supabasePublic.functions.invoke('customer-password-recovery', {
-            body: { action: 'complete', phone, storeId, otp, newPassword },
+            body: { action: 'complete', phone, storeId, otp, newPassword, deviceTokenHash },
         });
         const errorPayload = error ? await readFunctionErrorPayload(error) : null;
-        const payload = (data && typeof data === 'object' ? data : errorPayload) as { ok?: boolean; error?: string } | null;
+        const payload = (data && typeof data === 'object' ? data : errorPayload) as { ok?: boolean; error?: string; currentDevicePreserved?: boolean } | null;
         if (payload?.error === 'weak_password') {
             throw new Error('Use de 8 a 72 caracteres, incluindo letras e números.');
         }
@@ -286,6 +287,7 @@ export const AuthService = {
         if (error || !payload?.ok) {
             throw new Error('Não foi possível redefinir a senha. Tente novamente em instantes.');
         }
+        return { currentDevicePreserved: Boolean(payload.currentDevicePreserved) };
     },
 
     async verifyOtp(
