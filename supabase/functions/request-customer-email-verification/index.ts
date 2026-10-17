@@ -152,7 +152,10 @@ Deno.serve(async (req: Request) => {
 
   if (insertError || !challenge) return reply({ ok: false, error: "challenge_create_failed" }, 500, origin);
 
-  const confirmUrl = `${supabaseUrl}/functions/v1/confirm-customer-email?token=${encodeURIComponent(token)}`;
+  // The fallback Edge sender also preserves the trusted homologation origin.
+  // Never accept arbitrary redirect URLs from the browser.
+  const source = origin === "https://homologacao.optmamenu.com.br" ? "&source=homologacao" : "";
+  const confirmUrl = `${supabaseUrl}/functions/v1/confirm-customer-email?token=${encodeURIComponent(token)}${source}`;
   const storeName = String(store.name || store.slug || "Loja");
   const safeSenderName = storeName.replace(/[<>\r\n"]/g, " ").replace(/\s+/g, " ").trim().slice(0, 60) || "Loja";
   const sender = emailFrom.includes("<") ? emailFrom : `${safeSenderName} <${emailFrom}>`;
