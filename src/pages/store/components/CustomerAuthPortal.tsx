@@ -269,7 +269,7 @@ export function CustomerAuthPortal({ storeSlug, storeId, hideTrigger = false }: 
     const completePasswordRecovery = async () => {
         const digits = validatePhone();
         if (!digits) return;
-        if (!/^\\d{6}$/.test(otp.replace(/\\D/g, ''))) {
+        if (!/^\d{6}$/.test(otp.replace(/\D/g, ''))) {
             setError('Informe o código de seis dígitos recebido no canal escolhido.');
             return;
         }
@@ -714,7 +714,7 @@ export function CustomerAuthPortal({ storeSlug, storeId, hideTrigger = false }: 
                                     <input
                                         type="text"
                                         value={otp}
-                                        onChange={(event) => setOtp(event.target.value.replace(/\\D/g, '').slice(0, 6))}
+                                        onChange={(event) => setOtp(event.target.value.replace(/\D/g, '').slice(0, 6))}
                                         inputMode="numeric"
                                         autoComplete="one-time-code"
                                         maxLength={6}
