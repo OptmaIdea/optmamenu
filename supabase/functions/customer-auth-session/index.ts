@@ -768,6 +768,11 @@ Deno.serve(async (req: Request) => {
   const otp = String(input.otp || "").trim();
   const storeId = String(input.storeId || "").trim();
   const purpose = String(input.purpose || "login").trim().toLowerCase();
+  // Sensitive-action and password-recovery codes must NEVER be interchangeable
+  // with an authentication/login OTP (purpose separation).
+  if (purpose !== "login" && purpose !== "registration") {
+    return json({ ok: false, error: "unsupported_purpose" }, 400, origin);
+  }
   if (!phone || !/^\d{6}$/.test(otp.replace(/\D/g, "")) || !validUuid(storeId)) {
     return json({ ok: false, error: "invalid_request" }, 400, origin);
   }
