@@ -47,6 +47,9 @@ export function useGelinharesTestNotice(slug?: string | null) {
 export function GelinharesTestNotice({ slug, compact = false }: { slug?: string | null; compact?: boolean }) {
     const { enabled, accepted, accept } = useGelinharesTestNotice(slug);
     const [expanded, setExpanded] = useState(!hasAcknowledgedGelinharesTest());
+    useEffect(() => {
+        if (accepted) setExpanded(false);
+    }, [accepted]);
     if (!enabled) return null;
 
     const acknowledge = () => {
