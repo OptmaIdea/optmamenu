@@ -483,6 +483,13 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     const [currentPassword, setCurrentPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
+    const [forgotPasswordChannel, setForgotPasswordChannel] = useState<'sms' | 'email'>('sms');
+    const [forgotPasswordOtpSent, setForgotPasswordOtpSent] = useState(false);
+    const [forgotPasswordOtp, setForgotPasswordOtp] = useState('');
+    const [forgotPasswordNew, setForgotPasswordNew] = useState('');
+    const [forgotPasswordConfirm, setForgotPasswordConfirm] = useState('');
+    const [forgotPasswordBusy, setForgotPasswordBusy] = useState(false);
     const [trustedDevices, setTrustedDevices] = useState<TrustedCustomerDevice[]>([]);
     const [trustedDevicesLoading, setTrustedDevicesLoading] = useState(false);
     const [trustedDevicesRevoking, setTrustedDevicesRevoking] = useState(false);
@@ -2051,6 +2058,61 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             toast.error(feedback);
         } finally {
             setCancellingOrderId(null);
+        }
+    };
+
+    const requestForgotPasswordOtp = async () => {
+        clearFeedback();
+        setForgotPasswordBusy(true);
+        try {
+            if (forgotPasswordChannel === 'email') {
+                await AuthService.sendPasswordRecoveryEmail(customer.phone, customer.store_id);
+            } else {
+                await AuthService.sendOtp(customer.phone, customer.store_id, 'password_reset');
+            }
+            setForgotPasswordOtpSent(true);
+            setForgotPasswordOtp('');
+            setMessage(forgotPasswordChannel === 'email'
+                ? 'Se houver e-mail verificado, enviaremos um código de recuperação válido por 5 minutos.'
+                : 'Código de recuperação solicitado por SMS. Ele é válido por 5 minutos.');
+        } catch (recoveryError) {
+            setError(recoveryError instanceof Error ? recoveryError.message : 'Não foi possível solicitar o código.');
+        } finally {
+            setForgotPasswordBusy(false);
+        }
+    };
+
+    const completeForgotPassword = async () => {
+        clearFeedback();
+        if (!/^\d{6}$/.test(forgotPasswordOtp)) {
+            setError('Informe o código de recuperação com seis dígitos.');
+            return;
+        }
+        if (forgotPasswordNew.length < 8 || forgotPasswordNew.length > 72 || !/[A-Za-z]/.test(forgotPasswordNew) || !/[0-9]/.test(forgotPasswordNew)) {
+            setError('Crie uma senha de 8 a 72 caracteres, incluindo letras e números.');
+            return;
+        }
+        if (forgotPasswordNew !== forgotPasswordConfirm) {
+            setError('As senhas não coincidem.');
+            return;
+        }
+        setForgotPasswordBusy(true);
+        try {
+            await AuthService.resetPasswordWithCode(customer.phone, customer.store_id, forgotPasswordOtp, forgotPasswordNew);
+            setForgotPasswordNew('');
+            setForgotPasswordConfirm('');
+            setForgotPasswordOtp('');
+            setForgotPasswordOtpSent(false);
+            setForgotPasswordOpen(false);
+            await AuthService.logoutCustomer();
+            setOpen(false);
+            toast.success('Senha redefinida. Entre novamente com a nova senha e confirme seu dispositivo.');
+        } catch (recoveryError) {
+            const feedback = recoveryError instanceof Error ? recoveryError.message : 'Não foi possível redefinir a senha.';
+            setError(feedback);
+            toast.error(feedback);
+        } finally {
+            setForgotPasswordBusy(false);
         }
     };
 
@@ -3892,6 +3954,46 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                                 <button type="button" onClick={savePassword} disabled={loading || !currentPassword || !newPassword || !confirmPassword} className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3 font-black text-white hover:bg-emerald-700 disabled:opacity-50">
                                                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />} Alterar senha
                                                 </button>
+                                                <button type="button" aria-expanded={forgotPasswordOpen} onClick={() => { setForgotPasswordOpen(value => !value); setForgotPasswordOtpSent(false); clearFeedback(); }} className="mt-3 w-full py-2 text-sm font-bold text-emerald-700 hover:underline dark:text-emerald-300">
+                                                    Esqueci minha senha — recuperar por SMS ou e-mail
+                                                </button>
+                                                {forgotPasswordOpen && (
+                                                    <div className="mt-3 space-y-3 rounded-2xl border border-emerald-200 p-3 dark:border-emerald-800">
+                                                        <p className="text-sm text-slate-600 dark:text-slate-300">
+                                                            Não é necessário conhecer a senha antiga. Confirme um código recebido no canal escolhido; depois, todos os dispositivos precisarão entrar novamente.
+                                                        </p>
+                                                        <fieldset className="space-y-2">
+                                                            <legend className="text-sm font-semibold text-slate-800 dark:text-slate-100">Enviar código por</legend>
+                                                            <label className="flex min-h-10 items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                                                                <input type="radio" name="profile-password-recovery-channel" checked={forgotPasswordChannel === 'sms'} onChange={() => { setForgotPasswordChannel('sms'); setForgotPasswordOtpSent(false); }} />
+                                                                SMS no telefone confirmado
+                                                            </label>
+                                                            <label className="flex min-h-10 items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                                                                <input type="radio" name="profile-password-recovery-channel" checked={forgotPasswordChannel === 'email'} onChange={() => { setForgotPasswordChannel('email'); setForgotPasswordOtpSent(false); }} />
+                                                                E-mail verificado
+                                                            </label>
+                                                        </fieldset>
+                                                        <button type="button" onClick={requestForgotPasswordOtp} disabled={forgotPasswordBusy} className="w-full rounded-xl border border-emerald-300 px-3 py-2 text-sm font-bold text-emerald-700 disabled:opacity-50 dark:text-emerald-300">
+                                                            {forgotPasswordBusy ? 'Solicitando…' : forgotPasswordOtpSent ? 'Reenviar código' : 'Solicitar código'}
+                                                        </button>
+                                                        {forgotPasswordOtpSent && (
+                                                            <div className="space-y-3">
+                                                                <label className="block text-sm font-semibold text-slate-800 dark:text-slate-200">
+                                                                    Código de seis dígitos
+                                                                    <input type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={forgotPasswordOtp}
+                                                                        onChange={(event) => setForgotPasswordOtp(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                                                                        className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800" />
+                                                                </label>
+                                                                <PasswordField label="Nova senha" value={forgotPasswordNew} onChange={setForgotPasswordNew} placeholder="Mínimo de 8 caracteres" autoComplete="new-password" />
+                                                                <PasswordField label="Repita a nova senha" value={forgotPasswordConfirm} onChange={setForgotPasswordConfirm} placeholder="Confirme a nova senha" autoComplete="new-password" />
+                                                                <button type="button" disabled={forgotPasswordBusy || forgotPasswordOtp.length !== 6} onClick={completeForgotPassword}
+                                                                    className="w-full rounded-xl bg-emerald-600 px-3 py-3 text-sm font-black text-white disabled:opacity-50">
+                                                                    {forgotPasswordBusy ? 'Redefinindo…' : 'Redefinir senha e desconectar dispositivos'}
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     </section>
