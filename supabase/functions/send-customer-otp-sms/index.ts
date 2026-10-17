@@ -245,6 +245,12 @@ Deno.serve(async (req: Request) => {
 
   if (!issued?.ok) {
     const error = String(issued?.error || "otp_issue_rejected");
+    // Recovery is public: do not enumerate accounts or send costly SMS to
+    // nonexistent phones. The SQL issuer rejects unknown reset recipients.
+    if (purpose === "password_reset" &&
+        ["customer_not_found", "rate_limited", "daily_limit_reached"].includes(error)) {
+      return reply({ ok: true, status: "accepted" }, 200, origin);
+    }
     if (error === "rate_limited" || error === "daily_limit_reached") {
       return reply({ ok: false, error, retryAfterSeconds: Number(issued?.retry_after_seconds || 600) }, 429, origin);
     }
