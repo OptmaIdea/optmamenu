@@ -4,6 +4,7 @@ import { CheckCircle2, Clock3, PackageCheck, ShoppingBag, Store, XCircle } from 
 import { PublicOrderService, type PublicOrderTrackingResponse } from '@/services/publicOrderService';
 import PublicOrderPaymentProofCard from '@/pages/store/components/PublicOrderPaymentProofCard';
 import PublicOrderOptmaPayCard from '@/pages/store/components/PublicOrderOptmaPayCard';
+import { PublicOrderCancellationAccess } from '@/pages/store/components/PublicOrderCancellationAccess';
 import { GelinharesTestNotice, isGelinharesTestEnvironment } from '@/pages/store/components/GelinharesTestNotice';
 import { getOrderPaymentPresentation } from '@/utils/storefront/orderPaymentPresentation';
 
@@ -174,6 +175,8 @@ export default function PublicOrderTracking() {
             Pedido de homologação: somente pagamentos fictícios pelo OptmaPay Sandbox podem ser testados. Não faça Pix, transferência, depósito ou pagamento com cartão reais.
           </section>
         )}
+
+        <PublicOrderCancellationAccess orderCode={order.order_code} storeSlug={store.slug} status={order.status} />
 
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center gap-2">
