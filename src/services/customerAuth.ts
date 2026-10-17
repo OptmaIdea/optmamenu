@@ -250,6 +250,43 @@ export const AuthService = {
         throw new Error(payload?.message || 'Não foi possível enviar o código por SMS.');
     },
 
+    async sendPasswordRecoveryEmail(phone: string, storeId: string): Promise<void> {
+        const { data, error } = await supabasePublic.functions.invoke('customer-password-recovery', {
+            body: { action: 'request_email', phone, storeId },
+        });
+        const errorPayload = error ? await readFunctionErrorPayload(error) : null;
+        const payload = (data && typeof data === 'object' ? data : errorPayload) as { ok?: boolean; error?: string } | null;
+        if (payload?.error === 'rate_limited') {
+            throw new Error('Muitas solicitações de recuperação. Aguarde alguns minutos e tente novamente.');
+        }
+        if (payload?.error === 'email_unavailable') {
+            throw new Error('O e-mail de recuperação está temporariamente indisponível. Você também pode usar SMS.');
+        }
+        if (error || !payload?.ok) {
+            throw new Error('Não foi possível solicitar a recuperação agora. Tente novamente.');
+        }
+    },
+
+    async resetPasswordWithCode(phone: string, storeId: string, otp: string, newPassword: string): Promise<void> {
+        const { data, error } = await supabasePublic.functions.invoke('customer-password-recovery', {
+            body: { action: 'complete', phone, storeId, otp, newPassword },
+        });
+        const errorPayload = error ? await readFunctionErrorPayload(error) : null;
+        const payload = (data && typeof data === 'object' ? data : errorPayload) as { ok?: boolean; error?: string } | null;
+        if (payload?.error === 'weak_password') {
+            throw new Error('Use de 8 a 72 caracteres, incluindo letras e números.');
+        }
+        if (payload?.error === 'otp_locked') {
+            throw new Error('Código bloqueado após muitas tentativas. Solicite um novo código.');
+        }
+        if (payload?.error === 'invalid_or_expired_otp') {
+            throw new Error('Código inválido, expirado ou já utilizado. Confira o código ou solicite outro.');
+        }
+        if (error || !payload?.ok) {
+            throw new Error('Não foi possível redefinir a senha. Tente novamente em instantes.');
+        }
+    },
+
     async verifyOtp(
         phone: string,
         otp: string,
