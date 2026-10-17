@@ -2098,7 +2098,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
         }
         setForgotPasswordBusy(true);
         try {
-            await AuthService.resetPasswordWithCode(customer.phone, customer.store_id, forgotPasswordOtp, forgotPasswordNew);
+            const recovery = await AuthService.resetPasswordWithCode(customer.phone, customer.store_id, forgotPasswordOtp, forgotPasswordNew);
             setForgotPasswordNew('');
             setForgotPasswordConfirm('');
             setForgotPasswordOtp('');
@@ -2106,7 +2106,9 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             setForgotPasswordOpen(false);
             await AuthService.logoutCustomer();
             setOpen(false);
-            toast.success('Senha redefinida. Entre novamente com a nova senha e confirme seu dispositivo.');
+            toast.success(recovery.currentDevicePreserved
+                ? 'Senha redefinida. Entre com a nova senha; este aparelho continua confiável e as outras sessões foram desconectadas.'
+                : 'Senha redefinida. Entre novamente com a nova senha; este dispositivo precisará de confirmação SMS.');
         } catch (recoveryError) {
             const feedback = recoveryError instanceof Error ? recoveryError.message : 'Não foi possível redefinir a senha.';
             setError(feedback);
