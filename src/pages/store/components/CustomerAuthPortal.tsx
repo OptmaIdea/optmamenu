@@ -13,8 +13,8 @@ import { AuthService } from '@/services/customerAuth';
 import { PublicStorefrontService } from '@/services/publicStorefrontService';
 import { useCustomerAuth } from '@/store/useCustomerAuth';
 
-type AuthMode = 'login' | 'register';
-type AuthStep = 'form' | 'otp' | 'password_setup';
+type AuthMode = 'login' | 'register' | 'recover';
+type AuthStep = 'form' | 'otp' | 'password_setup' | 'recovery_otp';
 type OtpContext = 'registration' | 'password_stepup' | 'sms_login';
 
 interface CustomerAuthPortalProps {
@@ -117,6 +117,7 @@ export function CustomerAuthPortal({ storeSlug, storeId, hideTrigger = false }: 
     const [mode, setMode] = useState<AuthMode>('login');
     const [step, setStep] = useState<AuthStep>('form');
     const [otpContext, setOtpContext] = useState<OtpContext>('sms_login');
+    const [recoveryChannel, setRecoveryChannel] = useState<'sms' | 'email'>('sms');
     const [phone, setPhone] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -175,6 +176,7 @@ export function CustomerAuthPortal({ storeSlug, storeId, hideTrigger = false }: 
     const resetFlow = (nextMode: AuthMode = 'login') => {
         setMode(nextMode);
         setStep('form');
+        setRecoveryChannel('sms');
         setOtpContext(nextMode === 'register' ? 'registration' : 'sms_login');
         setOtp('');
         setPassword('');
@@ -233,6 +235,60 @@ export function CustomerAuthPortal({ storeSlug, storeId, hideTrigger = false }: 
             setNotice(customNotice || `Código de ${senderName} enviado por SMS. Ele é válido por 5 minutos.`);
         } catch (sendError) {
             setError(sendError instanceof Error ? sendError.message : 'Não foi possível enviar o código.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const sendRecoveryCode = async () => {
+        const digits = validatePhone();
+        if (!digits) return;
+        setLoading(true);
+        setError('');
+        setNotice('');
+        try {
+            if (recoveryChannel === 'email') {
+                await AuthService.sendPasswordRecoveryEmail(digits, resolvedStoreId);
+            } else {
+                await AuthService.sendOtp(digits, resolvedStoreId, 'password_reset');
+            }
+            setStep('recovery_otp');
+            setOtp('');
+            setPassword('');
+            setConfirmPassword('');
+            setNotice(recoveryChannel === 'email'
+                ? 'Se a conta possuir e-mail confirmado, enviaremos um código de recuperação válido por 5 minutos.'
+                : 'Se a conta estiver ativa, um código de recuperação por SMS será enviado. Válido por 5 minutos.');
+        } catch (sendError) {
+            setError(sendError instanceof Error ? sendError.message : 'Não foi possível solicitar a recuperação.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const completePasswordRecovery = async () => {
+        const digits = validatePhone();
+        if (!digits) return;
+        if (!/^\\d{6}$/.test(otp.replace(/\\D/g, ''))) {
+            setError('Informe o código de seis dígitos recebido no canal escolhido.');
+            return;
+        }
+        if (!validPassword(password)) {
+            setError('A senha deve conter de 8 a 72 caracteres, incluindo letras e números.');
+            return;
+        }
+        if (password !== confirmPassword) {
+            setError('As senhas não coincidem.');
+            return;
+        }
+        setLoading(true);
+        setError('');
+        try {
+            await AuthService.resetPasswordWithCode(digits, resolvedStoreId, otp, password);
+            resetFlow('login');
+            setNotice('Senha redefinida. Entre com sua nova senha; por segurança, os dispositivos anteriores precisarão ser confirmados novamente.');
+        } catch (recoveryError) {
+            setError(recoveryError instanceof Error ? recoveryError.message : 'Não foi possível redefinir a senha.');
         } finally {
             setLoading(false);
         }
@@ -380,6 +436,10 @@ export function CustomerAuthPortal({ storeSlug, storeId, hideTrigger = false }: 
 
     const resendCode = async () => {
         if (loading) return;
+        if (step === 'recovery_otp') {
+            await sendRecoveryCode();
+            return;
+        }
         if (otpContext === 'registration') {
             await sendRegistrationOtp();
             return;
@@ -428,24 +488,29 @@ export function CustomerAuthPortal({ storeSlug, storeId, hideTrigger = false }: 
 
                         <div className="mb-6 pr-10">
                             <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
-                                {step === 'password_setup' ? <KeyRound className="h-5 w-5" /> : <Smartphone className="h-5 w-5" />}
+                                {step === 'password_setup' || step === 'recovery_otp' || mode === 'recover' ? <KeyRound className="h-5 w-5" /> : <Smartphone className="h-5 w-5" />}
                             </div>
                             <h2 className="text-xl font-black text-slate-900 dark:text-white">
-                                {step === 'password_setup'
+                                {step === 'recovery_otp'
+                                    ? 'Redefinir sua senha'
+                                    : step === 'password_setup'
                                     ? 'Crie sua senha'
                                     : step === 'otp'
                                         ? (mode === 'register' ? 'Confirmar seu telefone' : 'Confirmação por SMS')
                                         : mode === 'login'
                                             ? 'Entrar'
-                                            : 'Criar sua conta'}
+                                            : mode === 'recover' ? 'Esqueci minha senha' : 'Criar sua conta'}
                             </h2>
                             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                                {step === 'otp'
+                                {step === 'recovery_otp'
+                                    ? 'Informe o código de recuperação e escolha uma nova senha. A senha anterior não será solicitada.'
+                                    : step === 'otp'
                                     ? `Digite o código enviado por ${senderName} para ${phone}.`
                                     : step === 'password_setup'
                                         ? 'Sua senha será usada nos próximos acessos. O SMS será pedido novamente apenas quando a política de segurança exigir.'
                                         : mode === 'login'
                                             ? `Entre com telefone e senha${storeName ? ` na ${storeName}` : ''}.`
+                                            : mode === 'recover' ? 'Escolha receber um código por SMS ou pelo e-mail já confirmado na conta.'
                                             : 'Confirme seu telefone e crie uma senha para proteger sua conta.'}
                             </p>
                         </div>
@@ -504,13 +569,29 @@ export function CustomerAuthPortal({ storeSlug, storeId, hideTrigger = false }: 
                                     />
                                 </div>
 
-                                <PasswordField
-                                    label="Senha"
-                                    value={password}
-                                    onChange={setPassword}
-                                    autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                                    placeholder={mode === 'login' ? 'Sua senha' : 'Mínimo de 8 caracteres'}
-                                />
+                                {mode !== 'recover' && (
+                                    <PasswordField
+                                        label="Senha"
+                                        value={password}
+                                        onChange={setPassword}
+                                        autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                                        placeholder={mode === 'login' ? 'Sua senha' : 'Mínimo de 8 caracteres'}
+                                    />
+                                )}
+                                {mode === 'recover' && (
+                                    <fieldset className="space-y-2 rounded-2xl border border-slate-200 p-3 dark:border-slate-700">
+                                        <legend className="px-1 text-sm font-bold text-slate-700 dark:text-slate-200">Receber código por</legend>
+                                        <label className="flex min-h-10 items-center gap-2 text-sm text-slate-800 dark:text-slate-200">
+                                            <input type="radio" name="recovery-channel" checked={recoveryChannel === 'sms'} onChange={() => setRecoveryChannel('sms')} />
+                                            SMS no telefone cadastrado
+                                        </label>
+                                        <label className="flex min-h-10 items-center gap-2 text-sm text-slate-800 dark:text-slate-200">
+                                            <input type="radio" name="recovery-channel" checked={recoveryChannel === 'email'} onChange={() => setRecoveryChannel('email')} />
+                                            E-mail previamente verificado
+                                        </label>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">Por privacidade, não informamos se o telefone possui conta ou e-mail verificado.</p>
+                                    </fieldset>
+                                )}
 
                                 {mode === 'register' && (
                                     <>
@@ -541,12 +622,12 @@ export function CustomerAuthPortal({ storeSlug, storeId, hideTrigger = false }: 
 
                                 <button
                                     type="button"
-                                    onClick={mode === 'login' ? submitPasswordLogin : sendRegistrationOtp}
+                                    onClick={mode === 'login' ? submitPasswordLogin : mode === 'recover' ? sendRecoveryCode : sendRegistrationOtp}
                                     disabled={loading || !resolvedStoreId}
                                     className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3.5 font-black text-white transition hover:bg-emerald-700 disabled:opacity-50"
                                 >
                                     {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-                                    {mode === 'login' ? 'Entrar' : 'Confirmar telefone por SMS'}
+                                    {mode === 'login' ? 'Entrar' : mode === 'recover' ? 'Enviar código de recuperação' : 'Confirmar telefone por SMS'}
                                 </button>
 
                                 {mode === 'login' && (
@@ -560,12 +641,21 @@ export function CustomerAuthPortal({ storeSlug, storeId, hideTrigger = false }: 
                                     </button>
                                 )}
 
+                                {mode === 'login' && (
+                                    <button
+                                        type="button"
+                                        onClick={() => resetFlow('recover')}
+                                        className="w-full py-1 text-sm font-bold text-emerald-700 hover:underline dark:text-emerald-400"
+                                    >
+                                        Esqueci minha senha
+                                    </button>
+                                )}
                                 <button
                                     type="button"
                                     onClick={() => resetFlow(mode === 'login' ? 'register' : 'login')}
                                     className="w-full py-2 text-sm font-bold text-emerald-700 hover:underline dark:text-emerald-400"
                                 >
-                                    {mode === 'login' ? 'Ainda não tenho conta' : 'Já tenho conta'}
+                                    {mode === 'login' ? 'Ainda não tenho conta' : 'Voltar para entrar'}
                                 </button>
                             </div>
                         )}
@@ -613,6 +703,34 @@ export function CustomerAuthPortal({ storeSlug, storeId, hideTrigger = false }: 
                                     >
                                         Reenviar código
                                     </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {step === 'recovery_otp' && (
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="mb-1 block text-sm font-bold text-slate-700 dark:text-slate-200">Código de recuperação</label>
+                                    <input
+                                        type="text"
+                                        value={otp}
+                                        onChange={(event) => setOtp(event.target.value.replace(/\\D/g, '').slice(0, 6))}
+                                        inputMode="numeric"
+                                        autoComplete="one-time-code"
+                                        maxLength={6}
+                                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center text-2xl font-bold tracking-[0.3em] text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                                        placeholder="000000"
+                                    />
+                                </div>
+                                <PasswordField label="Nova senha" value={password} onChange={setPassword} autoComplete="new-password" placeholder="Mínimo de 8 caracteres" />
+                                <PasswordField label="Confirme a nova senha" value={confirmPassword} onChange={setConfirmPassword} autoComplete="new-password" placeholder="Repita a nova senha" />
+                                <button type="button" onClick={completePasswordRecovery} disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3.5 font-black text-white hover:bg-emerald-700 disabled:opacity-50">
+                                    {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+                                    Salvar nova senha
+                                </button>
+                                <div className="flex items-center justify-between gap-3 text-sm">
+                                    <button type="button" onClick={() => { setStep('form'); setError(''); setNotice(''); }} className="font-bold text-slate-500 hover:underline dark:text-slate-400">Alterar canal</button>
+                                    <button type="button" onClick={resendCode} disabled={loading} className="font-bold text-emerald-700 hover:underline disabled:opacity-50 dark:text-emerald-400">Reenviar código</button>
                                 </div>
                             </div>
                         )}
