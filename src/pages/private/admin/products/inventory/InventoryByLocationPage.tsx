@@ -4,6 +4,8 @@ import { createPortal } from 'react-dom';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { useInventoryByLocation } from './hooks/useInventoryByLocation';
 import { useInventoryTransit } from './hooks/useInventoryTransit';
+import { useInventoryDeliveryInRoute } from './hooks/useInventoryDeliveryInRoute';
+import { InventoryCompactOverview } from './components/InventoryCompactOverview';
 import { mergeInventoryRowsWithTransit } from './utils/mergeInventoryTransit';
 import { downloadCsv } from '@/utils/export/csv';
 import { formatNumberPtBr } from '@/utils/export/formatters';
@@ -99,6 +101,7 @@ export default function InventoryByLocationPage() {
   const navigate = useNavigate();
   const { rows: rawRows, loading, storeId } = useInventoryByLocation();
   const { rows: transitRows } = useInventoryTransit(storeId);
+  const { byProduct: deliveryByProduct, loading: deliveryLoading, error: deliveryError } = useInventoryDeliveryInRoute(storeId);
   const { permissions } = usePermissions(storeId ?? null);
   const canCreateTransfers = hasEffectivePermission(permissions, 'transfers.create');
   const canCreateQuotes =
@@ -123,6 +126,7 @@ export default function InventoryByLocationPage() {
   const [groupBy, setGroupBy] = useState<'none' | 'product' | 'location'>('product');
   const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(new Set());
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const toggleGroup = (key: string) => setExpandedGroupIds((current) => {
     const next = new Set(current);
@@ -481,107 +485,6 @@ export default function InventoryByLocationPage() {
         flat
       >
 
-      {/* Cards gerenciais */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8">
-        <div className="rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700">
-          <div className="text-sm text-gray-500">Posições</div>
-          <div className="text-xl font-bold">{filteredRows.length}</div>
-        </div>
-
-        <div className="rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700">
-          <div className="text-sm text-gray-500">Locais</div>
-          <div className="text-xl font-bold">{filteredLocationsCount}</div>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setSelectedAction((current) => (current === 'buy' ? 'all' : 'buy'))}
-          className="text-left rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700 transition hover:border-red-300 dark:hover:border-red-700"
-          title="Filtrar itens sugeridos para compra"
-        >
-          <div className="text-sm text-gray-500 flex items-center gap-1">
-            Comprar
-            <InfoTooltip text="Produtos cujo estoque global está zerado ou crítico. A ação correta tende a ser compra/reposição." />
-          </div>
-          <div className="mt-2 flex items-center gap-2">
-            <ShoppingCart size={18} className="text-red-500" />
-            <span className="text-xl font-bold text-red-600 dark:text-red-400">
-              {filteredSummary.recommendedBuy}
-            </span>
-          </div>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setSelectedAction((current) => (current === 'transfer' ? 'all' : 'transfer'))}
-          className="text-left rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700 transition hover:border-blue-300 dark:hover:border-blue-700"
-          title="Filtrar itens sugeridos para transferência"
-        >
-          <div className="text-sm text-gray-500 flex items-center gap-1">
-            Transferir
-            <InfoTooltip text="Produtos com saldo global, mas com ruptura ou criticidade em algum local. A ação sugerida é redistribuição." />
-          </div>
-          <div className="mt-2 flex items-center gap-2">
-            <ArrowRightLeft size={18} className="text-blue-500" />
-            <span className="text-xl font-bold text-blue-600 dark:text-blue-400">
-              {filteredSummary.recommendedTransfer}
-            </span>
-          </div>
-        </button>
-
-        <div className="rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700">
-          <div className="text-sm text-gray-500 flex items-center gap-1">
-            Locais críticos
-            <InfoTooltip text="Quantidade de posições por local sem estoque ou abaixo do mínimo provisório." />
-          </div>
-          <div className="mt-2 flex items-center gap-2">
-            <AlertTriangle size={18} className="text-amber-500" />
-            <span className="text-xl font-bold text-amber-600 dark:text-amber-400">
-              {filteredSummary.locationStockout + filteredSummary.locationCritical}
-            </span>
-          </div>
-        </div>
-
-        <div className="rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700">
-          <div className="text-sm text-gray-500 flex items-center gap-1">
-            Disponível
-            <InfoTooltip text="Soma do disponível das posições filtradas." />
-          </div>
-          <div className="mt-2 flex items-center gap-2">
-            <Archive size={18} className="text-emerald-500" />
-            <span className="text-xl font-bold">
-              {formatNumberPtBr(filteredSummary.available)}
-            </span>
-          </div>
-        </div>
-
-        <div className="rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700">
-          <div className="text-sm text-gray-500 flex items-center gap-1">
-            Trânsito entrada
-            <InfoTooltip text="Quantidade total a caminho desta localização, ainda não recebida." />
-          </div>
-          <div className="mt-2 flex items-center gap-2">
-            <Truck size={18} className="text-sky-500" />
-            <span className="text-xl font-bold text-sky-600 dark:text-sky-400">
-              {formatNumberPtBr(totalInTransitIn)}
-            </span>
-          </div>
-        </div>
-
-        <div className="rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700">
-          <div className="text-sm text-gray-500 flex items-center gap-1">
-            Trânsito saída
-            <InfoTooltip text="Quantidade total enviada desta localização, ainda não recebida no destino." />
-          </div>
-          <div className="mt-2 flex items-center gap-2">
-            <Truck size={18} className="text-amber-500" />
-            <span className="text-xl font-bold text-amber-600 dark:text-amber-400">
-              {formatNumberPtBr(totalInTransitOut)}
-            </span>
-          </div>
-        </div>
-      </div>
-
       {/* Filtros compactos e recolhíveis, inclusive quando há critérios ativos. */}
       <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800">
         <div className="flex flex-wrap items-center gap-2">
@@ -720,7 +623,126 @@ export default function InventoryByLocationPage() {
         )}
       </div>
 
-      {/* Tabela */}
+
+      <InventoryCompactOverview
+        rows={filteredRows}
+        selectedLocation={selectedLocation}
+        deliveryByProduct={deliveryByProduct}
+        deliveryLoading={deliveryLoading}
+        deliveryError={deliveryError}
+      />
+
+      <button type="button" onClick={() => setAdvancedOpen((open) => !open)} aria-expanded={advancedOpen}
+        className="mt-3 mb-3 flex min-h-11 w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+        <span>{advancedOpen ? 'Recolher análise gerencial e operações' : 'Mostrar análise gerencial e operações detalhadas'}</span>
+        {advancedOpen ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
+      </button>
+
+      {advancedOpen && (
+        <div className="space-y-4">
+                {/* Cards gerenciais */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8">
+        <div className="rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700">
+          <div className="text-sm text-gray-500">Posições</div>
+          <div className="text-xl font-bold">{filteredRows.length}</div>
+        </div>
+
+        <div className="rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700">
+          <div className="text-sm text-gray-500">Locais</div>
+          <div className="text-xl font-bold">{filteredLocationsCount}</div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setSelectedAction((current) => (current === 'buy' ? 'all' : 'buy'))}
+          className="text-left rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700 transition hover:border-red-300 dark:hover:border-red-700"
+          title="Filtrar itens sugeridos para compra"
+        >
+          <div className="text-sm text-gray-500 flex items-center gap-1">
+            Comprar
+            <InfoTooltip text="Produtos cujo estoque global está zerado ou crítico. A ação correta tende a ser compra/reposição." />
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <ShoppingCart size={18} className="text-red-500" />
+            <span className="text-xl font-bold text-red-600 dark:text-red-400">
+              {filteredSummary.recommendedBuy}
+            </span>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setSelectedAction((current) => (current === 'transfer' ? 'all' : 'transfer'))}
+          className="text-left rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700 transition hover:border-blue-300 dark:hover:border-blue-700"
+          title="Filtrar itens sugeridos para transferência"
+        >
+          <div className="text-sm text-gray-500 flex items-center gap-1">
+            Transferir
+            <InfoTooltip text="Produtos com saldo global, mas com ruptura ou criticidade em algum local. A ação sugerida é redistribuição." />
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <ArrowRightLeft size={18} className="text-blue-500" />
+            <span className="text-xl font-bold text-blue-600 dark:text-blue-400">
+              {filteredSummary.recommendedTransfer}
+            </span>
+          </div>
+        </button>
+
+        <div className="rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700">
+          <div className="text-sm text-gray-500 flex items-center gap-1">
+            Locais críticos
+            <InfoTooltip text="Quantidade de posições por local sem estoque ou abaixo do mínimo provisório." />
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <AlertTriangle size={18} className="text-amber-500" />
+            <span className="text-xl font-bold text-amber-600 dark:text-amber-400">
+              {filteredSummary.locationStockout + filteredSummary.locationCritical}
+            </span>
+          </div>
+        </div>
+
+        <div className="rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700">
+          <div className="text-sm text-gray-500 flex items-center gap-1">
+            Disponível
+            <InfoTooltip text="Soma do disponível das posições filtradas." />
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <Archive size={18} className="text-emerald-500" />
+            <span className="text-xl font-bold">
+              {formatNumberPtBr(filteredSummary.available)}
+            </span>
+          </div>
+        </div>
+
+        <div className="rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700">
+          <div className="text-sm text-gray-500 flex items-center gap-1">
+            Trânsito entrada
+            <InfoTooltip text="Quantidade total a caminho desta localização, ainda não recebida." />
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <Truck size={18} className="text-sky-500" />
+            <span className="text-xl font-bold text-sky-600 dark:text-sky-400">
+              {formatNumberPtBr(totalInTransitIn)}
+            </span>
+          </div>
+        </div>
+
+        <div className="rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700">
+          <div className="text-sm text-gray-500 flex items-center gap-1">
+            Trânsito saída
+            <InfoTooltip text="Quantidade total enviada desta localização, ainda não recebida no destino." />
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <Truck size={18} className="text-amber-500" />
+            <span className="text-xl font-bold text-amber-600 dark:text-amber-400">
+              {formatNumberPtBr(totalInTransitOut)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+
+                {/* Tabela */}
       <div className="space-y-4">
         <div className="flex items-center">
           <h2 className="font-semibold text-gray-900 dark:text-white">
@@ -1095,6 +1117,9 @@ export default function InventoryByLocationPage() {
           </table>
         </div>
       </div>
+
+        </div>
+      )}
     </PageContainer>
   </>
 );
