@@ -28,7 +28,14 @@ describe('Gelinhares test-only disclaimer', () => {
         expect(hasAcknowledgedGelinharesTest()).toBe(false);
         fireEvent.click(screen.getByRole('button', { name: /entendi: estou em uma loja de testes/i }));
         expect(hasAcknowledgedGelinharesTest()).toBe(true);
+        expect(screen.queryByText(/Aviso de testes reconhecido nesta sessão/i)).toBeNull();
+        expect(screen.queryByText(/Não realize pagamentos reais/i)).toBeNull();
+        const expand = screen.getByRole('button', { name: /Gelinhares — loja exclusiva de testes e demonstração/i });
+        expect(expand.getAttribute('aria-expanded')).toBe('false');
+        fireEvent.click(expand);
         expect(screen.getByText(/Aviso de testes reconhecido nesta sessão/i)).toBeTruthy();
+        fireEvent.click(expand);
+        expect(screen.queryByText(/Não realize pagamentos reais/i)).toBeNull();
     });
 
     it('does not display the warning on another slug', () => {
