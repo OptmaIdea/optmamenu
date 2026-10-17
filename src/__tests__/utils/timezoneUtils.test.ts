@@ -27,7 +27,6 @@ describe('timezoneUtils', () => {
             // Create a date that is unambiguously Feb 10 in Brazil timezone
             const date = new Date('2025-02-10T12:00:00Z')
             const result = timezoneUtils.formatBrazilDate(date)
-            // Should contain 10/02/2025
             expect(result).toBe('10/02/2025')
         })
     })
@@ -43,11 +42,15 @@ describe('timezoneUtils', () => {
             expect(timezoneUtils.formatBrazilDateTime(undefined)).toBe('-')
         })
 
-        it('should format an ISO string with timezone offset', () => {
-            // 2025-02-10T15:30:00-03:00 → should strip offset, force UTC, format to Brazil
+        it('should preserve the instant represented by an ISO string with an explicit Brazil offset', () => {
+            // 2025-02-10T15:30:00-03:00 already represents 15:30 in São Paulo.
             const result = timezoneUtils.formatBrazilDateTime('2025-02-10T15:30:00-03:00')
-            // After stripping -03:00 and adding Z: "2025-02-10T15:30:00Z"
-            // In São Paulo (UTC-3): 12:30 on 10/02/2025
+            expect(result).toContain('10/02/2025')
+            expect(result).toContain('15:30')
+        })
+
+        it('should convert an explicit UTC instant to Brazil time', () => {
+            const result = timezoneUtils.formatBrazilDateTime('2025-02-10T15:30:00Z')
             expect(result).toContain('10/02/2025')
             expect(result).toContain('12:30')
         })

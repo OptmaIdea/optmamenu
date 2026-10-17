@@ -571,7 +571,7 @@ export function SupplierFormModal({
                             />
                         </Field>
 
-                        <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs leading-relaxed text-blue-700">
+                        <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs leading-relaxed text-blue-800 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
                             <strong>Importante:</strong> &quot;Inativo&quot; remove o fornecedor do uso operacional,
                             mas preserva o histórico. &quot;Bloqueio operacional&quot; é uma trava forte que impede novas compras.
                             &quot;Rejeitado&quot; impede novas compras, mas não apaga compras antigas.

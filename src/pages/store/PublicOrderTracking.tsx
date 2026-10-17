@@ -2,6 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { CheckCircle2, Clock3, PackageCheck, ShoppingBag, Store, XCircle } from 'lucide-react';
 import { PublicOrderService, type PublicOrderTrackingResponse } from '@/services/publicOrderService';
+import PublicOrderPaymentProofCard from '@/pages/store/components/PublicOrderPaymentProofCard';
+import PublicOrderOptmaPayCard from '@/pages/store/components/PublicOrderOptmaPayCard';
+import { GelinharesTestNotice, isGelinharesTestEnvironment } from '@/pages/store/components/GelinharesTestNotice';
+import { getOrderPaymentPresentation } from '@/utils/storefront/orderPaymentPresentation';
+
 
 const STATUS_LABELS: Record<string, string> = {
   reserved: 'Aguardando confirmação',
@@ -50,6 +55,7 @@ export default function PublicOrderTracking() {
 
   useEffect(() => {
     let active = true;
+    let shouldCheckPayment = true;
 
     async function load() {
       if (!publicOrderToken) {
@@ -66,6 +72,8 @@ export default function PublicOrderTracking() {
           return;
         }
         setData(result);
+        shouldCheckPayment = !(['paid','refunded'].includes(result.order.payment_status || '')
+            || ['cancelled','expired'].includes(result.order.status || ''));
       } catch (err) {
         console.error('Erro ao consultar pedido público:', err);
         if (active) setError('Não foi possível carregar o pedido agora.');
@@ -74,9 +82,18 @@ export default function PublicOrderTracking() {
       }
     }
 
-    load();
+    void load();
+    // A situação financeira pode mudar pelo webhook/API depois de criado o pedido.
+    // Reconsulta leve e apenas na guia visível, parando quando a cobrança for finalizada.
+    const timer = window.setInterval(() => {
+      if (shouldCheckPayment && document.visibilityState === 'visible') void load();
+    }, 12000);
+    const checkOnFocus = () => { if (shouldCheckPayment) void load(); };
+    window.addEventListener('focus', checkOnFocus);
     return () => {
       active = false;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', checkOnFocus);
     };
   }, [publicOrderToken]);
 
@@ -113,10 +130,14 @@ export default function PublicOrderTracking() {
   }
 
   const { order, store } = data;
+  const isTestStore = isGelinharesTestEnvironment(store.slug);
+  const paymentPresentation = getOrderPaymentPresentation(order.payment_status);
+  const isPaid = paymentPresentation.confirmed;
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900">
       <main className="mx-auto max-w-2xl space-y-5">
+        <GelinharesTestNotice slug={store.slug} />
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-center gap-4">
             {store.logo_url ? (
@@ -141,6 +162,18 @@ export default function PublicOrderTracking() {
             </div>
           </div>
         </section>
+
+        <section aria-label="Situação do pagamento" className={`rounded-2xl border p-4 text-sm ${paymentPresentation.confirmed ? 'border-emerald-200 bg-emerald-50 text-emerald-950' : 'border-amber-200 bg-amber-50 text-amber-950'}`}>
+          <p className="font-black">{paymentPresentation.title}</p>
+          <p className="mt-1">{paymentPresentation.description}</p>
+        </section>
+        {publicOrderToken && <PublicOrderOptmaPayCard token={publicOrderToken} />}
+        {!isTestStore && publicOrderToken && <PublicOrderPaymentProofCard token={publicOrderToken} />}
+        {isTestStore && (
+          <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+            Pedido de homologação: somente pagamentos fictícios pelo OptmaPay Sandbox podem ser testados. Não faça Pix, transferência, depósito ou pagamento com cartão reais.
+          </section>
+        )}
 
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center gap-2">
@@ -173,7 +206,8 @@ export default function PublicOrderTracking() {
           <div><span className="block text-xs text-slate-500">Cliente</span><strong>{order.customer_name || 'Cliente não identificado'}</strong></div>
           <div><span className="block text-xs text-slate-500">Criado em</span><strong>{formatDateTime(order.created_at)}</strong></div>
           <div><span className="block text-xs text-slate-500">Entrega/retirada</span><strong>{order.delivery_method_name || order.fulfillment_type}</strong></div>
-          <div><span className="block text-xs text-slate-500">Pagamento</span><strong>{order.payment_method_name || 'A combinar'}</strong></div>
+          <div><span className="block text-xs text-slate-500">Forma escolhida</span><strong>{order.payment_method_name || 'A combinar'}</strong></div>
+          <div><span className="block text-xs text-slate-500">Situação financeira</span><strong className={isPaid ? 'text-emerald-700' : 'text-amber-700'}>{paymentPresentation.shortLabel}</strong></div>
         </section>
 
         <div className="text-center">
@@ -181,6 +215,7 @@ export default function PublicOrderTracking() {
             Voltar ao cardápio
           </Link>
         </div>
+
       </main>
     </div>
   );

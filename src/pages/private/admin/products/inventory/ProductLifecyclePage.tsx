@@ -60,6 +60,7 @@ type MovementOperationFilter =
   | 'transfer'
   | 'transfer_divergence'
   | 'adjustment'
+  | 'reservation'
   | 'entry'
   | 'exit';
 
@@ -72,6 +73,7 @@ const movementOperationFilterOptions: Array<{ value: MovementOperationFilter; la
   { value: 'transfer', label: 'Transferências' },
   { value: 'transfer_divergence', label: 'Divergências de transferência' },
   { value: 'adjustment', label: 'Ajustes e baixas' },
+  { value: 'reservation', label: 'Reservas' },
   { value: 'entry', label: 'Entradas' },
   { value: 'exit', label: 'Saídas' },
 ];
@@ -272,6 +274,7 @@ export default function ProductLifecyclePage() {
       if (movementOperationFilter === 'purchase') return source === 'purchase_document';
       if (movementOperationFilter === 'transfer') return source === 'stock_transfer';
       if (movementOperationFilter === 'transfer_divergence') return false;
+      if (movementOperationFilter === 'reservation') return type === 'reservation';
       if (movementOperationFilter === 'entry') return type === 'entry';
       if (movementOperationFilter === 'exit') return type === 'exit';
 
@@ -504,7 +507,7 @@ export default function ProductLifecyclePage() {
       filename: `vida_produto_movimentacoes_${row.product_name}_${new Date().toISOString().slice(0, 10)}.csv`,
       headers: ['Vida do produto - movimentações e divergências'],
       rows: [
-        ['Movimentações físicas'],
+        ['Movimentações de estoque e reservas'],
         [
           'Data/Hora',
           'Produto',
@@ -994,7 +997,7 @@ export default function ProductLifecyclePage() {
                     <EmptyState
                       icon={<History className="h-5 w-5" />}
                       title="Nenhuma movimentação encontrada com os filtros atuais"
-                      description="Ajuste os filtros, a busca ou a ordenação para voltar a visualizar os eventos físicos deste produto."
+                      description="Ajuste os filtros, a busca ou a ordenação para voltar a visualizar os eventos operacionais deste produto."
                     />
                   )}
 
