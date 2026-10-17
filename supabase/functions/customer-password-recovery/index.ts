@@ -135,15 +135,19 @@ Deno.serve(async (req: Request) => {
   const storeName = String(store.name || store.slug || "Loja").slice(0, 70);
   const fullname = String(customer.full_name || customer.nickname || "Cliente").slice(0, 120);
   const subject = `Código para recuperar sua senha — ${storeName}`;
-  const html = `<!doctype html><html lang="pt-BR"><body style="font-family:Arial,sans-serif;max-width:600px;margin:28px auto;padding:18px;color:#17324a">
-    <h2>${escapeHtml(storeName)} — recuperação de senha</h2>
-    <p>Olá, ${escapeHtml(fullname)}.</p>
-    <p>Recebemos um pedido de recuperação da senha da sua conta.</p>
-    <p style="font-size:30px;letter-spacing:6px;font-weight:bold">${otp}</p>
-    <p>Este código expira em <strong>5 minutos</strong> e só pode ser usado uma vez. Não compartilhe.</p>
-    <p>Se você não solicitou a recuperação, ignore esta mensagem. Sua senha não será alterada.</p>
-    <p style="font-size:12px;color:#5e6c79">Mensagem transacional de segurança, sem finalidade publicitária.</p>
-  </body></html>`;
+  const { data: brandInfo } = await service.from("stores").select("logo_url").eq("id", storeId).maybeSingle();
+  const logoUrl = String(brandInfo?.logo_url || "");
+  const brand = /^https:\/\//.test(logoUrl)
+    ? '<img src="' + escapeHtml(logoUrl) + '" alt="' + escapeHtml(storeName) + '" style="display:block;max-width:160px;max-height:72px;margin:0 auto 18px">'
+    : '<div style="font-size:23px;font-weight:800;margin-bottom:18px">' + escapeHtml(storeName) + '</div>';
+  const html = '<!doctype html><html lang="pt-BR"><body style="margin:0;background:#f3f6f8;font-family:Arial,Helvetica,sans-serif;color:#172033"><div style="max-width:620px;margin:32px auto;padding:0 16px"><div style="background:white;border-radius:20px;padding:32px">'
+    + brand + '<div style="display:inline-block;background:#eef8f4;color:#0a7d61;font-size:12px;font-weight:700;padding:8px;border-radius:10px">SEGURANÇA DA CONTA</div>'
+    + '<h1 style="font-size:24px;margin:18px 0">Recupere sua senha</h1><p>Olá, ' + escapeHtml(fullname) + '.</p><p>Use este código para redefinir a senha da sua conta:</p>'
+    + '<p style="background:#eef8f4;border-radius:14px;padding:20px;text-align:center;font-size:32px;letter-spacing:6px;font-weight:800;color:#047857">' + otp + '</p>'
+    + '<p>Este código expira em <strong>5 minutos</strong>, é de uso único e não deve ser compartilhado.</p>'
+    + '<p style="background:#f7f9fb;border-radius:12px;padding:16px">Se você não solicitou a recuperação, ignore esta mensagem. Sua senha atual não será alterada.</p>'
+    + '<p style="font-size:12px;color:#7a8493">Mensagem automática de segurança da loja, sem publicidade.</p><hr style="border:0;border-top:1px solid #e8ecef;margin:22px 0">'
+    + '<p style="text-align:center;color:#8a93a1;font-size:11px">Enviado em nome de ' + escapeHtml(storeName) + ' com tecnologia OptmaMenu.</p></div></div></body></html>';
 
   let sent = false;
   let messageId: string | null = null;
