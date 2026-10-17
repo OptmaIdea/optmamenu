@@ -17,6 +17,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { isCurrentOrderStatus } from '@/utils/adminOrderVisibility';
 import { formatTimeInRoute } from '@/utils/orders/timeInRoute';
 import { getUnsafeCancelReason } from '@/utils/orders/orderCancellationSafety';
+import { OrderCancellationInbox } from './OrderCancellationInbox';
 
 function getAutomaticExpirationAt(order: Order): string | null {
     const metadata = (order as Order & { commercial_metadata?: Record<string, unknown> }).commercial_metadata;
@@ -638,6 +639,7 @@ export default function Orders() {
 
     return (
         <PageContainer title="Pedidos" subtitle="Gerencie os pedidos chegando em tempo real." category="Comercial" icon={<ShoppingBag className="text-[#19A999]" size={28} />} flat>
+            <OrderCancellationInbox storeId={activeStoreId} canReview={canCancelOrders} />
             <div className="flex min-h-0 flex-col lg:h-[calc(100vh-210px)] lg:overflow-hidden">
                 {focusedOrderId ? (
                     <div className="mb-3 flex shrink-0 flex-col gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 font-candara shadow-sm dark:border-emerald-900/50 dark:bg-emerald-950/20 sm:flex-row sm:items-center sm:justify-between">
