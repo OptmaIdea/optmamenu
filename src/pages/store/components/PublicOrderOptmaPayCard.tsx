@@ -255,6 +255,15 @@ export default function PublicOrderOptmaPayCard({ token }: { token: string }) {
     );
   }
 
+  if (['cancelled','expired','completed'].includes(state?.orderStatus || '')) {
+    return (
+      <section role="status" className="rounded-2xl border border-slate-300 bg-slate-50 p-4 text-sm text-slate-700">
+        <strong>Pagamento indisponível: pedido encerrado.</strong>
+        <p className="mt-1">Não é possível realizar uma nova cobrança neste pedido.</p>
+      </section>
+    );
+  }
+
   if (!state?.eligible && !state?.intent) return null;
 
   if (paid) {
