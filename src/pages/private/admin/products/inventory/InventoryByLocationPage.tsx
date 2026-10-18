@@ -101,7 +101,7 @@ export default function InventoryByLocationPage() {
   const navigate = useNavigate();
   const { rows: rawRows, loading, storeId } = useInventoryByLocation();
   const { rows: transitRows } = useInventoryTransit(storeId);
-  const { byProduct: deliveryByProduct, loading: deliveryLoading, error: deliveryError } = useInventoryDeliveryInRoute(storeId);
+  const { byProduct: deliveryByProduct, byLocation: deliveryByLocation, loading: deliveryLoading, error: deliveryError } = useInventoryDeliveryInRoute(storeId);
   const { permissions } = usePermissions(storeId ?? null);
   const canCreateTransfers = hasEffectivePermission(permissions, 'transfers.create');
   const canCreateQuotes =
@@ -450,7 +450,7 @@ export default function InventoryByLocationPage() {
     return (
       <PageContainer
         title="Estoque"
-        subtitle="Visão multiestoque com saldo físico, reservado e disponível por local."
+        subtitle="Estoque agrupado por produto, entregas em rota, transferências e saldo disponível por local."
         category="Produtos"
         icon={<FileText size={28} className="text-[#19A999]" />}
         flat
@@ -479,7 +479,7 @@ export default function InventoryByLocationPage() {
 
       <PageContainer
         title="Estoque"
-        subtitle="Visão multiestoque com saldo físico, reservado e disponível por local."
+        subtitle="Estoque agrupado por produto, entregas em rota, transferências e saldo disponível por local."
         category="Produtos"
         icon={<FileText size={28} className="text-[#19A999]" />}
         flat
@@ -522,8 +522,8 @@ export default function InventoryByLocationPage() {
             onChange={(e) => {
               const nextLocation = e.target.value;
               setSelectedLocation(nextLocation);
-              setGroupBy(nextLocation === 'all' ? 'product' : 'location');
-              setExpandedGroupIds(nextLocation === 'all' ? new Set() : new Set([nextLocation]));
+              setGroupBy('product');
+              setExpandedGroupIds(new Set());
               setFiltersOpen(false);
             }}
             className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2 text-sm outline-none"
@@ -562,34 +562,7 @@ export default function InventoryByLocationPage() {
             <option value="ok">OK</option>
           </select>
 
-          <select
-            value={groupBy}
-            onChange={(e) => {
-              setGroupBy(e.target.value as 'none' | 'product' | 'location');
-              setExpandedGroupIds(new Set());
-              setFiltersOpen(false);
-            }}
-            className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2 text-sm outline-none"
-          >
-            <option value="none">Sem agrupamento</option>
-            <option value="product">Agrupar por Produto</option>
-            <option value="location">Agrupar por Local</option>
-          </select>
 
-          <select
-            value={sortConfig?.key || 'none'}
-            onChange={(e) => {
-              if (e.target.value === 'none') setSortConfig(null);
-              else handleSort(e.target.value);
-            }}
-            className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2 text-sm outline-none"
-          >
-            <option value="none">Ordenar por...</option>
-            <option value="product_name">Produto (A-Z)</option>
-            <option value="location_name">Local (A-Z)</option>
-            <option value="available">Estoque Disponível</option>
-            <option value="on_hand">Estoque Físico</option>
-          </select>
         </div>
 
         <div className="flex items-center gap-4 pt-1">
@@ -628,6 +601,7 @@ export default function InventoryByLocationPage() {
         rows={filteredRows}
         selectedLocation={selectedLocation}
         deliveryByProduct={deliveryByProduct}
+        deliveryByLocation={deliveryByLocation}
         deliveryLoading={deliveryLoading}
         deliveryError={deliveryError}
       />

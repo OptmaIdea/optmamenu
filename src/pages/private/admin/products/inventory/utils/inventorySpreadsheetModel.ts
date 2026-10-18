@@ -72,6 +72,11 @@ export function buildInventorySheetRows(
     const sum=(key:keyof InventorySheetLocation)=>locations.reduce((total,item)=>total+numeric(item[key]),0);
     const inDelivery=numeric(byProduct[id]?.quantity);
     const assigned=sum('inDelivery');
+    if (assigned >= inDelivery) {
+      // A ausência de uma reserva consumida neste local equivale a zero somente
+      // quando todas as entregas do produto foram atribuídas a outros locais.
+      for (const local of locations) if (local.inDelivery == null) local.inDelivery = 0;
+    }
     return {
       id,name:group[0].product_name,locations,
       total:sum('total'),reserved:sum('reserved'),available:sum('available'),
