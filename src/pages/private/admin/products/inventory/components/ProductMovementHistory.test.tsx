@@ -55,9 +55,10 @@ describe('Vida do Produto — ocorrências compactas', () => {
     expect(getTimelineEventKey(items[1])).toBe('divergence:difference-1');
     fireEvent.click(screen.getByRole('button', { name: 'Expandir tudo' }));
     expect(screen.getByText('190 → 160')).toBeTruthy();
-    expect(screen.getByText(/A diferença já foi registrada/)).toBeTruthy();
+    expect(screen.getByText(/Conferência com divergência/)).toBeTruthy();
+    expect(screen.getByText(/Perda 3/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Recolher tudo' }));
     expect(screen.queryByText('190 → 160')).toBeNull();
-    expect(screen.queryByText(/A diferença já foi registrada/)).toBeNull();
+    expect(screen.queryByText(/Conferência com divergência/)).toBeNull();
   });
 });
