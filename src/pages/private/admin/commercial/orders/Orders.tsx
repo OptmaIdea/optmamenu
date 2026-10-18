@@ -72,6 +72,14 @@ export default function Orders() {
         [focusedOrderId, orders],
     );
 
+    const isAwaitingAdvancePayment = (order: Order) => {
+        const timing = getCheckoutPaymentInfo(order).timing;
+        const payment = getPublicOrderFields(order).payment_status || order.payment_status;
+        return timing === 'advance' && payment !== 'paid'
+            && ['reserved', 'confirmed', 'ready'].includes(order.status);
+    };
+    const awaitingAdvanceCount = orders.filter(isAwaitingAdvancePayment).length;
+
     const displayedOrders = useMemo(() => {
         if (focusedOrderId) return orders.filter((order) => order.id === focusedOrderId);
 
@@ -79,8 +87,9 @@ export default function Orders() {
         return orders
             .filter((o) => {
                 if (filterStatus === 'current') {
-                    if (!isCurrentOrderStatus(o.status)) return false;
+                    if (!isCurrentOrderStatus(o.status) || isAwaitingAdvancePayment(o)) return false;
                 }
+                if (filterStatus === 'awaiting_payment' && !isAwaitingAdvancePayment(o)) return false;
 
                 const activityAt = getOrderActivityAt(o);
                 if (startDate || endDate) {
@@ -117,6 +126,8 @@ export default function Orders() {
         ? 'O pedido selecionado não foi encontrado nesta unidade.'
         : filterStatus === 'current'
             ? 'Nenhum pedido aguardando atendimento agora. Vendas de balcão concluídas ficam no dashboard, vida do cliente e histórico comercial.'
+            : filterStatus === 'awaiting_payment'
+                ? 'Nenhum pedido de pagamento antecipado aguardando confirmação.'
             : filterStatus === 'expired_auto'
                 ? 'Nenhum pedido foi cancelado automaticamente por expiração.'
                 : 'Nenhum pedido encontrado para o filtro selecionado.';
@@ -131,7 +142,7 @@ export default function Orders() {
                 throw new Error('Nenhuma loja ativa selecionada.');
             }
 
-            const rpcStatus = focusedOrderId || filterStatus === 'all' || filterStatus === 'current' ? 'all' : filterStatus;
+            const rpcStatus = focusedOrderId || ['all','current','awaiting_payment'].includes(filterStatus) ? 'all' : filterStatus;
             // Não condicionar a leitura de pedidos a uma segunda consulta em "stores":
             // a RPC já verifica vínculo e permissão efetiva no servidor.
             const { data: result, error } = await supabase.rpc('get_admin_orders_safe', {
@@ -658,6 +669,12 @@ export default function Orders() {
                     <div className="mb-3 shrink-0 space-y-3 rounded-2xl border border-gray-100 bg-white p-3 font-candara shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:mb-4 sm:p-4 sm:space-y-4">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                             <OrderStatusFilter value={filterStatus} onChange={setFilterStatus} />
+                            <button type="button"
+                                onClick={() => setFilterStatus(filterStatus === 'awaiting_payment' ? 'current' : 'awaiting_payment')}
+                                aria-pressed={filterStatus === 'awaiting_payment'}
+                                className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-xl border px-3 text-xs font-black transition ${filterStatus === 'awaiting_payment' ? 'border-amber-600 bg-amber-600 text-white' : 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300'}`}>
+                                Aguardando pagamento ({awaitingAdvanceCount})
+                            </button>
                             <button
                                 type="button"
                                 onClick={() => setFilterStatus(filterStatus === 'out_for_delivery' ? 'current' : 'out_for_delivery')}
@@ -754,6 +771,9 @@ export default function Orders() {
                                                         <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border ${statusColors[order.status]}`}>{getOrderStatusLabel(order)}</span>
                                                         <span className="rounded border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-black uppercase text-sky-800 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-200">{fulfillmentLabel}</span>
                                                         {publicOrder.payment_status === 'paid' && <span className="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-800">Pagamento confirmado</span>}
+                                                        {isAwaitingAdvancePayment(order) && (
+                                                            <span className="rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-black uppercase text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">Aguardando pagamento — não iniciar atendimento</span>
+                                                        )}
                                                         {order.status === 'cancelled' && (
                                                             <span className="rounded border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-black uppercase text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
                                                                 {(order as Order & { commercial_metadata?: Record<string, unknown> }).commercial_metadata?.cancel_source === 'customer_self_service'
