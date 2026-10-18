@@ -54,6 +54,7 @@ export default function OnlineOrderSettingsPage({ withoutHeader = false, disable
     const [slug, setSlug] = useState('');
     const [minimumOrderValue, setMinimumOrderValue] = useState('0');
     const [reservationTimeMinutes, setReservationTimeMinutes] = useState('10');
+    const [prepaymentHoldMinutes, setPrepaymentHoldMinutes] = useState('10');
     const [publicSalesLocationId, setPublicSalesLocationId] = useState('');
     const [whatsappBusiness, setWhatsappBusiness] = useState('');
     const [mainEmail, setMainEmail] = useState('');
@@ -86,6 +87,7 @@ export default function OnlineOrderSettingsPage({ withoutHeader = false, disable
             setSlug(storeData.slug || '');
             setMinimumOrderValue(String(asNumber(storeData.minimum_order_value, 0)));
             setReservationTimeMinutes(String(asNumber(storeData.reservation_time_minutes, 10)));
+            setPrepaymentHoldMinutes(String(asNumber(normalized.prepayment_hold_minutes, asNumber(storeData.reservation_time_minutes, 10))));
             setPublicSalesLocationId(storeData.public_sales_location_id || '');
             setWhatsappBusiness(storeData.contacts?.whatsapp_business || '');
             setMainEmail(storeData.contacts?.main_email || '');
@@ -123,6 +125,12 @@ export default function OnlineOrderSettingsPage({ withoutHeader = false, disable
             if (!confirmed) return;
         }
 
+        const hold = Number(prepaymentHoldMinutes);
+        if (!Number.isInteger(hold) || hold < 5 || hold > 1440) {
+            toast.error('O prazo para pagar antecipadamente deve ser de 5 a 1.440 minutos (24 horas).');
+            return;
+        }
+
         try {
             setSaving(true);
             setError(null);
@@ -140,7 +148,7 @@ export default function OnlineOrderSettingsPage({ withoutHeader = false, disable
                 main_email: mainEmail,
                 website: store?.contacts?.website as string | undefined,
                 social_media: store?.contacts?.social_media as string | undefined,
-                order_settings: normalizeOnlineOrderSettings(orderSettings),
+                order_settings: normalizeOnlineOrderSettings({ ...orderSettings, prepayment_hold_minutes: hold }),
             });
 
             if (!result.ok) {
@@ -240,6 +248,14 @@ export default function OnlineOrderSettingsPage({ withoutHeader = false, disable
                         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <div><label className="text-sm font-bold text-gray-700 dark:text-gray-200">Pedido mínimo para entrega</label><input type="number" min="0" step="0.01" value={minimumOrderValue} onChange={(event) => setMinimumOrderValue(event.target.value)} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 dark:border-gray-700 dark:bg-gray-950 dark:text-white" disabled={disabled} /></div>
                             <div><label className="text-sm font-bold text-gray-700 dark:text-gray-200">Tempo de reserva, em minutos</label><input type="number" min="1" max="240" value={reservationTimeMinutes} onChange={(event) => setReservationTimeMinutes(event.target.value)} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 dark:border-gray-700 dark:bg-gray-950 dark:text-white" disabled={disabled} /></div>
+                            <div>
+                                <label htmlFor="prepayment-hold-minutes" className="text-sm font-bold text-gray-700 dark:text-gray-200">Prazo para pagar antecipadamente (retirada), em minutos</label>
+                                <input id="prepayment-hold-minutes" type="number" min="5" max="1440" step="1" value={prepaymentHoldMinutes}
+                                    onChange={(event) => setPrepaymentHoldMinutes(event.target.value)}
+                                    className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                    disabled={disabled}/>
+                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">De 5 minutos a 24 horas. Se o Pix não for confirmado no prazo, a reserva de retirada pode expirar e liberar os produtos. Não altera o prazo para pagar na retirada nem as políticas de entrega.</p>
+                            </div>
                             <div><label className="text-sm font-bold text-gray-700 dark:text-gray-200">Método padrão para entrega</label><select value={(orderSettings.default_delivery_method_code as string) || ''} onChange={(event) => updateOrderSettings({ default_delivery_method_code: event.target.value || undefined })} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 dark:border-gray-700 dark:bg-gray-950 dark:text-white" disabled={disabled}><option value="">Automático</option>{deliveryMethodOptions.map((method) => <option key={method.id} value={method.code}>{method.name}</option>)}</select></div>
                             <div><label className="text-sm font-bold text-gray-700 dark:text-gray-200">Método padrão para retirada</label><select value={(orderSettings.default_pickup_method_code as string) || ''} onChange={(event) => updateOrderSettings({ default_pickup_method_code: event.target.value || undefined })} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 dark:border-gray-700 dark:bg-gray-950 dark:text-white" disabled={disabled}><option value="">Automático</option>{pickupMethodOptions.map((method) => <option key={method.id} value={method.code}>{method.name}</option>)}</select></div>
                         </div>
