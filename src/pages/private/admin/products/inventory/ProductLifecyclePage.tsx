@@ -6,6 +6,8 @@ import { getActiveStoreId } from '@/utils/activeStore';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import PageContainer from '@/components/common/PageContainer';
 import { useProductLifecycle } from './hooks/useProductLifecycle';
+import { useProductOperationalOccurrences } from './hooks/useProductOperationalOccurrences';
+import { getPhysicalDiscrepancyQuantity } from './services/productOperationalOccurrencesService';
 import { useProductStockMovements } from './hooks/useProductStockMovements';
 import { useProductInventoryAudit } from './hooks/useProductInventoryAudit';
 import { useProductLocationInventory } from './hooks/useProductLocationInventory';
@@ -59,6 +61,8 @@ type MovementOperationFilter =
   | 'purchase_cancel'
   | 'transfer'
   | 'transfer_divergence'
+  | 'purchase_issue'
+  | 'physical_issue'
   | 'adjustment'
   | 'reservation'
   | 'entry'
@@ -72,6 +76,8 @@ const movementOperationFilterOptions: Array<{ value: MovementOperationFilter; la
   { value: 'purchase_cancel', label: 'Compras canceladas' },
   { value: 'transfer', label: 'Transferências' },
   { value: 'transfer_divergence', label: 'Divergências de transferência' },
+  { value: 'purchase_issue', label: 'Ressalvas de compras' },
+  { value: 'physical_issue', label: 'Divergências físicas' },
   { value: 'adjustment', label: 'Ajustes e baixas' },
   { value: 'reservation', label: 'Reservas' },
   { value: 'entry', label: 'Entradas' },
@@ -167,6 +173,8 @@ export default function ProductLifecyclePage() {
     loading: loadingLifecycle,
   } = useProductLifecycle(id);
   const { rows: movementRows, loading: loadingMovements } = useProductStockMovements(id);
+  const { purchaseIssues, physicalDiscrepancies, loading: loadingIssues, error: issuesError } =
+    useProductOperationalOccurrences(storeId, id, activeTab === 'movements');
   const { rows: auditRows, loading: loadingAudit } = useProductInventoryAudit(id);
   const { rows: locationRows, loading: loadingLocations } = useProductLocationInventory(id);
   const {
@@ -259,9 +267,11 @@ export default function ProductLifecyclePage() {
         .filter((value): value is string => Boolean(value && value.trim().length > 0))
         .forEach((value) => locations.set(value, value));
     });
-
+    physicalDiscrepancies.forEach((item) => {
+      if (item.location_name) locations.set(item.location_name, item.location_name);
+    });
     return Array.from(locations.values()).sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [movementRows, transferDivergences]);
+  }, [movementRows, transferDivergences, physicalDiscrepancies]);
 
   const filteredMovementRows = useMemo(() => {
     const normalizedSearch = movementSearch.trim().toLowerCase();
@@ -274,7 +284,7 @@ export default function ProductLifecyclePage() {
       if (movementOperationFilter === 'purchase_cancel') return isPurchaseDocumentCancelMovement(movement);
       if (movementOperationFilter === 'purchase') return source === 'purchase_document';
       if (movementOperationFilter === 'transfer') return source === 'stock_transfer';
-      if (movementOperationFilter === 'transfer_divergence') return false;
+      if (movementOperationFilter === 'transfer_divergence' || movementOperationFilter === 'purchase_issue' || movementOperationFilter === 'physical_issue') return false;
       if (movementOperationFilter === 'reservation') return type === 'reservation';
       if (movementOperationFilter === 'entry') return type === 'entry';
       if (movementOperationFilter === 'exit') return type === 'exit';
@@ -384,6 +394,33 @@ export default function ProductLifecyclePage() {
     transferDivergences,
   ]);
 
+  const filteredPurchaseIssues = useMemo(() => {
+    if (!['all', 'purchase_issue'].includes(movementOperationFilter)) return [];
+    // A ressalva da compra não expõe local físico: não atribuir um local por suposição.
+    if (movementLocationFilter !== 'all') return [];
+    const term = movementSearch.trim().toLocaleLowerCase('pt-BR');
+    return purchaseIssues.filter((item) => !term || [
+      item.issue_code, item.document_code, item.invoice_number, item.supplier_name,
+      item.issue_type, item.issue_status, item.disposition, item.notes, item.resolution_notes,
+      item.issue_type === 'damage' ? 'avaria' : null,
+      item.issue_type === 'shortage' ? 'falta' : null,
+      item.issue_type === 'excess' ? 'excesso' : null,
+    ].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR').includes(term));
+  }, [purchaseIssues, movementOperationFilter, movementLocationFilter, movementSearch]);
+
+  const filteredPhysicalDiscrepancies = useMemo(() => {
+    if (!['all', 'physical_issue'].includes(movementOperationFilter)) return [];
+    const term = movementSearch.trim().toLocaleLowerCase('pt-BR');
+    return physicalDiscrepancies.filter((item) => {
+      if (movementLocationFilter !== 'all' && item.location_name !== movementLocationFilter) return false;
+      return !term || [
+        'divergência física', item.order_code, item.location_name,
+        item.occurrence_type, item.status, item.opening_notes, item.resolution_notes,
+        ...item.items.map((entry) => entry.product_name),
+      ].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR').includes(term);
+    });
+  }, [physicalDiscrepancies, movementOperationFilter, movementLocationFilter, movementSearch]);
+
   const displayMovementItems = useMemo(() => {
     const items = [
       ...filteredMovementRows.map((movement) => ({
@@ -401,6 +438,22 @@ export default function ProductLifecyclePage() {
         quantity: Math.abs(Number(divergence.divergence_qty ?? 0)),
         rank: 20,
         divergence,
+      })),
+      ...filteredPurchaseIssues.map((issue) => ({
+        kind: 'purchase_issue' as const,
+        id: issue.issue_id,
+        date: issue.opened_at,
+        quantity: Math.abs(Number(issue.quantity ?? 0)),
+        rank: 20,
+        issue,
+      })),
+      ...filteredPhysicalDiscrepancies.map((occurrence) => ({
+        kind: 'physical_issue' as const,
+        id: occurrence.id,
+        date: occurrence.created_at,
+        quantity: getPhysicalDiscrepancyQuantity(occurrence),
+        rank: 20,
+        occurrence,
       })),
     ];
 
@@ -426,7 +479,7 @@ export default function ProductLifecyclePage() {
 
       return a.rank - b.rank;
     });
-  }, [filteredMovementRows, filteredTransferDivergences, movementSort]);
+  }, [filteredMovementRows, filteredTransferDivergences, filteredPurchaseIssues, filteredPhysicalDiscrepancies, movementSort]);
 
   const hasMovementFilters =
     movementSearch.trim().length > 0 ||
@@ -905,7 +958,7 @@ export default function ProductLifecyclePage() {
         {/* ── ABA 3: MOVIMENTAÇÕES & HISTÓRICO ── */}
         {activeTab === 'movements' && (
           <div className="space-y-4">
-            {movementRows.length === 0 && transferDivergences.length === 0 ? (
+            {movementRows.length === 0 && transferDivergences.length === 0 && purchaseIssues.length === 0 && physicalDiscrepancies.length === 0 && !loadingIssues && !issuesError ? (
               <EmptyState
                 icon={<History className="h-5 w-5" />}
                 title="Nenhuma movimentação encontrada para este produto"
@@ -918,7 +971,7 @@ export default function ProductLifecyclePage() {
                     <div>
                       <h2 className="text-sm font-black uppercase tracking-wider text-gray-900 dark:text-white">Movimentações e ocorrências</h2>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {displayMovementItems.length} de {movementRows.length + transferDivergences.length} eventos exibidos
+                        {displayMovementItems.length} de {movementRows.length + transferDivergences.length + purchaseIssues.length + physicalDiscrepancies.length} eventos exibidos
                       </p>
                     </div>
 
@@ -1014,6 +1067,8 @@ export default function ProductLifecyclePage() {
                   </div>
                 </div>
 
+                {loadingIssues && <p role="status" className="text-xs font-semibold text-sky-700 dark:text-sky-300">Consultando ressalvas de compras e divergências físicas…</p>}
+                {issuesError && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">{issuesError}</p>}
                 <ProductMovementHistory items={displayMovementItems} />
               </div>
             )}

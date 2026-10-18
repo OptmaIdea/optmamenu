@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { ChevronDown, ChevronUp, ArrowRightLeft, History, PackageCheck, AlertTriangle } from 'lucide-react';
 import type { ProductStockMovementRow } from '@/services/stockService';
 import type { ProductTransferDivergence } from '../services/productLifecycleService';
+import type { ProductPurchaseReceiptIssue, ProductPhysicalDiscrepancy } from '../services/productOperationalOccurrencesService';
+import { PurchaseIssueCard, PhysicalIssueCard } from './ProductOperationalIssueCards';
 import { formatDateTimePtBr } from '@/utils/dateTime';
 import { formatNumberPtBr } from '@/utils/export/formatters';
 import { getShortDocumentReference, getDocumentReferenceTitle, humanizeTextReferences } from '@/utils/documentReference';
@@ -16,7 +18,9 @@ import {
 
 export type ProductTimelineItem =
   | { kind: 'movement'; id: string; movement: ProductStockMovementRow }
-  | { kind: 'divergence'; id: string; divergence: ProductTransferDivergence };
+  | { kind: 'divergence'; id: string; divergence: ProductTransferDivergence }
+  | { kind: 'purchase_issue'; id: string; issue: ProductPurchaseReceiptIssue }
+  | { kind: 'physical_issue'; id: string; occurrence: ProductPhysicalDiscrepancy };
 
 export function getTimelineEventKey(item: ProductTimelineItem) {
   return `${item.kind}:${item.id}`;
@@ -175,9 +179,10 @@ export function ProductMovementHistory({ items }: { items: ProductTimelineItem[]
       </div>
       {items.map(item=>{
         const key=getTimelineEventKey(item);
-        return item.kind==='divergence'
-          ? <DivergenceCard key={key} divergence={item.divergence} expanded={expanded.has(key)} onToggle={()=>toggleOne(key)} />
-          : <MovementCard key={key} movement={item.movement} expanded={expanded.has(key)} onToggle={()=>toggleOne(key)} />;
+        if (item.kind === 'divergence') return <DivergenceCard key={key} divergence={item.divergence} expanded={expanded.has(key)} onToggle={()=>toggleOne(key)} />;
+        if (item.kind === 'purchase_issue') return <PurchaseIssueCard key={key} issue={item.issue} expanded={expanded.has(key)} onToggle={()=>toggleOne(key)} />;
+        if (item.kind === 'physical_issue') return <PhysicalIssueCard key={key} issue={item.occurrence} expanded={expanded.has(key)} onToggle={()=>toggleOne(key)} />;
+        return <MovementCard key={key} movement={item.movement} expanded={expanded.has(key)} onToggle={()=>toggleOne(key)} />;
       })}
       {items.length===0 && <p className="rounded-xl border border-dashed border-gray-300 p-5 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">Nenhum evento corresponde aos filtros. Limpe ou ajuste os filtros para consultar o histórico.</p>}
     </section>
