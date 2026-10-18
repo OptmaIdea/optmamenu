@@ -14,6 +14,7 @@ import { useProductLocationInventory } from './hooks/useProductLocationInventory
 import { useProductStockManagement } from './hooks/useProductStockManagement';
 import { ProductStockManagementCards } from './components/ProductStockManagementCards';
 import { ProductMovementHistory } from './components/ProductMovementHistory';
+import { getReservationReleaseEvent } from './utils/reservationLifecycleEvents';
 import { useProductSupplierLifecycle } from './hooks/useProductSupplierLifecycle';
 import { ProductSupplierCostPanel } from './components/ProductSupplierCostPanel';
 import { useProductTransitSummary } from './hooks/useProductTransitSummary';
@@ -421,6 +422,19 @@ export default function ProductLifecyclePage() {
     });
   }, [physicalDiscrepancies, movementOperationFilter, movementLocationFilter, movementSearch]);
 
+  const filteredReservationReleases = useMemo(() => {
+    if (!['all','reservation'].includes(movementOperationFilter)) return [];
+    const query = movementSearch.trim().toLocaleLowerCase('pt-BR');
+    return movementRows.flatMap(movement => {
+      const release = getReservationReleaseEvent(movement);
+      if (!release) return [];
+      if (movementLocationFilter !== 'all' && release.location !== movementLocationFilter) return [];
+      if (query && !['reserva liberada','liberação de reserva',release.reason,release.orderCode,release.location]
+        .filter(Boolean).join(' ').toLocaleLowerCase('pt-BR').includes(query)) return [];
+      return [release];
+    });
+  }, [movementRows, movementLocationFilter, movementOperationFilter, movementSearch]);
+
   const displayMovementItems = useMemo(() => {
     const items = [
       ...filteredMovementRows.map((movement) => ({
@@ -430,6 +444,14 @@ export default function ProductLifecyclePage() {
         quantity: Math.abs(Number(movement.quantity ?? 0)),
         rank: getMovementSortRank(movement),
         movement,
+      })),
+      ...filteredReservationReleases.map(release => ({
+        kind: 'reservation_release' as const,
+        id: release.id,
+        date: release.date,
+        quantity: release.quantity,
+        rank: 21,
+        release,
       })),
       ...filteredTransferDivergences.map((divergence) => ({
         kind: 'divergence' as const,
@@ -479,7 +501,7 @@ export default function ProductLifecyclePage() {
 
       return a.rank - b.rank;
     });
-  }, [filteredMovementRows, filteredTransferDivergences, filteredPurchaseIssues, filteredPhysicalDiscrepancies, movementSort]);
+  }, [filteredMovementRows, filteredReservationReleases, filteredTransferDivergences, filteredPurchaseIssues, filteredPhysicalDiscrepancies, movementSort]);
 
   const hasMovementFilters =
     movementSearch.trim().length > 0 ||
@@ -675,7 +697,10 @@ export default function ProductLifecyclePage() {
       )}
 
       <PageContainer title="Vida do produto" subtitle={`Histórico e análise operacional de ${productName}`}>
-        {/* ── CARD HEADER DO PRODUTO DESTACADO ── */}
+        <Link to="/admin/products/lifecycle" className="mb-3 inline-flex min-h-10 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200">
+          <ArrowLeft size={15} aria-hidden="true" /> Consultar a Vida de outro produto
+        </Link>
+        {/* ── CARD HEADER DO PRODUTO DESTACADO ── */
         <div className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800 mb-6">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div className="flex items-center gap-4 min-w-0">
@@ -971,7 +996,7 @@ export default function ProductLifecyclePage() {
                     <div>
                       <h2 className="text-sm font-black uppercase tracking-wider text-gray-900 dark:text-white">Movimentações e ocorrências</h2>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {displayMovementItems.length} de {movementRows.length + transferDivergences.length + purchaseIssues.length + physicalDiscrepancies.length} eventos exibidos
+                        {displayMovementItems.length} de {movementRows.length + movementRows.filter((m) => getReservationReleaseEvent(m) !== null).length + transferDivergences.length + purchaseIssues.length + physicalDiscrepancies.length} eventos exibidos
                       </p>
                     </div>
 
