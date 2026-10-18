@@ -346,14 +346,15 @@ export default function Checkout() {
     const cashAtDelivery = paymentTiming === 'pay_on_fulfillment' && promisedPaymentMethodCode === 'cash';
     const changeValue = Number(changeFor.replace(',', '.'));
     const paymentValid = paymentTiming === 'pay_now'
-        ? Boolean(selectedPayNowMethod)
+        ? isAuthenticated && Boolean(selectedPayNowMethod)
         : paymentTiming === 'pay_on_fulfillment'
             ? paymentOptions.pay_on_fulfillment.enabled
                 && (!paymentOptions.pay_on_fulfillment.requires_method_choice || Boolean(selectedPayLaterMethod))
                 && (!cashAtDelivery || !needsChange || (Number.isFinite(changeValue) && changeValue >= totalValue))
             : false;
     const fulfillmentValid = isTableContext || ['pickup', 'delivery'].includes(effectiveFulfillment);
-    const checkoutValid = customerValid && addressValid && paymentValid && fulfillmentValid && items.length > 0;
+    const checkoutValid = customerValid && addressValid && paymentValid && fulfillmentValid && items.length > 0
+        && (isAuthenticated || (effectiveFulfillment === 'pickup' && paymentTiming === 'pay_on_fulfillment'));
 
     const hasEligibleDiscountProducts = useMemo(() => items.some((item) => {
         if (!item.category_id || !item.use_category_pricing) return false;
@@ -617,6 +618,11 @@ export default function Checkout() {
     };
 
     const finishOrder = async () => {
+        if (!isAuthenticated && (paymentTiming === 'pay_now' || effectiveFulfillment !== 'pickup')) {
+            setError('Para pagar antecipadamente ou escolher entrega, entre na sua conta da loja. Sem login, é possível retirar e pagar na loja.');
+            setView('payment');
+            return;
+        }
         if (isTestStore && !testAcknowledged) {
             setError('Antes de finalizar, reconheça o aviso de que a Gelinhares neste ambiente é uma loja de testes.');
             setView('review');
@@ -713,6 +719,7 @@ export default function Checkout() {
                         invalid_change_for: 'Confira o valor informado para o troco.',
                         delivery_method_disabled: 'A forma de recebimento escolhida não está disponível.',
                         invalid_customer_phone: 'Confira o número de telefone informado.',
+                        customer_auth_required_for_checkout: 'Entre na sua conta desta loja para pagar antecipadamente ou solicitar entrega. Sem login, escolha retirada e pagamento posterior.',
                         empty_cart: 'Seu carrinho está vazio.',
                     };
                     setError(labels[result.error || ''] || result.message || 'Não foi possível criar o pedido. Confira os dados e tente novamente.');
@@ -1161,7 +1168,15 @@ export default function Checkout() {
                             Somente pagamentos simulados pelo OptmaPay Sandbox são permitidos. Nunca utilize dinheiro, Pix ou cartão reais.
                         </section>
                     )}
-                    {!paymentOptionsLoading && visiblePayNowMethods.length > 0 && (
+                    {!isAuthenticated && visiblePayNowMethods.length > 0 && (
+                        <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950" aria-label="Pagamento antecipado requer conta">
+                            <p className="font-black">Pagamento antecipado: exclusivo para cliente autenticado</p>
+                            <p className="mt-2">Entre ou cadastre-se na loja para pagar por Pix ou cartão antes do atendimento. Sem login, escolha retirada com pagamento na loja.</p>
+                            <button type="button" onClick={() => navigate(`/loja/${encodeURIComponent(storeSlug)}`)}
+                                className="mt-3 min-h-11 rounded-xl bg-emerald-700 px-4 font-black text-white">Ir para a loja e entrar</button>
+                        </section>
+                    )}
+                    {!paymentOptionsLoading && isAuthenticated && visiblePayNowMethods.length > 0 && (
                         <section className="overflow-hidden rounded-2xl bg-white shadow-sm">
                             <div className="border-b border-slate-100 px-4 py-4">
                                 <h2 className="text-lg font-black text-slate-950">Pagar agora</h2>
