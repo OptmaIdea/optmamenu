@@ -134,6 +134,7 @@ export default function PublicOrderTracking() {
   const isTestStore = isGelinharesTestEnvironment(store.slug);
   const paymentPresentation = getOrderPaymentPresentation(order.payment_status);
   const isPaid = paymentPresentation.confirmed;
+  const awaitingPrepayment = order.status === 'reserved' && !isPaid && ['pix','debit_card','credit_card'].includes(order.payment_method_code || '');
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900">
@@ -168,6 +169,14 @@ export default function PublicOrderTracking() {
           <p className="font-black">{paymentPresentation.title}</p>
           <p className="mt-1">{paymentPresentation.description}</p>
         </section>
+        {awaitingPrepayment && (
+          <section aria-label="Prazo para pagamento antecipado" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950" role="status">
+            <p className="font-black">Aguardando confirmação do pagamento</p>
+            <p className="mt-1">Sua reserva ainda não foi encaminhada para preparação. O pagamento deve ser confirmado antes do prazo.</p>
+            {order.expires_at && <p className="mt-2 font-bold">Prazo previsto: {formatDateTime(order.expires_at)}</p>}
+            <p className="mt-2 text-xs">Se houver atraso na confirmação pela API, acompanhe esta página. Após expiração, os produtos podem voltar a ficar disponíveis.</p>
+          </section>
+        )}
         {publicOrderToken && <PublicOrderOptmaPayCard token={publicOrderToken} />}
         {!isTestStore && publicOrderToken && <PublicOrderPaymentProofCard token={publicOrderToken} />}
         {isTestStore && (
