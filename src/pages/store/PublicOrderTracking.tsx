@@ -122,9 +122,16 @@ export default function PublicOrderTracking() {
           <XCircle className="mx-auto mb-4 h-10 w-10 text-red-500" />
           <h1 className="text-xl font-bold text-slate-900">Não foi possível abrir o pedido</h1>
           <p className="mt-2 text-sm text-slate-600">{error}</p>
-          <Link to="/" className="mt-6 inline-flex rounded-xl bg-slate-900 px-5 py-3 text-sm font-bold text-white">
-            Ir para o início
-          </Link>
+          <div className="mt-6 flex flex-wrap justify-center gap-2">
+            <button type="button" onClick={() => window.location.reload()}
+              className="inline-flex min-h-11 rounded-xl bg-slate-900 px-5 py-3 text-sm font-bold text-white">
+              Tentar novamente
+            </button>
+            <button type="button" onClick={() => window.history.back()}
+              className="inline-flex min-h-11 rounded-xl border border-slate-300 px-5 py-3 text-sm font-bold text-slate-700">
+              Voltar à página anterior
+            </button>
+          </div>
         </div>
       </div>
     );
