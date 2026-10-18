@@ -249,7 +249,7 @@ export default function PublicOrderTracking() {
         </section>
 
         <div className="text-center">
-          <Link to={`/s/${encodeURIComponent(store.slug)}`} className="inline-flex rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-700">
+          <Link to={`/loja/${encodeURIComponent(store.slug)}`} className="inline-flex rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-700">
             Voltar ao cardápio
           </Link>
         </div>
