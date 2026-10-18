@@ -5,6 +5,8 @@ import type { ProductStockMovementRow } from '@/services/stockService';
 import type { ProductTransferDivergence } from '../services/productLifecycleService';
 import type { ProductPurchaseReceiptIssue, ProductPhysicalDiscrepancy } from '../services/productOperationalOccurrencesService';
 import { PurchaseIssueCard, PhysicalIssueCard } from './ProductOperationalIssueCards';
+import { ReservationReleaseCard } from './ReservationReleaseCard';
+import type { ReservationReleaseEvent } from '../utils/reservationLifecycleEvents';
 import { formatDateTimePtBr } from '@/utils/dateTime';
 import { formatNumberPtBr } from '@/utils/export/formatters';
 import { getShortDocumentReference, getDocumentReferenceTitle, humanizeTextReferences } from '@/utils/documentReference';
@@ -20,7 +22,8 @@ export type ProductTimelineItem =
   | { kind: 'movement'; id: string; movement: ProductStockMovementRow }
   | { kind: 'divergence'; id: string; divergence: ProductTransferDivergence }
   | { kind: 'purchase_issue'; id: string; issue: ProductPurchaseReceiptIssue }
-  | { kind: 'physical_issue'; id: string; occurrence: ProductPhysicalDiscrepancy };
+  | { kind: 'physical_issue'; id: string; occurrence: ProductPhysicalDiscrepancy }
+  | { kind: 'reservation_release'; id: string; release: ReservationReleaseEvent };
 
 export function getTimelineEventKey(item: ProductTimelineItem) {
   return `${item.kind}:${item.id}`;
@@ -182,6 +185,7 @@ export function ProductMovementHistory({ items }: { items: ProductTimelineItem[]
         if (item.kind === 'divergence') return <DivergenceCard key={key} divergence={item.divergence} expanded={expanded.has(key)} onToggle={()=>toggleOne(key)} />;
         if (item.kind === 'purchase_issue') return <PurchaseIssueCard key={key} issue={item.issue} expanded={expanded.has(key)} onToggle={()=>toggleOne(key)} />;
         if (item.kind === 'physical_issue') return <PhysicalIssueCard key={key} issue={item.occurrence} expanded={expanded.has(key)} onToggle={()=>toggleOne(key)} />;
+        if (item.kind === 'reservation_release') return <ReservationReleaseCard key={key} release={item.release} expanded={expanded.has(key)} onToggle={()=>toggleOne(key)} />;
         return <MovementCard key={key} movement={item.movement} expanded={expanded.has(key)} onToggle={()=>toggleOne(key)} />;
       })}
       {items.length===0 && <p className="rounded-xl border border-dashed border-gray-300 p-5 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">Nenhum evento corresponde aos filtros. Limpe ou ajuste os filtros para consultar o histórico.</p>}
