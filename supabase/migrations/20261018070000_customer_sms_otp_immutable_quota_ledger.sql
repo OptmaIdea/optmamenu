@@ -260,15 +260,12 @@ begin
       'ok',false,
       'error','customer_not_found',
       'message','Não encontramos uma conta com este telefone nesta loja. Use Criar conta.'
-   -- This lock is retained until the OTP and immutable ledger commit together.
-  -- The trigger enforces the same ledger for legacy/alternate insertion paths.
-  v_quota := public.customer_sms_otp_rate_check_safe(p_store_id,v_phone);
-  if not coalesce((v_quota->>'ok')::boolean,false) then
-    return v_quota;
+    );
   end if;
 
-400);
-  end if;
+  -- Phone quota is protected by one cross-store advisory lock held until commit.
+  v_quota := public.customer_sms_otp_rate_check_safe(p_store_id,v_phone);
+  if not coalesce((v_quota->>'ok')::boolean,false) then return v_quota;end if;
 
   update public.customer_otps
   set used=true,
@@ -315,5 +312,4 @@ begin
 end;
 $function$
 ;
-
 commit;
