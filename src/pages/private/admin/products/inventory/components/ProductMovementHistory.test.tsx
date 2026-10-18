@@ -46,7 +46,7 @@ describe('Vida do Produto — ocorrências compactas', () => {
     expect(screen.queryByText(/A diferença já foi registrada/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: /Divergência na transferência.*3 un/i }));
     expect(screen.getByText(/A diferença já foi registrada/)).toBeTruthy();
-    expect(screen.getByText('Perda/Avaria')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Perda\/Avaria/ })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Ver TRF completa' }).getAttribute('href')).toBe('/admin/transfers/transfer-1');
   });
   it('expande e recolhe todos sem misturar eventos da mesma TRF', () => {
