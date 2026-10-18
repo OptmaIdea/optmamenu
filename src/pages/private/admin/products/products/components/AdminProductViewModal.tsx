@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { X, Package, Calendar, Edit, Layers, Archive, AlertCircle, CheckCircle, ChevronLeft, ChevronRight, History, Maximize2 } from 'lucide-react';
 import type { Product } from '../types/product.types';
+import { getStockHealth } from '@/pages/private/admin/products/inventory/utils/inventorySpreadsheetModel';
 
 interface AdminProductViewModalProps {
     isOpen: boolean;
@@ -44,10 +45,15 @@ export default function AdminProductViewModal({ isOpen, onClose, product, onEdit
 
     const getInventoryStatus = () => {
         if (!product.active) return { label: 'inativo', color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' };
-        if (available <= 0) return { label: 'zerado', color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' };
-        if (available <= product.min_stock) return { label: 'baixo', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' };
-        if (onHand > product.max_stock) return { label: 'excesso', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' };
-        return { label: 'normal', color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' };
+        // Mesma classificação do /inventory: não interpretar limite 0 como máximo configurado.
+        const minimum = Number(product.min_stock) > 0 ? Number(product.min_stock) : null;
+        const maximum = Number(product.max_stock) > 0 ? Number(product.max_stock) : null;
+        const status = getStockHealth(available, minimum, maximum);
+        if (status === 'zero') return { label: 'zerado', color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' };
+        if (status === 'below') return { label: 'abaixo do mínimo', color: 'bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200' };
+        if (status === 'excess') return { label: 'excedente', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' };
+        if (status === 'unconfigured') return { label: 'limites não configurados', color: 'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-200' };
+        return { label: 'normal', color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' };
     };
 
     const status = getInventoryStatus();
