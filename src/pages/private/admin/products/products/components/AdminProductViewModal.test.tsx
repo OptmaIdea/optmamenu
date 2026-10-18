@@ -31,6 +31,11 @@ describe('visualização de produto — tablet e celular',()=>{
     expect(screen.queryByText(/Descontinuado em:/)).toBeNull();
     expect(screen.getByText(/Produto marcado como descontinuado/)).toBeTruthy();
   });
+  it('não considera excesso quando máximo de estoque ainda não está configurado',()=>{
+    show({...sample,min_stock:0,max_stock:0,display_on_hand:25,display_reserved:0,display_available:25});
+    expect(screen.getByText('limites não configurados')).toBeTruthy();
+    expect(screen.queryByText('excedente')).toBeNull();
+  });
   it('amplia a imagem e fecha somente a ampliação com Escape',()=>{
     let closes=0;
     show(sample,()=>{closes++;});
