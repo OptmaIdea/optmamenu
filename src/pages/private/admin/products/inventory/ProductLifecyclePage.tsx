@@ -700,7 +700,7 @@ export default function ProductLifecyclePage() {
         <Link to="/admin/products/lifecycle" className="mb-3 inline-flex min-h-10 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200">
           <ArrowLeft size={15} aria-hidden="true" /> Consultar a Vida de outro produto
         </Link>
-        {/* ── CARD HEADER DO PRODUTO DESTACADO ── */
+        {/* ── CARD HEADER DO PRODUTO DESTACADO ── */}
         <div className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800 mb-6">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div className="flex items-center gap-4 min-w-0">
