@@ -60,7 +60,7 @@ export const ImageSection = ({
     sensors,
 }: ImageSectionProps) => {
     return (
-        <div className="w-full md:w-2/5 bg-gray-50 dark:bg-gray-900 p-6 flex flex-col items-center justify-start relative overflow-y-auto">
+        <div className="relative flex w-full shrink-0 flex-col items-center justify-start bg-gray-50 p-3 dark:bg-gray-900 sm:p-4 md:w-2/5 md:shrink md:overflow-y-auto md:p-6">
             <button
                 onClick={onClose}
                 className="absolute top-4 right-4 p-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-full shadow-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors z-10 md:hidden"
@@ -110,7 +110,7 @@ export const ImageSection = ({
                                     : (mediaItems[currentImageIndex]?.value as string)
                             }
                             alt={name || 'Produto'}
-                            className="max-h-64 md:max-h-80 object-contain rounded-lg"
+                            className="max-h-44 max-w-full rounded-lg object-contain sm:max-h-56 md:max-h-80"
                         />
                         {hasMultipleImages && (
                             <>
