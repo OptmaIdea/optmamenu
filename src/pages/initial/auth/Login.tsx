@@ -31,8 +31,9 @@ function formatLoginRole(option: LoginStoreOption): string {
 export default function Login() {
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  // Inputs nativos não controlados: o Chrome e gerenciadores de senhas podem preencher
+  // os campos sem disparar onChange. Um render React não deve sobrescrever o autofill.
+  const loginFormRef = useRef<HTMLFormElement | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
   const [loading, setLoading] = useState(false);
@@ -95,15 +96,13 @@ export default function Login() {
     // Gerenciadores de senha podem preencher os campos sem disparar onChange do React.
     // Ler o formulário real no envio evita exigir um segundo clique ou digitação.
     const fields = new FormData(e.currentTarget);
-    const submittedEmail = String(fields.get('email') || email).trim();
-    const submittedPassword = String(fields.get('password') || password);
+    const submittedEmail = String(fields.get('email') || '').trim();
+    const submittedPassword = String(fields.get('password') || '');
     if (!submittedEmail || !submittedPassword) {
       setError('Informe seu e-mail e sua senha para entrar.');
       return;
     }
     loginInProgressRef.current = true;
-    setEmail(submittedEmail);
-    setPassword(submittedPassword);
     setLoading(true);
     setError('');
     setStoreOptions([]);
@@ -169,7 +168,7 @@ export default function Login() {
     setSelectingStore(false);
     setStoreOptions([]);
     setSelectedStoreId('');
-    setPassword('');
+    loginFormRef.current?.reset();
   };
 
   const logSessionEvent = async (
@@ -212,7 +211,7 @@ export default function Login() {
           )}
 
           {!selectingStore ? (
-            <form onSubmit={handleLogin} className="space-y-6">
+            <form ref={loginFormRef} onSubmit={handleLogin} className="space-y-6">
               <div>
                 <label className="block text-sm font-bold text-[#6B6375] dark:text-gray-300 mb-2 font-candara">
                   E-mail
@@ -223,8 +222,7 @@ export default function Login() {
                     type="email"
                     name="email"
                     autoComplete="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    defaultValue=""
                     placeholder="seu@email.com"
                     required
                     className="w-full pl-10 pr-4 py-3 bg-[#F8F6F2] dark:bg-gray-800 border border-[#6B6375]/20 dark:border-gray-750 rounded-xl text-[#2D2A26] dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-green font-candara"
@@ -242,8 +240,7 @@ export default function Login() {
                     type={showPassword ? "text" : "password"}
                     name="password"
                     autoComplete="current-password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    defaultValue=""
                     placeholder="••••••••"
                     required
                     className="w-full pl-10 pr-12 py-3 bg-[#F8F6F2] dark:bg-gray-800 border border-[#6B6375]/20 dark:border-gray-750 rounded-xl text-[#2D2A26] dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-green font-candara"
