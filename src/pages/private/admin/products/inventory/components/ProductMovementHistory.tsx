@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronDown, ChevronUp, ArrowRightLeft, History, PackageCheck, AlertTriangle } from 'lucide-react';
 import type { ProductStockMovementRow } from '@/services/stockService';
@@ -6,6 +6,8 @@ import type { ProductTransferDivergence } from '../services/productLifecycleServ
 import type { ProductPurchaseReceiptIssue, ProductPhysicalDiscrepancy } from '../services/productOperationalOccurrencesService';
 import { PurchaseIssueCard, PhysicalIssueCard } from './ProductOperationalIssueCards';
 import { ReservationReleaseCard } from './ReservationReleaseCard';
+import { ProductTransferJourneyCard } from './ProductTransferJourneyCard';
+import { consolidateProductTransferTimeline, type ConsolidatedTimelineItem } from '../utils/productTransferJourney';
 import type { ReservationReleaseEvent } from '../utils/reservationLifecycleEvents';
 import { formatDateTimePtBr } from '@/utils/dateTime';
 import { formatNumberPtBr } from '@/utils/export/formatters';
@@ -160,8 +162,11 @@ function DivergenceCard({ divergence, expanded, onToggle }: {
 
 export function ProductMovementHistory({ items }: { items: ProductTimelineItem[] }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const allExpanded = items.length > 0 && items.every(item=>expanded.has(getTimelineEventKey(item)));
-  const toggleAll = () => setExpanded(allExpanded ? new Set() : new Set(items.map(getTimelineEventKey)));
+  const displayed = useMemo(() => consolidateProductTransferTimeline(items), [items]);
+  const displayKey = (item: ConsolidatedTimelineItem) =>
+    item.kind === 'transfer_journey' ? item.id : getTimelineEventKey(item);
+  const allExpanded = displayed.length > 0 && displayed.every(item=>expanded.has(displayKey(item)));
+  const toggleAll = () => setExpanded(allExpanded ? new Set() : new Set(displayed.map(displayKey)));
   const toggleOne = (key: string) => setExpanded(current=>{
     const next=new Set(current);
     if(next.has(key))next.delete(key);else next.add(key);
@@ -180,8 +185,9 @@ export function ProductMovementHistory({ items }: { items: ProductTimelineItem[]
           {allExpanded ? 'Recolher tudo' : 'Expandir tudo'}
         </button>
       </div>
-      {items.map(item=>{
-        const key=getTimelineEventKey(item);
+      {displayed.map(item=>{
+        const key=displayKey(item);
+        if (item.kind === 'transfer_journey') return <ProductTransferJourneyCard key={key} journey={item} expanded={expanded.has(key)} onToggle={()=>toggleOne(key)} />;
         if (item.kind === 'divergence') return <DivergenceCard key={key} divergence={item.divergence} expanded={expanded.has(key)} onToggle={()=>toggleOne(key)} />;
         if (item.kind === 'purchase_issue') return <PurchaseIssueCard key={key} issue={item.issue} expanded={expanded.has(key)} onToggle={()=>toggleOne(key)} />;
         if (item.kind === 'physical_issue') return <PhysicalIssueCard key={key} issue={item.occurrence} expanded={expanded.has(key)} onToggle={()=>toggleOne(key)} />;
