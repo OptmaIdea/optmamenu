@@ -201,7 +201,8 @@ Deno.serve(async (req: Request) => {
         provider?.capabilities?.[capability] === true &&
         order.status !== "cancelled" &&
         order.status !== "expired" &&
-        order.status !== "completed",
+        order.status !== "completed" &&
+        (!order.expires_at || new Date(order.expires_at).getTime() > Date.now()),
       );
 
       const { data: latestCardIntent } = await service
