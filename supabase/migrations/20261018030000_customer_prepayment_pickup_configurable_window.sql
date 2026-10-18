@@ -1,5 +1,5 @@
 begin;
--- Configurable advance-payment reservation for pickup only, no changes to past orders.
+-- Configurable pickup prepayment deadline; other statuses and delivery unaffected.
 CREATE OR REPLACE FUNCTION public.create_public_order_by_slug_v3(p_slug text, p_customer_name text, p_customer_phone text, p_fulfillment_type text, p_sales_channel text, p_items jsonb, p_delivery_address jsonb DEFAULT '{}'::jsonb, p_table_code text DEFAULT NULL::text, p_notes text DEFAULT NULL::text, p_payment_selection jsonb DEFAULT '{}'::jsonb, p_delivery_method_code text DEFAULT NULL::text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -242,42 +242,37 @@ begin
   );
 
 
-  -- Pay-now PICKUP orders are held only during the store-configured payment window.
-  -- Paid orders suspend expiry in the existing trigger. Do not change delivery
-  -- reservation lifetimes here (delivery uses a separate stock policy).
+  -- Pickup prepayment uses an independent, per-store deadline.
+  -- Never alter an existing order when its payment is already confirmed.
   if v_timing='pay_now' and v_fulfillment='pickup' then
     select coalesce(
       (
-        select case when coalesce(ss.order_settings->>'prepayment_hold_minutes','') ~ '^[0-9]{1,4}
-$function$
-
+        select case when coalesce(ss.order_settings->>'prepayment_hold_minutes','') ~ '^[0-9]{1,4}$'
                     then greatest(5,least(1440,(ss.order_settings->>'prepayment_hold_minutes')::integer))
                     else null end
         from public.store_settings ss where ss.store_id=v_store_id limit 1
       ),
       (select greatest(5,least(1440,coalesce(s.reservation_time_minutes,10)))
-       from public.stores s where s.id=v_store_id),
-      10
+       from public.stores s where s.id=v_store_id), 10
     ) into v_prepayment_hold_minutes;
 
     v_prepayment_deadline:=clock_timestamp()+make_interval(mins=>v_prepayment_hold_minutes);
-
     update public.orders o
-    set expires_at=v_prepayment_deadline,
-        cancellation_grace_until=v_prepayment_deadline,
-        commercial_metadata=coalesce(o.commercial_metadata,'{}'::jsonb)
-          || jsonb_build_object('payment_deadline_at',v_prepayment_deadline,
-               'prepayment_hold_minutes',v_prepayment_hold_minutes,
-               'operational_queue','awaiting_payment')
-    where o.id=v_order_id and o.store_id=v_store_id
-      and o.status::text='reserved'
-      and coalesce(o.payment_status,'pending')<>'paid';
+       set expires_at=v_prepayment_deadline,
+           cancellation_grace_until=v_prepayment_deadline,
+           commercial_metadata=coalesce(o.commercial_metadata,'{}'::jsonb)
+             || jsonb_build_object('payment_deadline_at',v_prepayment_deadline,
+                  'prepayment_hold_minutes',v_prepayment_hold_minutes,
+                  'operational_queue','awaiting_payment')
+      where o.id=v_order_id and o.store_id=v_store_id
+        and o.status::text='reserved'
+        and coalesce(o.payment_status,'pending')<>'paid';
 
     update public.stock_reservations sr
-    set expires_at=v_prepayment_deadline,
-        metadata=coalesce(sr.metadata,'{}'::jsonb)
-          || jsonb_build_object('prepayment_hold_minutes',v_prepayment_hold_minutes)
-    where sr.order_id=v_order_id and sr.store_id=v_store_id and sr.status='active';
+       set expires_at=v_prepayment_deadline,
+           metadata=coalesce(sr.metadata,'{}'::jsonb)
+             || jsonb_build_object('prepayment_hold_minutes',v_prepayment_hold_minutes)
+      where sr.order_id=v_order_id and sr.store_id=v_store_id and sr.status='active';
 
     v_result:=jsonb_set(v_result,'{order}',
       coalesce(v_result->'order','{}'::jsonb)
