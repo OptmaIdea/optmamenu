@@ -74,7 +74,7 @@ export default function Orders() {
 
     const isAwaitingAdvancePayment = (order: Order) => {
         const timing = getCheckoutPaymentInfo(order).timing;
-        const payment = getPublicOrderFields(order).payment_status || order.payment_status;
+        const payment = getPublicOrderFields(order).payment_status;
         return timing === 'advance' && payment !== 'paid'
             && ['reserved', 'confirmed', 'ready'].includes(order.status);
     };
