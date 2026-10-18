@@ -39,7 +39,7 @@ function formatCountdown(value: number | null) {
   return `${String(minutes).padStart(2, '0')}:${String(remaining).padStart(2, '0')}`;
 }
 
-export default function PublicOrderOptmaPayCard({ token }: { token: string }) {
+export default function PublicOrderOptmaPayCard({ token, orderDeadline }: { token: string; orderDeadline?: string | null }) {
   const [state, setState] = useState<PublicOptmaPayPaymentState | null>(null);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
@@ -251,6 +251,15 @@ export default function PublicOrderOptmaPayCard({ token }: { token: string }) {
           <RefreshCw className="h-5 w-5 animate-spin" />
           <span className="text-sm font-semibold">Consultando pagamento Sandbox...</span>
         </div>
+      </section>
+    );
+  }
+
+  if (orderDeadline && new Date(orderDeadline).getTime() <= Date.now() && !paid) {
+    return (
+      <section role="status" className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <strong>Prazo para pagamento encerrado.</strong>
+        <p className="mt-1">Aguardando confirmação final ou cancelamento automático. Não é possível iniciar outra cobrança neste pedido.</p>
       </section>
     );
   }
