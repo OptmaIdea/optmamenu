@@ -72,6 +72,47 @@ export function CustomerOrderCancellationPanel({
           {active && <p className="text-xs text-amber-800 dark:text-amber-300">Solicitação em andamento. O pedido, o estoque e o pagamento não foram alterados automaticamente.</p>}
         </div>
       )}
+      {related.length > 1 && (
+        <details className="mt-3 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+          <summary className="cursor-pointer text-sm font-bold text-slate-800 dark:text-slate-100">
+            Solicitações anteriores ({related.length - 1})
+          </summary>
+          <ol className="mt-3 space-y-3">
+            {related.filter(request => request.id !== latest?.id).map(request => (
+              <li key={request.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900">
+                <p className="font-bold text-slate-800 dark:text-slate-100">
+                  {request.request_type === 'post_delivery_occurrence' ? 'Ocorrência / devolução' : 'Solicitação de cancelamento'}
+                </p>
+                <p className="mt-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                  {CANCELLATION_STATUS_LABELS[request.status]}
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{dateLabel(request.requested_at)}</p>
+                <p className="mt-2 whitespace-pre-wrap break-words text-sm text-slate-700 dark:text-slate-300">
+                  <strong>Motivo:</strong> {request.reason}
+                </p>
+                {request.decision_note && (
+                  <p className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-700 dark:text-slate-300">
+                    <strong>Resposta da loja:</strong> {request.decision_note}
+                  </p>
+                )}
+                {!!request.events?.length && (
+                  <details className="mt-2 rounded-lg border border-slate-200 p-2 dark:border-slate-700">
+                    <summary className="cursor-pointer text-xs font-semibold">Ver histórico desta solicitação</summary>
+                    <ol className="mt-2 space-y-2 border-l-2 border-slate-300 pl-3 dark:border-slate-600">
+                      {request.events.map(event => (
+                        <li key={event.id} className="text-xs text-slate-600 dark:text-slate-300">
+                          <strong>{CANCELLATION_STATUS_LABELS[event.status]}</strong> · {dateLabel(event.at)}
+                          {event.note && <p className="whitespace-pre-wrap break-words">{event.note}</p>}
+                        </li>
+                      ))}
+                    </ol>
+                  </details>
+                )}
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
       {!active && (
         <div className={latest ? 'mt-3 border-t border-slate-200 pt-3 dark:border-slate-700' : ''}>
           <button type="button" onClick={() => setOpen(x => !x)} aria-expanded={open}
