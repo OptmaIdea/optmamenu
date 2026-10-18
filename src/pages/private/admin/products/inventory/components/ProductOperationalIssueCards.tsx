@@ -86,7 +86,7 @@ export function PhysicalIssueCard({ issue, expanded, onToggle }: {
       {issue.opening_notes && <p className={panel}><strong>Descrição:</strong> {issue.opening_notes}</p>}
       {issue.resolution_notes && <p className={panel}><strong>Tratamento:</strong> {issue.resolution_notes}</p>}
       {issue.resolved_at && <p>Resolvida em {formatDateTimePtBr(issue.resolved_at)}</p>}
-      <Link className="inline-flex min-h-10 items-center rounded-lg border border-amber-300 px-3 py-2 font-bold underline dark:border-amber-700" to="/admin/stock/divergences">Consultar central de Divergências</Link>
+      <Link className="inline-flex min-h-10 items-center rounded-lg border border-amber-300 px-3 py-2 font-bold underline dark:border-amber-700" to={`/admin/stock/divergences?status=all&occurrence=${encodeURIComponent(issue.id)}`}>Consultar central de Divergências</Link>
     </div>}
   </article>;
 }

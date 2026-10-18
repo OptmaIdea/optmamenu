@@ -114,6 +114,7 @@ export default function StockDiscrepanciesPage() {
   const navigate = useNavigate();
   const focusedOrderId = searchParams.get('orderId');
   const focusedPurchaseIssueCode = searchParams.get('issue');
+  const focusedStockOccurrenceId = searchParams.get('occurrence');
   const returnTo = searchParams.get('returnTo');
   const requestedStatus = searchParams.get('status') as StockDiscrepancyStatus | 'all' | null;
 
@@ -122,15 +123,16 @@ export default function StockDiscrepanciesPage() {
   const [purchaseIssues, setPurchaseIssues] = useState<PurchaseReceiptIssueQueueItem[]>([]);
   const [transferDivergences, setTransferDivergences] = useState<StockTransferSummaryRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState<StockDiscrepancyStatus | 'all'>(() => focusedOrderId ? 'all' : requestedStatus || 'open');
+  const [status, setStatus] = useState<StockDiscrepancyStatus | 'all'>(() => (focusedOrderId || focusedStockOccurrenceId) ? 'all' : requestedStatus || 'open');
   const [purchaseIssueStatus, setPurchaseIssueStatus] = useState<PurchaseIssueStatus | 'all'>('all');
   const [search, setSearch] = useState('');
   const [startDate, setStartDate] = useState(() => {
+    if (focusedStockOccurrenceId || focusedPurchaseIssueCode) return '';
     const value = new Date();
     value.setDate(value.getDate() - 90);
     return localDate(value);
   });
-  const [endDate, setEndDate] = useState(() => localDate(new Date()));
+  const [endDate, setEndDate] = useState(() => focusedStockOccurrenceId || focusedPurchaseIssueCode ? '' : localDate(new Date()));
   const [selected, setSelected] = useState<StockDiscrepancyOccurrence | null>(null);
   const [nextStatus, setNextStatus] = useState<TreatmentStatus>('under_review');
   const [resolutionType, setResolutionType] = useState('');
@@ -184,8 +186,8 @@ export default function StockDiscrepanciesPage() {
   }, [loadingStore, storeId, load]);
 
   useEffect(() => {
-    if (focusedOrderId) setStatus('all');
-  }, [focusedOrderId]);
+    if (focusedOrderId || focusedStockOccurrenceId) setStatus('all');
+  }, [focusedOrderId, focusedStockOccurrenceId]);
 
   useEffect(() => {
     if (!focusedPurchaseIssueCode) return;
@@ -225,6 +227,7 @@ export default function StockDiscrepanciesPage() {
     ].some((value) => value.toLocaleLowerCase('pt-BR').includes(term));
   });
   const visibleOccurrences = occurrences.filter((occurrence) => {
+    if (focusedStockOccurrenceId && occurrence.id !== focusedStockOccurrenceId) return false;
     if (focusedOrderId && occurrence.order_id !== focusedOrderId) return false;
     if (!term) return true;
     const products = occurrence.items.map((item) => item.product_name || '').join(' ');
