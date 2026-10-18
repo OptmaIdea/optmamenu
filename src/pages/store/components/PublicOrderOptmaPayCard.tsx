@@ -354,7 +354,7 @@ export default function PublicOrderOptmaPayCard({ token, orderDeadline }: { toke
               />
             </label>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 [&_label]:min-w-0 [&_input]:min-w-0 [&_input]:w-full">
               <label className="grid gap-1.5 text-sm font-bold text-slate-700">
                 Validade
                 <input
