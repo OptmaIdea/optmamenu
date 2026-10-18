@@ -169,10 +169,17 @@ export default function PublicOrderTracking() {
           </div>
         </section>
 
+        {['cancelled', 'expired'].includes(order.status) && !isPaid ? (
+          <section role="status" className="rounded-2xl border border-slate-300 bg-slate-100 p-4 text-sm text-slate-800">
+            <strong>Pedido encerrado sem pagamento</strong>
+            <p className="mt-1">Esta cobrança não pode mais ser concluída. Faça um novo pedido na loja para comprar novamente.</p>
+          </section>
+        ) : (
         <section aria-label="Situação do pagamento" className={`rounded-2xl border p-4 text-sm ${paymentPresentation.confirmed ? 'border-emerald-200 bg-emerald-50 text-emerald-950' : 'border-amber-200 bg-amber-50 text-amber-950'}`}>
           <p className="font-black">{paymentPresentation.title}</p>
           <p className="mt-1">{paymentPresentation.description}</p>
         </section>
+        )}
         {awaitingPrepayment && (
           <section aria-label="Prazo para pagamento antecipado" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950" role="status">
             <p className="font-black">{qrWindowExpired ? 'Prazo do pagamento encerrado — conferindo confirmação' : 'Aguardando confirmação do pagamento'}</p>
