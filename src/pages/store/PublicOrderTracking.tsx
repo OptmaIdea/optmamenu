@@ -134,7 +134,7 @@ export default function PublicOrderTracking() {
   const isTestStore = isGelinharesTestEnvironment(store.slug);
   const paymentPresentation = getOrderPaymentPresentation(order.payment_status);
   const isPaid = paymentPresentation.confirmed;
-  const awaitingPrepayment = order.status === 'reserved' && !isPaid && ['pix','debit_card','credit_card'].includes(order.payment_method_code || '');
+  const awaitingPrepayment = order.status === 'reserved' && !isPaid && order.payment_timing === 'pay_now';
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900">
