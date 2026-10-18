@@ -40,8 +40,12 @@ export function consolidateProductTransferTimeline(items: ProductTimelineItem[])
       kind:'transfer_journey' as const,
       id:`trf:${id}`,
       transferId:id,
-      events:[...(byTransfer.get(id)||[])].sort((a,b)=>
-        Date.parse(occurredAt(a))-Date.parse(occurredAt(b))),
+      events:[...(byTransfer.get(id)||[])].sort((a,b)=> {
+        const first=Date.parse(occurredAt(a));
+        const second=Date.parse(occurredAt(b));
+        const difference=(Number.isFinite(first)?first:0)-(Number.isFinite(second)?second:0);
+        return difference || (a.kind==='divergence'?1:0)-(b.kind==='divergence'?1:0);
+      }),
     }];
   });
 }
