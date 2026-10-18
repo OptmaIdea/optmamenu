@@ -189,7 +189,7 @@ export default function PublicOrderTracking() {
             <p className="mt-2 text-xs">Sem pagamento confirmado dentro da tolerância, o pedido é cancelado e os itens voltam a ficar disponíveis. Atualização automática nesta página.</p>
           </section>
         )}
-        {publicOrderToken && <PublicOrderOptmaPayCard token={publicOrderToken} />}
+        {!['cancelled','expired','completed'].includes(order.status) && publicOrderToken && <PublicOrderOptmaPayCard token={publicOrderToken} />}
         {!isTestStore && publicOrderToken && <PublicOrderPaymentProofCard token={publicOrderToken} />}
         {isTestStore && (
           <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
