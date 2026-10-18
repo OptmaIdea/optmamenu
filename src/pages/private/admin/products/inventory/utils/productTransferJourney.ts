@@ -31,7 +31,7 @@ export function consolidateProductTransferTimeline(items: ProductTimelineItem[])
     byTransfer.set(id,[...(byTransfer.get(id)||[]),item]);
   }
   const visited=new Set<string>();
-  return items.flatMap(item=>{
+  return items.flatMap<ConsolidatedTimelineItem>(item=>{
     const id=transferId(item);
     if (!id || (byTransfer.get(id)?.length??0)<2) return [item];
     if (visited.has(id)) return [];
