@@ -135,6 +135,10 @@ export default function PublicOrderTracking() {
   const paymentPresentation = getOrderPaymentPresentation(order.payment_status);
   const isPaid = paymentPresentation.confirmed;
   const awaitingPrepayment = order.status === 'reserved' && !isPaid && order.payment_timing === 'pay_now';
+  const qrWindowExpired = Boolean(awaitingPrepayment && order.expires_at
+    && new Date(order.expires_at).getTime() <= Date.now());
+  const reconciliationWindowOpen = Boolean(qrWindowExpired && order.cancellation_grace_until
+    && new Date(order.cancellation_grace_until).getTime() > Date.now());
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900">
@@ -171,10 +175,18 @@ export default function PublicOrderTracking() {
         </section>
         {awaitingPrepayment && (
           <section aria-label="Prazo para pagamento antecipado" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950" role="status">
-            <p className="font-black">Aguardando confirmação do pagamento</p>
-            <p className="mt-1">Sua reserva ainda não foi encaminhada para preparação. O pagamento deve ser confirmado antes do prazo.</p>
-            {order.expires_at && <p className="mt-2 font-bold">Prazo previsto: {formatDateTime(order.expires_at)}</p>}
-            <p className="mt-2 text-xs">Se houver atraso na confirmação pela API, acompanhe esta página. Após expiração, os produtos podem voltar a ficar disponíveis.</p>
+            <p className="font-black">{qrWindowExpired ? 'Prazo do Pix encerrado — conferindo confirmação' : 'Aguardando confirmação do pagamento'}</p>
+            <p className="mt-1">{qrWindowExpired
+              ? 'O prazo do QR Code terminou. A loja aguarda uma breve tolerância para confirmar pagamentos em trânsito; o pedido não segue para preparação.'
+              : 'Sua reserva ainda não foi encaminhada para preparação. O pagamento deve ser confirmado antes do prazo.'}</p>
+            {order.expires_at && <p className="mt-2 font-bold">Prazo do Pix: {formatDateTime(order.expires_at)}</p>}
+            {reconciliationWindowOpen && order.cancellation_grace_until && (
+              <p className="mt-2 font-bold">Reserva mantida para conciliação até {formatDateTime(order.cancellation_grace_until)}</p>
+            )}
+            {qrWindowExpired && !reconciliationWindowOpen && (
+              <p className="mt-2 font-semibold">Prazo total encerrado. Aguarde a atualização automática do status do pedido.</p>
+            )}
+            <p className="mt-2 text-xs">Sem pagamento confirmado dentro da tolerância, o pedido é cancelado e os itens voltam a ficar disponíveis. Atualização automática nesta página.</p>
           </section>
         )}
         {publicOrderToken && <PublicOrderOptmaPayCard token={publicOrderToken} />}
