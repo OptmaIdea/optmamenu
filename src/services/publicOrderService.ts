@@ -171,6 +171,7 @@ export interface PublicOrderTrackingResponse {
         order_code: string;
         status: string;
         payment_status?: string | null;
+        payment_timing?: 'pay_now' | 'pay_on_fulfillment' | null;
         customer_name?: string | null;
         subtotal: number;
         delivery_fee: number;
