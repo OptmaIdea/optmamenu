@@ -46,7 +46,7 @@ begin
   if v_key is null then return null;end if;
   select pepper into v_pepper from public.customer_sms_otp_rate_secret where id=1;
   if v_pepper is null then raise exception 'otp_quota_secret_missing';end if;
-  return encode(hmac(v_key,v_pepper,'sha256'),'hex');
+  return encode(hmac(convert_to(v_key,'UTF8'),v_pepper,'sha256'),'hex');
 end;
 $digest$;
 revoke all on function public.customer_sms_otp_digest_internal(text)
