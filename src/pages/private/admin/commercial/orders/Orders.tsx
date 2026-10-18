@@ -754,6 +754,15 @@ export default function Orders() {
                                                         <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border ${statusColors[order.status]}`}>{getOrderStatusLabel(order)}</span>
                                                         <span className="rounded border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-black uppercase text-sky-800 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-200">{fulfillmentLabel}</span>
                                                         {publicOrder.payment_status === 'paid' && <span className="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-800">Pagamento confirmado</span>}
+                                                        {order.status === 'cancelled' && (
+                                                            <span className="rounded border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-black uppercase text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+                                                                {(order as Order & { commercial_metadata?: Record<string, unknown> }).commercial_metadata?.cancel_source === 'customer_self_service'
+                                                                    ? 'Cancelado pelo cliente'
+                                                                    : (order as Order & { commercial_metadata?: Record<string, unknown> }).commercial_metadata?.cancelled_reason === 'reservation_expired'
+                                                                        ? 'Expiração automática'
+                                                                        : 'Cancelamento operacional'}
+                                                            </span>
+                                                        )}
                                                         {automaticExpirationAt && <span className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-amber-800"><Clock size={11} /> Expirado automaticamente · {formatDate(automaticExpirationAt)}</span>}
                                                         {canUseTimer && timerDisplay && <span className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold border border-current ${getTimerColor(isExpiring ? 0 : 5)}`}><Clock size={12} /> {timerDisplay}</span>}
                                                     </div>
