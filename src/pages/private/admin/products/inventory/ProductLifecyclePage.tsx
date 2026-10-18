@@ -11,6 +11,7 @@ import { useProductInventoryAudit } from './hooks/useProductInventoryAudit';
 import { useProductLocationInventory } from './hooks/useProductLocationInventory';
 import { useProductStockManagement } from './hooks/useProductStockManagement';
 import { ProductStockManagementCards } from './components/ProductStockManagementCards';
+import { ProductMovementHistory } from './components/ProductMovementHistory';
 import { useProductSupplierLifecycle } from './hooks/useProductSupplierLifecycle';
 import { ProductSupplierCostPanel } from './components/ProductSupplierCostPanel';
 import { useProductTransitSummary } from './hooks/useProductTransitSummary';
@@ -23,7 +24,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import EmptyState from '@/components/common/empty-state/EmptyState';
 import InfoTooltip from '@/components/common/tooltip/InfoTooltip';
 import { ProductPricingHistoryTab } from './pricing-history/ProductPricingHistoryTab';
-import { getShortDocumentReference, getDocumentReferenceTitle, humanizeTextReferences } from '@/utils/documentReference';
+
 import {
   ArrowLeft,
   History,
@@ -45,7 +46,6 @@ import {
   getMovementOriginLabel,
   getMovementReferenceLabel,
   getMovementStockPath,
-  getMovementToneClass,
   getTransferDivergenceReasonLabel,
   isPurchaseDocumentCancelMovement,
   getTransferDivergenceResolutionLabel,
@@ -992,162 +992,7 @@ export default function ProductLifecyclePage() {
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  {displayMovementItems.length === 0 && (movementRows.length > 0 || transferDivergences.length > 0) && (
-                    <EmptyState
-                      icon={<History className="h-5 w-5" />}
-                      title="Nenhuma movimentação encontrada com os filtros atuais"
-                      description="Ajuste os filtros, a busca ou a ordenação para voltar a visualizar os eventos operacionais deste produto."
-                    />
-                  )}
-
-                  {displayMovementItems.map((item) => {
-                    if (item.kind === 'divergence') {
-                      const divergence = item.divergence;
-                      const rawCode = divergence.transfer_code || divergence.transfer_id || '';
-                      const shortRef = getShortDocumentReference(rawCode, { fallbackLabel: 'Transferência' });
-                      const titleAttr = getDocumentReferenceTitle(rawCode);
-
-                      return (
-                        <div
-                          key={`divergence-${divergence.id}`}
-                          className="rounded-3xl border border-amber-200 bg-amber-50/90 p-5 text-amber-900 shadow-sm"
-                        >
-                          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                            <div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-sm font-black">
-                                  Divergência na transferência
-                                </span>
-                                <span className="rounded-full bg-white/80 px-2.5 py-0.5 text-xs font-bold">
-                                  Divergência
-                                </span>
-                                <span className="rounded-full bg-white/80 px-2.5 py-0.5 text-xs font-bold text-amber-700">
-                                  {Number(divergence.divergence_qty ?? 0)} un.
-                                </span>
-                              </div>
-
-                              <p className="mt-2 text-sm font-medium leading-relaxed">
-                                {Number(divergence.divergence_qty ?? 0)} un. não chegaram ao destino conforme o enviado.
-                              </p>
-                            </div>
-
-                            <div className="text-left text-xs md:text-right">
-                              <div className="font-black text-amber-950" title={titleAttr}>
-                                Ref.: {shortRef}
-                              </div>
-                              <div className="mt-1 font-medium opacity-80">
-                                Ocorrência: {formatDateTimePtBr(getTransferDivergenceDate(divergence))}
-                              </div>
-                              <div className="mt-1 font-medium opacity-80">
-                                {divergence.source_location_name ?? 'Origem'} → {divergence.destination_location_name ?? 'Destino'}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="mt-3 grid gap-2 text-xs md:grid-cols-4">
-                            <div className="rounded-xl bg-white/70 p-2.5">
-                              <div className="font-bold opacity-70 uppercase text-[10px]">Local afetado</div>
-                              <div className="font-semibold mt-0.5">{divergence.source_location_name ?? 'Origem não identificada'}</div>
-                            </div>
-
-                            <div className="rounded-xl bg-white/70 p-2.5">
-                              <div className="font-bold opacity-70 uppercase text-[10px]">Resolução</div>
-                              <div className="font-semibold mt-0.5">{getTransferDivergenceResolutionLabel(divergence.divergence_resolution)}</div>
-                            </div>
-
-                            <div className="rounded-xl bg-white/70 p-2.5">
-                              <div className="font-bold opacity-70 uppercase text-[10px]">Motivo</div>
-                              <div className="font-semibold mt-0.5">{getTransferDivergenceReasonLabel(divergence.divergence_reason)}</div>
-                            </div>
-
-                            <div className="rounded-xl bg-white/70 p-2.5">
-                              <div className="font-bold opacity-70 uppercase text-[10px]">Impacto</div>
-                              <div className="font-semibold mt-0.5">
-                                Perda: {Number(divergence.loss_qty ?? 0)} · Retorno: {Number(divergence.returned_to_origin_qty ?? 0)} · Falta aceita: {Number(divergence.accepted_shortage_qty ?? 0)}
-                              </div>
-                            </div>
-                          </div>
-
-                          {divergence.divergence_notes && (
-                            <p className="mt-3 text-xs opacity-80 font-medium">
-                              Observação: {humanizeTextReferences(divergence.divergence_notes)}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    }
-
-                    const movement = item.movement;
-                    const shortRef = getMovementReferenceLabel(movement);
-                    const rawRef = movement.transfer_code || movement.purchase_document_number || (movement.metadata?.order_code as string) || movement.source_id || '';
-                    const titleAttr = getDocumentReferenceTitle(rawRef);
-
-                    return (
-                      <div
-                        key={`movement-${movement.id}`}
-                        className={`rounded-3xl border p-5 shadow-xs transition-all ${getMovementToneClass(movement)}`}
-                      >
-                        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                          <div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-sm font-black">
-                                {getMovementOperationLabel(movement)}
-                              </span>
-
-                              <span className="rounded-full bg-white/80 dark:bg-gray-900/60 px-2.5 py-0.5 text-xs font-bold">
-                                {getMovementDirectionLabel(movement)}
-                              </span>
-
-                              <span className="rounded-full bg-white/80 dark:bg-gray-900/60 px-2.5 py-0.5 text-xs font-extrabold">
-                                {Math.abs(Number(movement.quantity ?? 0))} un.
-                              </span>
-                            </div>
-
-                            <p className="mt-2 text-sm font-medium leading-relaxed">
-                              {humanizeTextReferences(getMovementHumanDescription(movement))}
-                            </p>
-                          </div>
-
-                          <div className="text-left text-xs md:text-right">
-                            <div className="font-black">
-                              Saldo no local: {getMovementStockPath(movement)}
-                            </div>
-                            <div className="mt-1 font-medium opacity-80">
-                              Ocorrência: {formatDateTimePtBr(movement.created_at)}
-                            </div>
-                            <div className="mt-1 font-bold opacity-90" title={titleAttr}>
-                              Ref.: {shortRef}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="mt-3 grid gap-2 text-xs md:grid-cols-3">
-                          <div className="rounded-xl bg-white/60 dark:bg-gray-900/40 p-2.5">
-                            <div className="font-bold opacity-70 uppercase text-[10px]">Local afetado</div>
-                            <div className="font-semibold mt-0.5">{movement.location_name ?? '—'}</div>
-                          </div>
-
-                          <div className="rounded-xl bg-white/60 dark:bg-gray-900/40 p-2.5">
-                            <div className="font-bold opacity-70 uppercase text-[10px]">Origem</div>
-                            <div className="font-semibold mt-0.5">{getMovementOriginLabel(movement)}</div>
-                          </div>
-
-                          <div className="rounded-xl bg-white/60 dark:bg-gray-900/40 p-2.5">
-                            <div className="font-bold opacity-70 uppercase text-[10px]">Destino</div>
-                            <div className="font-semibold mt-0.5">{getMovementDestinationLabel(movement)}</div>
-                          </div>
-                        </div>
-
-                        {movement.reason && (
-                          <p className="mt-3 text-xs font-medium opacity-80">
-                            Motivo/observação: {humanizeTextReferences(movement.reason)}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                <ProductMovementHistory items={displayMovementItems} />
               </div>
             )}
           </div>
