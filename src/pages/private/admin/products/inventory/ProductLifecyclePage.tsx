@@ -159,6 +159,7 @@ export default function ProductLifecyclePage() {
     useState<MovementOperationFilter>('all');
   const [movementLocationFilter, setMovementLocationFilter] = useState('all');
   const [movementSort, setMovementSort] = useState<MovementSortOption>('newest');
+  const [movementFiltersOpen, setMovementFiltersOpen] = useState(false);
 
   const {
     row,
@@ -438,6 +439,7 @@ export default function ProductLifecyclePage() {
     setMovementOperationFilter('all');
     setMovementLocationFilter('all');
     setMovementSort('newest');
+    setMovementFiltersOpen(false);
   };
 
   const handleExportSummaryCsv = () => {
@@ -911,32 +913,45 @@ export default function ProductLifecyclePage() {
               />
             ) : (
               <div className="space-y-4">
-                <div className="flex flex-col gap-3 rounded-3xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-                  <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+                <div className="flex flex-col gap-3 rounded-2xl border border-gray-100 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:rounded-3xl sm:p-5">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <h2 className="font-black text-sm uppercase tracking-wider text-gray-900 dark:text-white">Movimentações Físicas</h2>
+                      <h2 className="text-sm font-black uppercase tracking-wider text-gray-900 dark:text-white">Movimentações e ocorrências</h2>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
                         {displayMovementItems.length} de {movementRows.length + transferDivergences.length} eventos exibidos
                       </p>
                     </div>
 
-                    {hasMovementFilters && (
+                    <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
-                        onClick={clearMovementFilters}
-                        className="self-start rounded-xl border border-gray-200 px-3 py-1.5 text-xs font-bold text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700 md:self-auto"
+                        onClick={() => setMovementFiltersOpen((open) => !open)}
+                        aria-expanded={movementFiltersOpen}
+                        aria-controls="product-movement-filters"
+                        className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200 md:hidden"
                       >
-                        Limpar filtros
+                        {movementFiltersOpen ? 'Recolher filtros ↑' : 'Filtros ↓'}
+                        {hasMovementFilters && <span className="rounded-full bg-emerald-200 px-2 py-0.5 text-[10px] text-emerald-900 dark:bg-emerald-800 dark:text-emerald-100">Aplicados</span>}
                       </button>
-                    )}
+                      {hasMovementFilters && (
+                        <button
+                          type="button"
+                          onClick={clearMovementFilters}
+                          className="min-h-10 rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
+                        >
+                          Limpar filtros
+                        </button>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <div id="product-movement-filters" className={`${movementFiltersOpen ? 'grid' : 'hidden'} gap-3 md:grid md:grid-cols-2 xl:grid-cols-4`}>
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
                       Buscar
                       <input
                         value={movementSearch}
                         onChange={(event) => setMovementSearch(event.target.value)}
+                        onKeyDown={(event) => { if (event.key === 'Enter') setMovementFiltersOpen(false); }}
                         placeholder="Ref., local, motivo..."
                         className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-900 outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                       />
@@ -946,9 +961,10 @@ export default function ProductLifecyclePage() {
                       Tipo
                       <select
                         value={movementOperationFilter}
-                        onChange={(event) =>
-                          setMovementOperationFilter(event.target.value as MovementOperationFilter)
-                        }
+                        onChange={(event) => {
+                          setMovementOperationFilter(event.target.value as MovementOperationFilter);
+                          setMovementFiltersOpen(false);
+                        }}
                         className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-900 outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                       >
                         {movementOperationFilterOptions.map((option) => (
@@ -963,7 +979,10 @@ export default function ProductLifecyclePage() {
                       Local
                       <select
                         value={movementLocationFilter}
-                        onChange={(event) => setMovementLocationFilter(event.target.value)}
+                        onChange={(event) => {
+                          setMovementLocationFilter(event.target.value);
+                          setMovementFiltersOpen(false);
+                        }}
                         className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-900 outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                       >
                         <option value="all">Todos os locais</option>
@@ -979,7 +998,10 @@ export default function ProductLifecyclePage() {
                       Ordenar
                       <select
                         value={movementSort}
-                        onChange={(event) => setMovementSort(event.target.value as MovementSortOption)}
+                        onChange={(event) => {
+                          setMovementSort(event.target.value as MovementSortOption);
+                          setMovementFiltersOpen(false);
+                        }}
                         className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-900 outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                       >
                         {movementSortOptions.map((option) => (
