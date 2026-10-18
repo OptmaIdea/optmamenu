@@ -185,6 +185,7 @@ export interface PublicOrderTrackingResponse {
         confirmed_at?: string | null;
         completed_at?: string | null;
         expires_at?: string | null;
+        cancellation_grace_until?: string | null;
         items: PublicOrderTrackingItem[];
     };
 }
