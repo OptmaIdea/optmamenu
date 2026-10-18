@@ -41,7 +41,7 @@ describe('Ocorrências em Vida do Produto: somente leitura', () => {
     expect(button.getAttribute('aria-expanded')).toBe('false');
     fireEvent.click(button);
     expect(screen.getByText(/não provoca nova baixa/)).toBeTruthy();
-    expect(screen.getByRole('link',{name:/Consultar central de Divergências/}).getAttribute('href')).toBe('/admin/stock/divergences');
+    expect(screen.getByRole('link',{name:/Consultar central de Divergências/}).getAttribute('href')).toBe('/admin/stock/divergences?status=all&occurrence=physical-1');
   });
   it('expande e recolhe fontes diferentes de forma independente', () => {
     render(<MemoryRouter><ProductMovementHistory items={[
