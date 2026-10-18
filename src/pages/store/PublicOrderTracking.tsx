@@ -175,11 +175,11 @@ export default function PublicOrderTracking() {
         </section>
         {awaitingPrepayment && (
           <section aria-label="Prazo para pagamento antecipado" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950" role="status">
-            <p className="font-black">{qrWindowExpired ? 'Prazo do Pix encerrado — conferindo confirmação' : 'Aguardando confirmação do pagamento'}</p>
+            <p className="font-black">{qrWindowExpired ? 'Prazo do pagamento encerrado — conferindo confirmação' : 'Aguardando confirmação do pagamento'}</p>
             <p className="mt-1">{qrWindowExpired
-              ? 'O prazo do QR Code terminou. A loja aguarda uma breve tolerância para confirmar pagamentos em trânsito; o pedido não segue para preparação.'
+              ? 'O prazo do pagamento terminou. A loja aguarda uma breve tolerância para confirmar pagamentos em trânsito; o pedido não segue para preparação.'
               : 'Sua reserva ainda não foi encaminhada para preparação. O pagamento deve ser confirmado antes do prazo.'}</p>
-            {order.expires_at && <p className="mt-2 font-bold">Prazo do Pix: {formatDateTime(order.expires_at)}</p>}
+            {order.expires_at && <p className="mt-2 font-bold">Prazo para pagamento: {formatDateTime(order.expires_at)}</p>}
             {reconciliationWindowOpen && order.cancellation_grace_until && (
               <p className="mt-2 font-bold">Reserva mantida para conciliação até {formatDateTime(order.cancellation_grace_until)}</p>
             )}
@@ -190,7 +190,7 @@ export default function PublicOrderTracking() {
           </section>
         )}
         {!['cancelled','expired','completed'].includes(order.status) && publicOrderToken && <PublicOrderOptmaPayCard token={publicOrderToken} />}
-        {!isTestStore && publicOrderToken && <PublicOrderPaymentProofCard token={publicOrderToken} />}
+        {!['cancelled','expired','completed'].includes(order.status) && !isTestStore && publicOrderToken && <PublicOrderPaymentProofCard token={publicOrderToken} />}
         {isTestStore && (
           <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
             Pedido de homologação: somente pagamentos fictícios pelo OptmaPay Sandbox podem ser testados. Não faça Pix, transferência, depósito ou pagamento com cartão reais.
