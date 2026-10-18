@@ -345,6 +345,13 @@ export default function Checkout() {
     const selectedPayLaterMethod = paymentOptions.pay_on_fulfillment.methods.find((method) => method.code === promisedPaymentMethodCode) || null;
     const cashAtDelivery = paymentTiming === 'pay_on_fulfillment' && promisedPaymentMethodCode === 'cash';
     const changeValue = Number(changeFor.replace(',', '.'));
+    useEffect(() => {
+        if (!isAuthenticated && paymentTiming === 'pay_now') {
+            setPaymentTiming('');
+            setPaymentMethodCode('');
+        }
+    }, [isAuthenticated, paymentTiming]);
+
     const paymentValid = paymentTiming === 'pay_now'
         ? isAuthenticated && Boolean(selectedPayNowMethod)
         : paymentTiming === 'pay_on_fulfillment'
@@ -1166,6 +1173,14 @@ export default function Checkout() {
                     {isTestStore && (
                         <section className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900">
                             Somente pagamentos simulados pelo OptmaPay Sandbox são permitidos. Nunca utilize dinheiro, Pix ou cartão reais.
+                        </section>
+                    )}
+                    {!isAuthenticated && effectiveFulfillment !== 'pickup' && (
+                        <section role="alert" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+                            <p className="font-black">Entrega exige conta autenticada</p>
+                            <p className="mt-1">Entre na sua conta desta loja para finalizar uma entrega. Sem login, apenas retirada com pagamento na loja está disponível.</p>
+                            <button type="button" onClick={() => navigate(`/loja/${encodeURIComponent(storeSlug)}`)}
+                                className="mt-3 min-h-11 rounded-xl bg-emerald-700 px-4 font-black text-white">Ir para a loja e entrar</button>
                         </section>
                     )}
                     {!isAuthenticated && visiblePayNowMethods.length > 0 && (
