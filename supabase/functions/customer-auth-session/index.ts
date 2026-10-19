@@ -21,6 +21,64 @@ function json(body: unknown, status = 200, origin: string | null = null) {
   });
 }
 
+function emailText(value: unknown): string {
+  return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
+
+async function sendPasswordChangeNotice(service: any, customerId: string, storeId: string): Promise<void> {
+  try {
+    const { data: customer } = await service.from("customers")
+      .select("email,email_verified,full_name,nickname")
+      .eq("id",customerId).eq("store_id",storeId).eq("status","active")
+      .is("merged_into_customer_id",null).maybeSingle();
+    if (!customer?.email_verified || !customer.email) return;
+
+    const { data: store } = await service.from("stores")
+      .select("name,slug,logo_url").eq("id",storeId).maybeSingle();
+    const name = String(store?.name || store?.slug || "Loja").slice(0,70);
+    const logo = String(store?.logo_url || "");
+    const brand = logo.startsWith("https://")
+      ? '<img src="' + emailText(logo) + '" alt="' + emailText(name) + '" style="display:block;max-width:160px;max-height:72px;margin:0 auto 18px">'
+      : '<p style="font-size:22px;font-weight:bold;color:#047857">' + emailText(name) + '</p>';
+
+    const apiKey = String(Deno.env.get("BREVO_API_KEY") || Deno.env.get("SENDINBLUE_API_KEY") || "")
+      .trim().replace(/^["'`]+|["'`]+$/g,"").replace(/^BREVO_API_KEY\\s*=\\s*/i,"").replace(/\\s+/g,"");
+    if (!apiKey) {
+      console.warn("customer_password_security_notice_provider_unconfigured");
+      return;
+    }
+    const senderRaw = String(Deno.env.get("CUSTOMER_EMAIL_FROM") || Deno.env.get("BREVO_SENDER_EMAIL") || "");
+    const sender = senderRaw.match(/<([^<>\\s]+@[^<>\\s]+)>/)?.[1]
+      || senderRaw.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/i)?.[0]
+      || "naoresponda@auth.optmamenu.com.br";
+    const firstName = emailText(customer.full_name || customer.nickname || "Cliente");
+    const html = '<!doctype html><html lang="pt-BR"><body style="margin:0;background:#f3f6f8;font-family:Arial,sans-serif;color:#172033">'
+      + '<div style="max-width:600px;margin:32px auto;padding:32px;background:#fff;border-radius:20px">'
+      + brand + '<p style="font-size:12px;font-weight:bold;color:#047857">SEGURANÇA DA CONTA</p>'
+      + '<h1 style="font-size:24px">Sua senha foi alterada</h1>'
+      + '<p>Olá, ' + firstName + '.</p>'
+      + '<p>A senha da sua conta foi alterada. Outros dispositivos podem precisar de nova autenticação.</p>'
+      + '<p style="background:#fff7ed;border-radius:12px;padding:16px">Não foi você? Entre em contato com a loja imediatamente.</p>'
+      + '<hr style="border:0;border-top:1px solid #e8ecef;margin:22px 0">'
+      + '<p style="font-size:12px;color:#7a8493">Mensagem automática de segurança de ' + emailText(name) + '. Sem publicidade.</p>'
+      + '</div></body></html>';
+    const result = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method:"POST",
+      headers:{"api-key":apiKey,"Content-Type":"application/json","accept":"application/json"},
+      body:JSON.stringify({
+        sender:{name,email:sender},
+        to:[{email:customer.email}],
+        subject:"Aviso de segurança: senha alterada — " + name,
+        htmlContent:html,
+      }),
+    });
+    if (!result.ok) console.warn("customer_password_security_notice_rejected",{status:result.status});
+  } catch (error) {
+    console.warn("customer_password_security_notice_failed",{kind:error instanceof Error ? error.name : "unknown"});
+  }
+}
+
 function validUuid(value: string) {
   return /^[0-9a-f-]{36}$/i.test(value);
 }
@@ -663,6 +721,12 @@ Deno.serve(async (req: Request) => {
     });
     if (error) return json({ ok: false, error: "password_update_failed" }, 500, origin);
     if (!result?.ok) return json({ ok: false, error: result?.error || "password_update_failed" }, 400, origin);
+
+    // Notify only after an existing password has really changed.
+    // Email failure never rolls back a successful credential update.
+    if (alreadyHasPassword) {
+      await sendPasswordChangeNotice(service, String(identity.customer_id), String(identity.store_id));
+    }
 
     const currentJwt = getBearerToken(req);
     const { error: globalSignOutError } = await service.auth.admin.signOut(currentJwt, "global");
