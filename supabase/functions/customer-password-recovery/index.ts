@@ -35,13 +35,17 @@ async function notifyPasswordChanged(service: any, storeId: string, phone: strin
       .eq("phone_match_key",normalized.match_key).eq("status","active").maybeSingle();
     if (!person?.email_verified || !person.email) return;
     const { data: shop } = await service.from("stores")
-      .select("name,slug").eq("id",storeId).maybeSingle();
+      .select("name,slug,logo_url").eq("id",storeId).maybeSingle();
     const name = String(shop?.name || shop?.slug || "Loja").slice(0,60);
+    const logo = String(shop?.logo_url || "");
+    const brandedHeader = logo.startsWith("https://")
+      ? '<img src="' + escapeHtml(logo) + '" alt="' + escapeHtml(name) + '" style="display:block;max-width:160px;max-height:72px;margin:0 auto 18px">'
+      : '<p style="font-size:22px;font-weight:800;color:#047857">' + escapeHtml(name) + '</p>';
     const key = normalizeSecret(Deno.env.get("BREVO_API_KEY") || Deno.env.get("SENDINBLUE_API_KEY"));
     if (!key) return;
     const from = senderEmail(Deno.env.get("CUSTOMER_EMAIL_FROM") || Deno.env.get("BREVO_SENDER_EMAIL")) || "naoresponda@auth.optmamenu.com.br";
     const html = '<html lang="pt-BR"><body style="margin:0;background:#f3f6f8;font-family:Arial,sans-serif;color:#172033"><div style="max-width:600px;margin:32px auto;background:white;border-radius:20px;padding:32px">'
-      + '<p style="font-size:22px;font-weight:800;color:#047857">' + escapeHtml(name) + '</p>'
+      + brandedHeader
       + '<p style="font-size:12px;font-weight:700;color:#047857">AVISO DE SEGURANÇA</p><h1>Sua senha foi alterada</h1>'
       + '<p>Olá, ' + escapeHtml(person.full_name || person.nickname || "Cliente") + '.</p>'
       + '<p>Confirmamos que a senha da sua conta foi alterada. Outros dispositivos podem exigir nova autenticação.</p>'
