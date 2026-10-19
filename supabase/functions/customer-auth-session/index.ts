@@ -43,14 +43,14 @@ async function sendPasswordChangeNotice(service: any, customerId: string, storeI
       : '<p style="font-size:22px;font-weight:bold;color:#047857">' + emailText(name) + '</p>';
 
     const apiKey = String(Deno.env.get("BREVO_API_KEY") || Deno.env.get("SENDINBLUE_API_KEY") || "")
-      .trim().replace(/^["'`]+|["'`]+$/g,"").replace(/^BREVO_API_KEY\\s*=\\s*/i,"").replace(/\\s+/g,"");
+      .trim().replace(/^["'`]+|["'`]+$/g,"").replace(/^BREVO_API_KEY\s*=\s*/i,"").replace(/\s+/g,"");
     if (!apiKey) {
       console.warn("customer_password_security_notice_provider_unconfigured");
       return;
     }
     const senderRaw = String(Deno.env.get("CUSTOMER_EMAIL_FROM") || Deno.env.get("BREVO_SENDER_EMAIL") || "");
-    const sender = senderRaw.match(/<([^<>\\s]+@[^<>\\s]+)>/)?.[1]
-      || senderRaw.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/i)?.[0]
+    const sender = senderRaw.match(/<([^<>\s]+@[^<>\s]+)>/)?.[1]
+      || senderRaw.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0]
       || "naoresponda@auth.optmamenu.com.br";
     const firstName = emailText(customer.full_name || customer.nickname || "Cliente");
     const html = '<!doctype html><html lang="pt-BR"><body style="margin:0;background:#f3f6f8;font-family:Arial,sans-serif;color:#172033">'
