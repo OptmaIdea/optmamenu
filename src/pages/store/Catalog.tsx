@@ -133,12 +133,14 @@ export default function Catalog() {
     const { isAuthenticated, customer } = useCustomerAuth();
     const cartItemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
     const cartHref = `/checkout?store=${encodeURIComponent(storeSlug || '')}`;
+    const [store, setStore] = useState<Store | null>(null);
     const cartHeaderIcon = (
         <Link
             to={cartHref}
             className="relative hidden h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white md:inline-flex"
             aria-label={cartItemCount > 0 ? `Abrir carrinho com ${cartItemCount} ${cartItemCount === 1 ? 'item' : 'itens'}` : 'Abrir carrinho vazio'}
             title={cartItemCount > 0 ? `Carrinho: ${cartItemCount} ${cartItemCount === 1 ? 'item' : 'itens'}` : 'Carrinho vazio'}
+            style={{ color: store?.config?.visual_color_text || '#ffffff' }}
         >
             <ShoppingCart className={`h-5 w-5 ${cartItemCount === 0 ? 'opacity-65' : ''}`} />
             {cartItemCount > 0 && (
@@ -149,7 +151,7 @@ export default function Catalog() {
         </Link>
     );
 
-    const [store, setStore] = useState<Store | null>(null);
+
     const [categories, setCategories] = useState<Category[]>([]);
     const [products, setProducts] = useState<Product[]>([]);
     const [deliveryMethods, setDeliveryMethods] = useState<PublicDeliveryMethod[]>([]);
@@ -950,6 +952,7 @@ export default function Catalog() {
                                         }));
                                     }}
                                     className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25"
+                                    style={{color:store.config?.visual_color_text || '#ffffff'}}
                                     aria-label={notificationUnreadCount > 0 ? `Abrir mensagens, ${notificationUnreadCount} não lida(s)` : 'Abrir mensagens'}
                                     title="Mensagens"
                                 >
@@ -972,6 +975,7 @@ export default function Catalog() {
                                 type="button"
                                 onClick={() => window.dispatchEvent(new CustomEvent('optmamenu:open-customer-auth'))}
                                 className="min-h-10 rounded-full bg-white/15 px-4 text-xs font-black text-white transition hover:bg-white/25 sm:text-sm"
+                                style={{color:store.config?.visual_color_text || '#ffffff'}}
                             >
                                 Entrar
                             </button>
