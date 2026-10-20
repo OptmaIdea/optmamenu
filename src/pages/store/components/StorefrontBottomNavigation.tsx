@@ -127,7 +127,7 @@ export function StorefrontBottomNavigation({
     };
 
     const navButton = 'relative flex min-w-0 flex-col items-center justify-center gap-1 px-1 py-2 text-[10px] font-black transition sm:text-xs';
-    const muted = 'text-slate-500 dark:text-slate-400';
+    const muted = 'text-slate-600 dark:text-slate-300';
     const active = 'text-emerald-600 dark:text-emerald-400';
     const menuTile = 'flex min-h-24 flex-col items-start justify-between rounded-3xl bg-slate-100 p-4 text-left dark:bg-slate-900';
 
@@ -135,7 +135,7 @@ export function StorefrontBottomNavigation({
         <>
             <nav
                 aria-label="Navegação da loja"
-                className="safe-area-bottom fixed inset-x-0 bottom-0 z-[80] border-t border-slate-200 bg-white/95 px-2 pb-[max(0.25rem,env(safe-area-inset-bottom))] shadow-[0_-8px_30px_rgba(15,23,42,0.10)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/95 md:hidden"
+                className="safe-area-bottom fixed inset-x-0 bottom-0 z-[80] border-t border-slate-200 bg-white/95 px-2 pb-[max(0.25rem,env(safe-area-inset-bottom))] shadow-[0_-8px_30px_rgba(15,23,42,0.10)] backdrop-blur-xl dark:border-slate-600 dark:bg-slate-950/98 md:hidden"
             >
                 <div className="mx-auto grid min-h-[4.6rem] max-w-3xl grid-cols-5 items-stretch">
                     <button type="button" onClick={goHome} className={`${navButton} ${location.pathname === homePath ? active : muted}`} aria-label="Início">
