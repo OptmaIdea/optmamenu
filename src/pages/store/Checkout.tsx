@@ -207,14 +207,14 @@ function normalizeInternationalPhone(ddiInput: string, phoneInput: string): Phon
 function CheckoutHeader({ title, subtitle, onBack, storeSlug }: { title: string; subtitle?: string; onBack: () => void; storeSlug: string }) {
     return (
         <>
-        <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/95 backdrop-blur">
+        <header className="sticky top-0 z-40 border-b border-slate-100 dark:border-slate-800 bg-white/95 dark:bg-slate-950/95 backdrop-blur">
             <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-4">
                 <button type="button" onClick={onBack} className="rounded-full p-2 hover:bg-slate-100" aria-label="Voltar">
                     <ArrowLeft className="h-7 w-7" />
                 </button>
                 <div className="min-w-0 flex-1">
-                    <h1 className="text-2xl font-black tracking-tight text-slate-950">{title}</h1>
-                    {subtitle && <p className="text-sm text-slate-500">{subtitle}</p>}
+                    <h1 className="text-2xl font-black tracking-tight text-slate-950 dark:text-slate-100">{title}</h1>
+                    {subtitle && <p className="text-sm text-slate-500 dark:text-slate-300">{subtitle}</p>}
                 </div>
             </div>
         </header>
@@ -232,17 +232,17 @@ function ReviewRow({ icon, title, description, missing, actionLabel, onClick }: 
     onClick: () => void;
 }) {
     return (
-        <button type="button" onClick={onClick} className="flex w-full items-center gap-4 border-b border-slate-100 px-4 py-5 text-left last:border-b-0 hover:bg-slate-50">
-            <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${missing ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-700'}`}>
+        <button type="button" onClick={onClick} className="flex w-full items-center gap-4 border-b border-slate-100 dark:border-slate-800 px-4 py-5 text-left last:border-b-0 hover:bg-slate-50">
+            <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${missing ? 'bg-red-50 dark:bg-red-950/40 text-red-600' : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700'}`}>
                 {icon}
             </span>
             <span className="min-w-0 flex-1">
-                <span className="block text-base font-black text-slate-950">{title}</span>
-                <span className={`mt-0.5 block text-sm leading-relaxed ${missing ? 'font-bold text-red-600' : 'text-slate-500'}`}>
+                <span className="block text-base font-black text-slate-950 dark:text-slate-100">{title}</span>
+                <span className={`mt-0.5 block text-sm leading-relaxed ${missing ? 'font-bold text-red-600' : 'text-slate-500 dark:text-slate-300'}`}>
                     {missing ? 'Preencher os dados' : description}
                 </span>
             </span>
-            <span className="flex shrink-0 items-center gap-1 text-sm font-bold text-slate-600">
+            <span className="flex shrink-0 items-center gap-1 text-sm font-bold text-slate-600 dark:text-slate-200">
                 {actionLabel}<ChevronRight size={18} />
             </span>
         </button>
@@ -823,10 +823,10 @@ export default function Checkout() {
 
     if (items.length === 0) {
         return (
-            <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 p-4">
+            <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 dark:bg-slate-800 p-4">
                 <ShoppingBag size={64} className="mb-4 text-slate-300" />
-                <h1 className="text-xl font-black text-slate-800">Seu carrinho está vazio</h1>
-                <p className="mb-6 mt-2 text-center text-slate-500">Seus dados de checkout continuam salvos neste navegador.</p>
+                <h1 className="text-xl font-black text-slate-800 dark:text-slate-100">Seu carrinho está vazio</h1>
+                <p className="mb-6 mt-2 text-center text-slate-500 dark:text-slate-300">Seus dados de checkout continuam salvos neste navegador.</p>
                 <Link to={storePath} className="rounded-full bg-emerald-600 px-8 py-3 text-sm font-bold text-white">
                     Ver cardápio
                 </Link>
@@ -836,13 +836,13 @@ export default function Checkout() {
 
     if (view === 'cart') {
         return (
-            <div className="min-h-screen bg-white pb-32 text-slate-950">
-                <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/95">
+            <div className="min-h-screen bg-white dark:bg-slate-950 pb-32 text-slate-950 dark:text-slate-100">
+                <header className="sticky top-0 z-40 border-b border-slate-100 dark:border-slate-800 bg-white/95 dark:bg-slate-950/95">
                     <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-4">
                         <Link to={storePath} className="rounded-full p-2"><ArrowLeft className="h-7 w-7" /></Link>
                         <div className="min-w-0 flex-1">
                             <h1 className="text-2xl font-black">Seu carrinho</h1>
-                            <p className="text-slate-500">{totalUnits} {totalUnits === 1 ? 'item' : 'itens'}</p>
+                            <p className="text-slate-500 dark:text-slate-300">{totalUnits} {totalUnits === 1 ? 'item' : 'itens'}</p>
                         </div>
                         <button
                             type="button"
@@ -927,12 +927,12 @@ export default function Checkout() {
                         })}
                     </section>
 
-                    <Link to={storePath} className="mt-2 flex items-center justify-center gap-2 border-y border-slate-100 py-5 font-black text-emerald-700">
+                    <Link to={storePath} className="mt-2 flex items-center justify-center gap-2 border-y border-slate-100 dark:border-slate-800 py-5 font-black text-emerald-700">
                         <Plus size={20} /> Adicionar mais itens
                     </Link>
 
                     {hasEligibleDiscountProducts && (
-                        <section className="my-5 rounded-2xl bg-emerald-50 px-4 py-4 text-emerald-900">
+                        <section className="my-5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 px-4 py-4 text-emerald-900 dark:text-emerald-100">
                             <h2 className="font-black">Compre mais e aumente seu desconto</h2>
                             <p className="mt-1 text-sm font-medium">
                                 Comprando mais unidades dos produtos elegíveis o seu desconto aumenta!{' '}
@@ -942,14 +942,14 @@ export default function Checkout() {
                     )}
                 </main>
 
-                <div className="fixed inset-x-0 bottom-0 z-50 border-t bg-white px-4 pb-4 pt-3">
+                <div className="fixed inset-x-0 bottom-0 z-50 border-t bg-white dark:bg-slate-900 px-4 pb-4 pt-3">
                     <div className="mx-auto flex max-w-3xl items-center gap-4">
                         <div className="flex-1">
                             <p className="text-2xl font-black">R$ {formatBRL(totalValue)}</p>
                             {discountTotal > 0.009 && <p className="text-sm font-bold text-emerald-700">Economizou R$ {formatBRL(discountTotal)}</p>}
                         </div>
                         <button type="button" onClick={goToReview} className="flex min-h-14 items-center gap-3 rounded-2xl bg-emerald-600 px-6 text-lg font-black text-white">
-                            Continuar <span className="rounded-full bg-white px-2 py-1 text-sm text-emerald-700">{totalUnits}</span>
+                            Continuar <span className="rounded-full bg-white dark:bg-slate-900 px-2 py-1 text-sm text-emerald-700">{totalUnits}</span>
                         </button>
                     </div>
                 </div>
@@ -962,42 +962,42 @@ export default function Checkout() {
 
     if (view === 'fulfillment') {
         return (
-            <div className="min-h-screen bg-slate-50 pb-24">
+            <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-24">
                 <CheckoutHeader storeSlug={storeSlug} title="Entrega" subtitle="Escolha como deseja receber" onBack={() => setView('review')} />
                 <main className="mx-auto max-w-3xl px-4 py-5">
-                    <section className="overflow-hidden rounded-2xl bg-white shadow-sm">
+                    <section className="overflow-hidden rounded-2xl bg-white dark:bg-slate-900 shadow-sm">
                         <button type="button" onClick={() => { setFulfillment('pickup', 'pickup'); resetPaymentSelection(); setView('review'); }} className="flex w-full items-center gap-4 border-b px-4 py-5 text-left">
-                            <Store /><span className="flex-1"><span className="block font-black">Retirar na loja</span><span className="text-sm text-slate-500">Sem taxa de entrega</span></span>
+                            <Store /><span className="flex-1"><span className="block font-black">Retirar na loja</span><span className="text-sm text-slate-500 dark:text-slate-300">Sem taxa de entrega</span></span>
                             {effectiveFulfillment === 'pickup' && <CheckCircle2 className="text-emerald-600" />}
                         </button>
                         <button type="button" onClick={() => { setFulfillment('delivery', 'delivery'); resetPaymentSelection(); }} className="flex w-full items-center gap-4 px-4 py-5 text-left">
-                            <MapPin /><span className="flex-1"><span className="block font-black">Receber em casa</span><span className="text-sm text-slate-500">Informe o endereço para calcular condições</span></span>
+                            <MapPin /><span className="flex-1"><span className="block font-black">Receber em casa</span><span className="text-sm text-slate-500 dark:text-slate-300">Informe o endereço para calcular condições</span></span>
                             {effectiveFulfillment === 'delivery' && <CheckCircle2 className="text-emerald-600" />}
                         </button>
                     </section>
 
                     {effectiveFulfillment === 'delivery' && (
-                        <section className="mt-4 space-y-3 rounded-2xl bg-white p-4 shadow-sm">
+                        <section className="mt-4 space-y-3 rounded-2xl bg-white dark:bg-slate-900 p-4 shadow-sm">
                             <div>
                                 <h2 className="font-black">Endereço de entrega</h2>
-                                <p className="mt-1 text-xs leading-5 text-slate-500">
+                                <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-300">
                                     Você pode usar um endereço só neste pedido. Se estiver conectado, também pode optar por salvá-lo em Minha conta.
                                 </p>
                             </div>
                             {isAuthenticated && savedAddresses.length > 0 && (
                                 <div className="space-y-2 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-3">
-                                    <p className="text-sm font-black text-emerald-900">Seus endereços salvos</p>
+                                    <p className="text-sm font-black text-emerald-900 dark:text-emerald-100">Seus endereços salvos</p>
                                     {savedAddresses.map((address) => (
                                         <button
                                             key={address.id || `${address.zip_code}-${address.number}`}
                                             type="button"
                                             onClick={() => useSavedAddress(address)}
-                                            className="flex w-full items-center gap-3 rounded-xl bg-white p-3 text-left ring-1 ring-emerald-100"
+                                            className="flex w-full items-center gap-3 rounded-xl bg-white dark:bg-slate-900 p-3 text-left ring-1 ring-emerald-100"
                                         >
                                             <MapPin className="h-4 w-4 shrink-0 text-emerald-600" />
                                             <span className="min-w-0 flex-1 text-sm">
                                                 <span className="block truncate font-bold text-slate-900">{address.street}, {address.number}</span>
-                                                <span className="block truncate text-slate-500">{address.district} · {address.city}/{address.state}</span>
+                                                <span className="block truncate text-slate-500 dark:text-slate-300">{address.district} · {address.city}/{address.state}</span>
                                             </span>
                                             {address.is_default && <span className="rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-black uppercase text-emerald-700">Padrão</span>}
                                         </button>
@@ -1005,39 +1005,39 @@ export default function Checkout() {
                                 </div>
                             )}
                             <div className="flex gap-2">
-                                <input placeholder="CEP" inputMode="numeric" value={deliveryAddress.zipCode} onChange={(event) => setDeliveryAddress((state) => ({ ...state, zipCode: formatCep(event.target.value) }))} onBlur={() => { if (onlyDigits(deliveryAddress.zipCode).length === 8) void lookupCep(); }} className="min-w-0 flex-1 rounded-xl bg-slate-50 p-4" />
+                                <input placeholder="CEP" inputMode="numeric" value={deliveryAddress.zipCode} onChange={(event) => setDeliveryAddress((state) => ({ ...state, zipCode: formatCep(event.target.value) }))} onBlur={() => { if (onlyDigits(deliveryAddress.zipCode).length === 8) void lookupCep(); }} className="min-w-0 flex-1 rounded-xl bg-slate-50 dark:bg-slate-800 p-4" />
                                 <button type="button" onClick={() => void lookupCep()} disabled={cepLoading} className="rounded-xl border px-4 font-bold text-emerald-700">
                                     {cepLoading ? 'Buscando…' : 'Buscar'}
                                 </button>
                             </div>
-                            <input placeholder="Logradouro" value={deliveryAddress.street} onChange={(event) => setDeliveryAddress((state) => ({ ...state, street: event.target.value }))} className="w-full rounded-xl bg-slate-50 p-4" />
+                            <input placeholder="Logradouro" value={deliveryAddress.street} onChange={(event) => setDeliveryAddress((state) => ({ ...state, street: event.target.value }))} className="w-full rounded-xl bg-slate-50 dark:bg-slate-800 p-4" />
                             <div className="grid grid-cols-[1fr_auto] items-center gap-3">
-                                <input placeholder="Número" disabled={withoutNumber} value={withoutNumber ? '' : deliveryAddress.number} onChange={(event) => setDeliveryAddress((state) => ({ ...state, number: event.target.value }))} className="min-w-0 rounded-xl bg-slate-50 p-4 disabled:text-slate-400" />
-                                <label className="flex items-center gap-2 whitespace-nowrap text-sm font-bold text-slate-700">
+                                <input placeholder="Número" disabled={withoutNumber} value={withoutNumber ? '' : deliveryAddress.number} onChange={(event) => setDeliveryAddress((state) => ({ ...state, number: event.target.value }))} className="min-w-0 rounded-xl bg-slate-50 dark:bg-slate-800 p-4 disabled:text-slate-400" />
+                                <label className="flex items-center gap-2 whitespace-nowrap text-sm font-bold text-slate-700 dark:text-slate-200">
                                     <input type="checkbox" checked={withoutNumber} onChange={(event) => setDeliveryAddress((state) => ({ ...state, number: event.target.checked ? 'S/N' : '' }))} className="h-5 w-5 rounded border-slate-300 text-emerald-600" />
                                     Sem número
                                 </label>
                             </div>
-                            <input placeholder={withoutNumber ? 'Complemento obrigatório' : 'Complemento'} value={deliveryAddress.complement} onChange={(event) => setDeliveryAddress((state) => ({ ...state, complement: event.target.value }))} className="w-full rounded-xl bg-slate-50 p-4" />
-                            <input placeholder="Bairro" value={deliveryAddress.district} onChange={(event) => setDeliveryAddress((state) => ({ ...state, district: event.target.value }))} className="w-full rounded-xl bg-slate-50 p-4" />
+                            <input placeholder={withoutNumber ? 'Complemento obrigatório' : 'Complemento'} value={deliveryAddress.complement} onChange={(event) => setDeliveryAddress((state) => ({ ...state, complement: event.target.value }))} className="w-full rounded-xl bg-slate-50 dark:bg-slate-800 p-4" />
+                            <input placeholder="Bairro" value={deliveryAddress.district} onChange={(event) => setDeliveryAddress((state) => ({ ...state, district: event.target.value }))} className="w-full rounded-xl bg-slate-50 dark:bg-slate-800 p-4" />
                             <div className="grid grid-cols-[2fr_1fr] gap-3">
-                                <input placeholder="Cidade" value={deliveryAddress.city} onChange={(event) => setDeliveryAddress((state) => ({ ...state, city: event.target.value }))} className="rounded-xl bg-slate-50 p-4" />
-                                <input placeholder="UF" maxLength={2} value={deliveryAddress.state} onChange={(event) => setDeliveryAddress((state) => ({ ...state, state: event.target.value.toUpperCase() }))} className="rounded-xl bg-slate-50 p-4 uppercase" />
+                                <input placeholder="Cidade" value={deliveryAddress.city} onChange={(event) => setDeliveryAddress((state) => ({ ...state, city: event.target.value }))} className="rounded-xl bg-slate-50 dark:bg-slate-800 p-4" />
+                                <input placeholder="UF" maxLength={2} value={deliveryAddress.state} onChange={(event) => setDeliveryAddress((state) => ({ ...state, state: event.target.value.toUpperCase() }))} className="rounded-xl bg-slate-50 dark:bg-slate-800 p-4 uppercase" />
                             </div>
-                            <input placeholder="Ponto de referência" value={deliveryAddress.reference} onChange={(event) => setDeliveryAddress((state) => ({ ...state, reference: event.target.value }))} className="w-full rounded-xl bg-slate-50 p-4" />
+                            <input placeholder="Ponto de referência" value={deliveryAddress.reference} onChange={(event) => setDeliveryAddress((state) => ({ ...state, reference: event.target.value }))} className="w-full rounded-xl bg-slate-50 dark:bg-slate-800 p-4" />
                             <button type="button" onClick={captureLocation} disabled={locationLoading} className="flex w-full items-center justify-center gap-2 rounded-xl border p-4 font-bold text-emerald-700">
                                 <LocateFixed size={19} />
                                 {deliveryAddress.latitude ? 'Localização adicionada' : locationLoading ? 'Obtendo localização…' : 'Usar minha localização atual'}
                             </button>
                             {addressError && <p className="text-sm font-bold text-red-600">{addressError}</p>}
                             {isAuthenticated && customer && (
-                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                                <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3">
                                     {deliveryAddressMatchesSaved ? (
                                         <p className="text-sm font-bold text-emerald-700">
                                             Este endereço já está salvo em Minha conta.
                                         </p>
                                     ) : savedAddresses.length < 3 ? (
-                                        <label className="flex items-start gap-3 text-sm font-bold text-slate-700">
+                                        <label className="flex items-start gap-3 text-sm font-bold text-slate-700 dark:text-slate-200">
                                             <input
                                                 type="checkbox"
                                                 checked={saveDeliveryAddressToAccount}
@@ -1046,13 +1046,13 @@ export default function Checkout() {
                                             />
                                             <span>
                                                 Salvar também em Minha conta
-                                                <span className="mt-1 block text-xs font-medium text-slate-500">
+                                                <span className="mt-1 block text-xs font-medium text-slate-500 dark:text-slate-300">
                                                     {savedAddresses.length}/3 endereços salvos. O ponto de referência continua exclusivo deste pedido.
                                                 </span>
                                             </span>
                                         </label>
                                     ) : (
-                                        <p className="text-sm leading-6 text-slate-600">
+                                        <p className="text-sm leading-6 text-slate-600 dark:text-slate-200">
                                             Você já possui 3 endereços salvos. Este endereço será usado somente neste pedido; gerencie os endereços em Minha conta se quiser substituir algum.
                                         </p>
                                     )}
@@ -1139,30 +1139,30 @@ export default function Checkout() {
 
     if (view === 'customer') {
         return (
-            <div className="min-h-screen bg-slate-50">
+            <div className="min-h-screen bg-slate-50 dark:bg-slate-800">
                 <CheckoutHeader storeSlug={storeSlug} title="Seus dados" subtitle="Identificação do pedido" onBack={() => setView('review')} />
                 <main className="mx-auto max-w-3xl px-4 py-5">
-                    <section className="space-y-3 rounded-2xl bg-white p-4">
+                    <section className="space-y-3 rounded-2xl bg-white dark:bg-slate-900 p-4">
                         {isAuthenticated && customer && (
-                            <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">
+                            <div className="rounded-xl border border-emerald-100 bg-emerald-50 dark:bg-emerald-950/40 p-3 text-sm font-semibold text-emerald-800">
                                 Dados carregados da sua conta. Para alterá-los de forma permanente, use “Minha conta”.
                             </div>
                         )}
-                        <input placeholder="Seu nome" value={clientName} onChange={(event) => setClientName(event.target.value)} readOnly={isAuthenticated} className="w-full rounded-xl bg-slate-50 p-4 read-only:text-slate-600" />
-                        <label className="flex items-center gap-3 rounded-xl bg-slate-50 p-4 text-sm font-bold text-slate-700">
+                        <input placeholder="Seu nome" value={clientName} onChange={(event) => setClientName(event.target.value)} readOnly={isAuthenticated} className="w-full rounded-xl bg-slate-50 dark:bg-slate-800 p-4 read-only:text-slate-600" />
+                        <label className="flex items-center gap-3 rounded-xl bg-slate-50 dark:bg-slate-800 p-4 text-sm font-bold text-slate-700 dark:text-slate-200">
                             <input type="checkbox" checked={isBrazil} disabled={isAuthenticated} onChange={(event) => setIsBrazil(event.target.checked)} className="h-5 w-5 rounded border-slate-300 text-emerald-600" />
                             Número do Brasil
                         </label>
                         {isBrazil ? (
-                            <input type="tel" inputMode="tel" placeholder="(DDD) telefone — aceita 0 e +55" value={clientPhone} readOnly={isAuthenticated} onChange={(event) => setClientPhone(event.target.value)} onBlur={() => { const result = normalizeBrazilianPhone(clientPhone); if (result.isValid) setClientPhone(result.displayFormatted); }} className="w-full rounded-xl bg-slate-50 p-4 read-only:text-slate-600" />
+                            <input type="tel" inputMode="tel" placeholder="(DDD) telefone — aceita 0 e +55" value={clientPhone} readOnly={isAuthenticated} onChange={(event) => setClientPhone(event.target.value)} onBlur={() => { const result = normalizeBrazilianPhone(clientPhone); if (result.isValid) setClientPhone(result.displayFormatted); }} className="w-full rounded-xl bg-slate-50 dark:bg-slate-800 p-4 read-only:text-slate-600" />
                         ) : (
                             <div className="grid grid-cols-[6rem_1fr] gap-3">
-                                <input inputMode="numeric" placeholder="DDI" value={internationalDdi} disabled={isAuthenticated} onChange={(event) => setInternationalDdi(onlyDigits(event.target.value).slice(0, 3))} className="rounded-xl bg-slate-50 p-4" />
-                                <input type="tel" inputMode="tel" placeholder="Número sem DDI" value={clientPhone} readOnly={isAuthenticated} onChange={(event) => setClientPhone(event.target.value)} className="rounded-xl bg-slate-50 p-4 read-only:text-slate-600" />
+                                <input inputMode="numeric" placeholder="DDI" value={internationalDdi} disabled={isAuthenticated} onChange={(event) => setInternationalDdi(onlyDigits(event.target.value).slice(0, 3))} className="rounded-xl bg-slate-50 dark:bg-slate-800 p-4" />
+                                <input type="tel" inputMode="tel" placeholder="Número sem DDI" value={clientPhone} readOnly={isAuthenticated} onChange={(event) => setClientPhone(event.target.value)} className="rounded-xl bg-slate-50 dark:bg-slate-800 p-4 read-only:text-slate-600" />
                             </div>
                         )}
                         {clientPhone.trim() && !phoneValidation.isValid && <p className="text-sm font-bold text-red-600">{phoneValidation.error}</p>}
-                        <p className="text-xs leading-relaxed text-slate-500">{isAuthenticated ? 'O pedido será vinculado à sua conta autenticada.' : 'Os dados ficam salvos apenas neste navegador até a conclusão do pedido ou limpeza dos dados do site.'}</p>
+                        <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-300">{isAuthenticated ? 'O pedido será vinculado à sua conta autenticada.' : 'Os dados ficam salvos apenas neste navegador até a conclusão do pedido ou limpeza dos dados do site.'}</p>
                         <button type="button" onClick={() => { if (customerValid) setView('review'); }} className="w-full rounded-2xl bg-emerald-600 p-4 font-black text-white disabled:opacity-40" disabled={!customerValid}>
                             Salvar dados
                         </button>
@@ -1174,14 +1174,14 @@ export default function Checkout() {
 
     if (view === 'payment') {
         return (
-            <div className="min-h-screen bg-slate-50">
+            <div className="min-h-screen bg-slate-50 dark:bg-slate-800">
                 <CheckoutHeader storeSlug={storeSlug} title="Pagamento" subtitle="Escolha quando pagar e depois a forma disponível" onBack={() => setView('review')} />
                 <main className="mx-auto max-w-3xl space-y-4 px-4 py-5">
                     {paymentOptionsLoading && (
-                        <section className="rounded-2xl bg-white p-5 text-sm font-semibold text-slate-500">Carregando opções de pagamento…</section>
+                        <section className="rounded-2xl bg-white dark:bg-slate-900 p-5 text-sm font-semibold text-slate-500 dark:text-slate-300">Carregando opções de pagamento…</section>
                     )}
                     {paymentOptionsError && (
-                        <section className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{paymentOptionsError}</section>
+                        <section className="rounded-2xl border border-red-200 bg-red-50 dark:bg-red-950/40 p-4 text-sm font-bold text-red-700 dark:text-red-200">{paymentOptionsError}</section>
                     )}
 
                     {isTestStore && (
@@ -1198,7 +1198,7 @@ export default function Checkout() {
                         </section>
                     )}
                     {!isAuthenticated && visiblePayNowMethods.length > 0 && (
-                        <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950" aria-label="Pagamento antecipado requer conta">
+                        <section className="rounded-2xl border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/40 p-4 text-sm text-emerald-950" aria-label="Pagamento antecipado requer conta">
                             <p className="font-black">Pagamento antecipado: exclusivo para cliente autenticado</p>
                             <p className="mt-2">Entre ou cadastre-se na loja para pagar por Pix ou cartão antes do atendimento. Sem login, escolha retirada com pagamento na loja.</p>
                             <button type="button" onClick={() => navigate(`/loja/${encodeURIComponent(storeSlug)}`)}
@@ -1206,10 +1206,10 @@ export default function Checkout() {
                         </section>
                     )}
                     {!paymentOptionsLoading && isAuthenticated && visiblePayNowMethods.length > 0 && (
-                        <section className="overflow-hidden rounded-2xl bg-white shadow-sm">
-                            <div className="border-b border-slate-100 px-4 py-4">
-                                <h2 className="text-lg font-black text-slate-950">Pagar agora</h2>
-                                <p className="mt-1 text-sm text-slate-500">Somente formas configuradas pela loja aparecem aqui.</p>
+                        <section className="overflow-hidden rounded-2xl bg-white dark:bg-slate-900 shadow-sm">
+                            <div className="border-b border-slate-100 dark:border-slate-800 px-4 py-4">
+                                <h2 className="text-lg font-black text-slate-950 dark:text-slate-100">Pagar agora</h2>
+                                <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">Somente formas configuradas pela loja aparecem aqui.</p>
                             </div>
                             {visiblePayNowMethods.map((method) => (
                                 <button
@@ -1222,15 +1222,15 @@ export default function Checkout() {
                                         setNeedsChange(false);
                                         setChangeFor('');
                                     }}
-                                    className={`flex w-full items-center gap-4 border-b px-4 py-5 text-left last:border-0 ${paymentTiming === 'pay_now' && paymentMethodCode === method.code ? 'bg-emerald-50' : ''}`}
+                                    className={`flex w-full items-center gap-4 border-b px-4 py-5 text-left last:border-0 ${paymentTiming === 'pay_now' && paymentMethodCode === method.code ? 'bg-emerald-50 dark:bg-emerald-950/40' : ''}`}
                                 >
                                     <Wallet />
                                     <span className="min-w-0 flex-1">
-                                        <span className="block font-black text-slate-950">{method.name}</span>
-                                        <span className="mt-1 block text-sm text-slate-500">
+                                        <span className="block font-black text-slate-950 dark:text-slate-100">{method.name}</span>
+                                        <span className="mt-1 block text-sm text-slate-500 dark:text-slate-300">
                                             {method.description || (method.requires_proof ? 'Envie o comprovante após criar o pedido.' : 'Confirmação automática pela integração configurada.')}
                                         </span>
-                                        <span className="mt-2 inline-flex rounded-full bg-slate-100 px-2 py-1 text-[11px] font-black uppercase text-slate-600">
+                                        <span className="mt-2 inline-flex rounded-full bg-slate-100 px-2 py-1 text-[11px] font-black uppercase text-slate-600 dark:text-slate-200">
                                             {method.requires_proof ? 'comprovante manual' : 'confirmação automática'}
                                         </span>
                                     </span>
@@ -1241,10 +1241,10 @@ export default function Checkout() {
                     )}
 
                     {!paymentOptionsLoading && paymentOptions.pay_on_fulfillment.enabled && (
-                        <section className="overflow-hidden rounded-2xl bg-white shadow-sm">
-                            <div className="border-b border-slate-100 px-4 py-4">
-                                <h2 className="text-lg font-black text-slate-950">{paymentOptions.pay_on_fulfillment.label}</h2>
-                                <p className="mt-1 text-sm text-slate-500">
+                        <section className="overflow-hidden rounded-2xl bg-white dark:bg-slate-900 shadow-sm">
+                            <div className="border-b border-slate-100 dark:border-slate-800 px-4 py-4">
+                                <h2 className="text-lg font-black text-slate-950 dark:text-slate-100">{paymentOptions.pay_on_fulfillment.label}</h2>
+                                <p className="mt-1 text-sm text-slate-500 dark:text-slate-300">
                                     {paymentOptions.pay_on_fulfillment.requires_method_choice
                                         ? 'Informe como pretende pagar quando o pedido chegar.'
                                         : 'A forma real será escolhida no momento do recebimento.'}
@@ -1261,10 +1261,10 @@ export default function Checkout() {
                                         setNeedsChange(false);
                                         setChangeFor('');
                                     }}
-                                    className={`flex w-full items-center gap-4 px-4 py-5 text-left ${paymentTiming === 'pay_on_fulfillment' ? 'bg-emerald-50' : ''}`}
+                                    className={`flex w-full items-center gap-4 px-4 py-5 text-left ${paymentTiming === 'pay_on_fulfillment' ? 'bg-emerald-50 dark:bg-emerald-950/40' : ''}`}
                                 >
                                     <Store />
-                                    <span className="flex-1 font-black text-slate-950">Escolher a forma no recebimento</span>
+                                    <span className="flex-1 font-black text-slate-950 dark:text-slate-100">Escolher a forma no recebimento</span>
                                     {paymentTiming === 'pay_on_fulfillment' && <CheckCircle2 className="text-emerald-600" />}
                                 </button>
                             ) : (
@@ -1281,10 +1281,10 @@ export default function Checkout() {
                                                 setChangeFor('');
                                             }
                                         }}
-                                        className={`flex w-full items-center gap-4 border-b px-4 py-5 text-left last:border-0 ${paymentTiming === 'pay_on_fulfillment' && promisedPaymentMethodCode === method.code ? 'bg-emerald-50' : ''}`}
+                                        className={`flex w-full items-center gap-4 border-b px-4 py-5 text-left last:border-0 ${paymentTiming === 'pay_on_fulfillment' && promisedPaymentMethodCode === method.code ? 'bg-emerald-50 dark:bg-emerald-950/40' : ''}`}
                                     >
                                         <Wallet />
-                                        <span className="flex-1 font-black text-slate-950">{method.name}</span>
+                                        <span className="flex-1 font-black text-slate-950 dark:text-slate-100">{method.name}</span>
                                         {paymentTiming === 'pay_on_fulfillment' && promisedPaymentMethodCode === method.code && <CheckCircle2 className="text-emerald-600" />}
                                     </button>
                                 ))
@@ -1293,13 +1293,13 @@ export default function Checkout() {
                     )}
 
                     {cashAtDelivery && (
-                        <section className="space-y-3 rounded-2xl bg-white p-4 shadow-sm">
+                        <section className="space-y-3 rounded-2xl bg-white dark:bg-slate-900 p-4 shadow-sm">
                             <p className="font-black">Precisa de troco?</p>
                             <div className="flex gap-3">
-                                <button type="button" onClick={() => { setNeedsChange(false); setChangeFor(''); }} className={`flex-1 rounded-xl border p-3 font-bold ${!needsChange ? 'border-emerald-500 bg-emerald-50' : ''}`}>Não</button>
-                                <button type="button" onClick={() => setNeedsChange(true)} className={`flex-1 rounded-xl border p-3 font-bold ${needsChange ? 'border-emerald-500 bg-emerald-50' : ''}`}>Sim</button>
+                                <button type="button" onClick={() => { setNeedsChange(false); setChangeFor(''); }} className={`flex-1 rounded-xl border p-3 font-bold ${!needsChange ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40' : ''}`}>Não</button>
+                                <button type="button" onClick={() => setNeedsChange(true)} className={`flex-1 rounded-xl border p-3 font-bold ${needsChange ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40' : ''}`}>Sim</button>
                             </div>
-                            {needsChange && <input inputMode="decimal" placeholder="Troco para R$" value={changeFor} onChange={(event) => setChangeFor(event.target.value)} className="w-full rounded-xl bg-slate-50 p-4" />}
+                            {needsChange && <input inputMode="decimal" placeholder="Troco para R$" value={changeFor} onChange={(event) => setChangeFor(event.target.value)} className="w-full rounded-xl bg-slate-50 dark:bg-slate-800 p-4" />}
                             {needsChange && changeFor && (!Number.isFinite(changeValue) || changeValue < totalValue) && <p className="text-sm font-bold text-red-600">O valor do troco deve ser igual ou maior que o total.</p>}
                         </section>
                     )}
@@ -1320,11 +1320,11 @@ export default function Checkout() {
 
     if (view === 'cpf') {
         return (
-            <div className="min-h-screen bg-slate-50">
+            <div className="min-h-screen bg-slate-50 dark:bg-slate-800">
                 <CheckoutHeader storeSlug={storeSlug} title="CPF no documento" subtitle="Campo opcional" onBack={() => setView('review')} />
                 <main className="mx-auto max-w-3xl px-4 py-5">
-                    <section className="space-y-3 rounded-2xl bg-white p-4">
-                        <input inputMode="numeric" placeholder="CPF" value={cpf} onChange={(event) => setCpf(event.target.value)} className="w-full rounded-xl bg-slate-50 p-4" />
+                    <section className="space-y-3 rounded-2xl bg-white dark:bg-slate-900 p-4">
+                        <input inputMode="numeric" placeholder="CPF" value={cpf} onChange={(event) => setCpf(event.target.value)} className="w-full rounded-xl bg-slate-50 dark:bg-slate-800 p-4" />
                         <button type="button" onClick={() => setView('review')} className="w-full rounded-2xl bg-emerald-600 p-4 font-black text-white">Salvar CPF</button>
                     </section>
                 </main>
@@ -1334,11 +1334,11 @@ export default function Checkout() {
 
     if (view === 'notes') {
         return (
-            <div className="min-h-screen bg-slate-50">
+            <div className="min-h-screen bg-slate-50 dark:bg-slate-800">
                 <CheckoutHeader storeSlug={storeSlug} title="Observações" subtitle="Instruções gerais do pedido" onBack={() => setView('review')} />
                 <main className="mx-auto max-w-3xl px-4 py-5">
-                    <section className="space-y-3 rounded-2xl bg-white p-4">
-                        <textarea rows={6} placeholder="Ex.: chamar no portão..." value={notes} onChange={(event) => setNotes(event.target.value)} className="w-full rounded-xl bg-slate-50 p-4" />
+                    <section className="space-y-3 rounded-2xl bg-white dark:bg-slate-900 p-4">
+                        <textarea rows={6} placeholder="Ex.: chamar no portão..." value={notes} onChange={(event) => setNotes(event.target.value)} className="w-full rounded-xl bg-slate-50 dark:bg-slate-800 p-4" />
                         <button type="button" onClick={() => setView('review')} className="w-full rounded-2xl bg-emerald-600 p-4 font-black text-white">Salvar observações</button>
                     </section>
                 </main>
@@ -1363,50 +1363,50 @@ export default function Checkout() {
             : 'Escolha quando e como pagar';
 
     return (
-        <div className="min-h-screen bg-slate-50 pb-32 text-slate-950">
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-800 pb-32 text-slate-950 dark:text-slate-100">
             <CheckoutHeader storeSlug={storeSlug} title="Finalizar pedido" subtitle="Revise as informações antes de confirmar" onBack={() => setView('cart')} />
             <main className="mx-auto max-w-3xl space-y-4 px-4 py-5">
                 {isAuthenticated && customer && (
-                    <section className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900">
+                    <section className="rounded-2xl border border-emerald-100 bg-emerald-50 dark:bg-emerald-950/40 px-4 py-3 text-sm font-semibold text-emerald-900 dark:text-emerald-100">
                         Pedido identificado como <strong>{customer.full_name || customer.nickname || 'cliente'}</strong>. Seus dados e endereço padrão foram carregados da conta.
                     </section>
                 )}
-                <section className="overflow-hidden rounded-2xl bg-white shadow-sm">
+                <section className="overflow-hidden rounded-2xl bg-white dark:bg-slate-900 shadow-sm">
                     <ReviewRow icon={<MapPin size={21} />} title="Informações da entrega" description={fulfillmentDescription} missing={!fulfillmentValid || !addressValid} actionLabel="Alterar" onClick={() => setView('fulfillment')} />
                     <ReviewRow icon={<UserRound size={21} />} title="Seus dados" description={customerDescription} missing={!customerValid} actionLabel="Alterar" onClick={() => setView('customer')} />
                     <ReviewRow icon={<Wallet size={21} />} title="Pagamento" description={paymentDescription} missing={!paymentValid} actionLabel="Ver tudo" onClick={() => setView('payment')} />
                 </section>
 
-                <section className="overflow-hidden rounded-2xl bg-white shadow-sm">
+                <section className="overflow-hidden rounded-2xl bg-white dark:bg-slate-900 shadow-sm">
                     <ReviewRow icon={<ShoppingBag size={21} />} title="Resumo do pedido" description={`${totalUnits} ${totalUnits === 1 ? 'item' : 'itens'} no carrinho`} actionLabel="Editar" onClick={() => setView('cart')} />
                     <ReviewRow icon={<FileText size={21} />} title="CPF no documento" description={cpf.trim() ? `CPF final ${onlyDigits(cpf).slice(-4)}` : 'Não informado'} onClick={() => setView('cpf')} />
                     <ReviewRow icon={<MessageSquareText size={21} />} title="Observações" description={notes.trim() || 'Nenhuma observação adicionada'} onClick={() => setView('notes')} />
                 </section>
 
                 {discountTotal > 0.009 && (
-                    <section className="rounded-2xl bg-emerald-50 px-4 py-4 text-emerald-900">
+                    <section className="rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 px-4 py-4 text-emerald-900 dark:text-emerald-100">
                         <h2 className="font-black">Economize hoje</h2>
                         <p className="mt-1 text-sm font-medium">Você economizou R$ {formatBRL(discountTotal)} com os descontos aplicados.</p>
                     </section>
                 )}
 
-                <section className="rounded-2xl bg-white p-4 shadow-sm">
-                    <div className="flex items-center gap-2"><ReceiptText size={20} className="text-slate-500" /><h2 className="font-black">Detalhes dos valores</h2></div>
+                <section className="rounded-2xl bg-white dark:bg-slate-900 p-4 shadow-sm">
+                    <div className="flex items-center gap-2"><ReceiptText size={20} className="text-slate-500 dark:text-slate-300" /><h2 className="font-black">Detalhes dos valores</h2></div>
                     <div className="mt-4 space-y-3 text-sm">
-                        <div className="flex justify-between text-slate-600"><span>Subtotal</span><span>R$ {formatBRL(baseSubtotal)}</span></div>
+                        <div className="flex justify-between text-slate-600 dark:text-slate-200"><span>Subtotal</span><span>R$ {formatBRL(baseSubtotal)}</span></div>
                         {discountTotal > 0.009 && <div className="flex justify-between font-bold text-emerald-700"><span>Descontos</span><span>- R$ {formatBRL(discountTotal)}</span></div>}
-                        <div className="flex justify-between text-slate-600"><span>Entrega*</span><span>{effectiveFulfillment === 'delivery' ? 'A calcular' : 'Sem taxa'}</span></div>
-                        <div className="flex justify-between text-slate-600"><span>Taxas*</span><span>A calcular</span></div>
-                        <div className="flex justify-between border-t border-slate-100 pt-3 text-base font-black"><span>Total parcial</span><span>R$ {formatBRL(totalValue)}</span></div>
+                        <div className="flex justify-between text-slate-600 dark:text-slate-200"><span>Entrega*</span><span>{effectiveFulfillment === 'delivery' ? 'A calcular' : 'Sem taxa'}</span></div>
+                        <div className="flex justify-between text-slate-600 dark:text-slate-200"><span>Taxas*</span><span>A calcular</span></div>
+                        <div className="flex justify-between border-t border-slate-100 dark:border-slate-800 pt-3 text-base font-black"><span>Total parcial</span><span>R$ {formatBRL(totalValue)}</span></div>
                     </div>
-                    <p className="mt-4 text-xs leading-relaxed text-slate-500">*Calculado após o preenchimento correto dos dados de entrega e pagamento.</p>
+                    <p className="mt-4 text-xs leading-relaxed text-slate-500 dark:text-slate-300">*Calculado após o preenchimento correto dos dados de entrega e pagamento.</p>
                 </section>
 
                 {error && (
-                    <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm font-medium text-red-700">
+                    <div className="rounded-2xl border border-red-200 bg-red-50 dark:bg-red-950/40 px-4 py-4 text-sm font-medium text-red-700 dark:text-red-200">
                         <p>{error}</p>
                         {stockIssue && (
-                            <button type="button" onClick={() => { setStockIssue(false); setError(null); setView('cart'); }} className="mt-3 rounded-xl bg-white px-4 py-2 font-black text-red-700 shadow-sm ring-1 ring-red-200">
+                            <button type="button" onClick={() => { setStockIssue(false); setError(null); setView('cart'); }} className="mt-3 rounded-xl bg-white dark:bg-slate-900 px-4 py-2 font-black text-red-700 dark:text-red-200 shadow-sm ring-1 ring-red-200">
                                 Revisar carrinho
                             </button>
                         )}
@@ -1414,7 +1414,7 @@ export default function Checkout() {
                 )}
             </main>
 
-            <div className="fixed inset-x-0 bottom-0 z-50 border-t bg-white px-4 pb-4 pt-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)]">
+            <div className="fixed inset-x-0 bottom-0 z-50 border-t bg-white dark:bg-slate-900 px-4 pb-4 pt-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)]">
                 <div className="relative mx-auto flex max-w-3xl items-center gap-4">
                     <div className="min-w-0 flex-1">
                         <p className="text-2xl font-black">R$ {formatBRL(totalValue)}</p>
