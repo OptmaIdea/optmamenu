@@ -111,6 +111,15 @@ export interface StorefrontBannerMedia {
     duration_seconds?: number;
 }
 
+export interface StorefrontNoticeCard {
+    id: 'pricing' | 'delivery' | 'notice';
+    enabled: boolean;
+    title: string;
+    description?: string;
+    background_color: string;
+    text_color: string;
+}
+
 export interface StoreConfig {
     timer_duration_minutes?: number;
     extension_minutes?: number;
@@ -128,6 +137,9 @@ export interface StoreConfig {
     visual_color_text?: string;
     visual_color_highlight?: string;
     visual_banner_url?: string;
+    storefront_carousel_enabled?: boolean;
+    storefront_notice_cards?: StorefrontNoticeCard[];
+    online_orders_outside_hours?: 'accept' | 'block';
     visual_banner_video_url?: string;
     visual_banner_video_poster_url?: string;
     visual_banner_eyebrow?: string;
