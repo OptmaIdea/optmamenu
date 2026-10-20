@@ -451,8 +451,8 @@ export default function Hours({ withoutHeader = false }: { withoutHeader?: boole
                                         checked={storeConfig?.online_orders_outside_hours !== 'block'}
                                         onChange={() => setStoreConfig({ ...storeConfig, online_orders_outside_hours: 'accept' })}/>
                                     <span><strong>Receber pedidos mesmo com a loja fechada</strong><br/>
-                                        Os pedidos continuam sendo registrados e reservados; a loja atende conforme sua capacidade no próximo expediente.
-                                        As regras de pagamento, expiração e estoque continuam válidas.</span>
+                                        Os pedidos podem ser registrados, mas a reserva e o prazo de pagamento continuam correndo normalmente.
+                                        Se expirarem antes da próxima abertura, o pedido será cancelado. Não é agendamento automático.</span>
                                 </label>
                                 <label className="flex cursor-pointer gap-3 rounded-xl border border-gray-300 bg-white p-3 text-sm text-gray-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white">
                                     <input type="radio" name="outside-hours-policy" className="mt-1 accent-emerald-600" disabled={!canManage}
