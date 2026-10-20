@@ -15,8 +15,8 @@ import {
     ensureReadableStorefrontTextColor,
     type PublicDeliveryMethod,
     type PublicProductRanking,
+    type PublicStoreOnlineHours,
 } from '@/services/publicStorefrontService';
-import { timezoneUtils } from '@/utils/timezoneUtils';
 import { formatBRL } from '@/utils/pricing';
 import {
     AlertCircle,
@@ -58,6 +58,27 @@ interface Store {
 // password + OTP flow can issue a verified customer JWT. Guest storefront and
 // checkout remain available independently.
 const CUSTOMER_PORTAL_AUTH_ENABLED = false;
+
+function hoursBannerState(hours: PublicStoreOnlineHours) {
+    const next = hours.next_opening_local ? ` Próxima abertura: ${hours.next_opening_local}.` : '';
+    if (hours.is_open && hours.can_order && !hours.closing_soon) {
+        return { isOpen: true, canOrder: true, message: null, isClosingSoon: false };
+    }
+    if (hours.can_order) {
+        return {
+            isOpen: Boolean(hours.is_open), canOrder: true,
+            message: 'Loja fechada para atendimento. Pedidos online continuam disponíveis; o atendimento será no expediente.',
+            isClosingSoon: Boolean(hours.closing_soon),
+        };
+    }
+    return {
+        isOpen: Boolean(hours.is_open), canOrder: false,
+        message: hours.closing_soon
+            ? 'Pedidos online encerrados próximo do fechamento.' + next
+            : 'Loja fechada para pedidos online.' + next,
+        isClosingSoon: Boolean(hours.closing_soon),
+    };
+}
 
 function normalizeText(value: string) {
     return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -164,12 +185,6 @@ export default function Catalog() {
     const [loginLoading, setLoginLoading] = useState(false);
     const [loginError, setLoginError] = useState('');
 
-    const [storeHours, setStoreHours] = useState<Array<{
-        day_of_week: number;
-        open_time: string | null;
-        close_time: string | null;
-        is_closed: boolean;
-    }>>([]);
     const [storeStatus, setStoreStatus] = useState<{
         isOpen: boolean;
         canOrder: boolean;
@@ -293,7 +308,7 @@ export default function Catalog() {
 
                 const mappedStore = PublicStorefrontService.toCatalogStore(storefront.store);
                 setStore(mappedStore);
-                setStoreHours(storefront.store.hours || []);
+                if (storefront.store.order_hours?.ok) setStoreStatus(hoursBannerState(storefront.store.order_hours));
 
                 bindContext({
                     storeId: mappedStore.id,
@@ -589,70 +604,24 @@ export default function Catalog() {
         };
     }, [refreshCatalog, store?.id, storeSlug]);
 
+    // The database uses the same schedule resolver to deny direct RPC calls.
+    // Refresh the banner as a shift opens/closes or a special date takes effect.
     useEffect(() => {
-        if (!store || storeHours.length === 0) return;
-
-        const checkStatus = () => {
-            const now = timezoneUtils.getBrazilDate();
-            const today = storeHours.find((hour) => hour.day_of_week === now.getDay());
-
-            if (!today || today.is_closed || !today.open_time || !today.close_time) {
-                setStoreStatus({
-                    isOpen: false,
-                    canOrder: false,
-                    message: '🔴 Loja fechada. Estamos esperando seu pedido 😀',
-                    isClosingSoon: false,
-                });
-                return;
+        if (!storeSlug || !store) return;
+        let active = true;
+        const refreshHours = async () => {
+            try {
+                const hours = await PublicStorefrontService.getOnlineOrderHoursBySlug(storeSlug);
+                if (active && hours.ok) setStoreStatus(hoursBannerState(hours));
+            } catch (error) {
+                // A failed status refresh does not grant backend permission to place orders.
+                if (active) console.warn('[STORE_HOURS] Não foi possível atualizar o horário:', error);
             }
-
-            const currentMinutes = now.getHours() * 60 + now.getMinutes();
-            const [openHour, openMinute] = today.open_time.split(':').map(Number);
-            const [closeHour, closeMinute] = today.close_time.split(':').map(Number);
-            const openTotal = openHour * 60 + openMinute;
-            const closeTotal = closeHour * 60 + closeMinute;
-            const isOvernight = closeTotal < openTotal;
-            const isInsideWindow = isOvernight
-                ? currentMinutes >= openTotal || currentMinutes < closeTotal
-                : currentMinutes >= openTotal && currentMinutes < closeTotal;
-
-            if (!isInsideWindow) {
-                setStoreStatus({
-                    isOpen: false,
-                    canOrder: false,
-                    message: `🔴 Loja fechada. Abrimos às ${today.open_time.slice(0, 5)}.`,
-                    isClosingSoon: false,
-                });
-                return;
-            }
-
-            const minutesUntilClose = isOvernight && currentMinutes >= openTotal
-                ? closeTotal + 1440 - currentMinutes
-                : closeTotal - currentMinutes;
-            const closingBuffer = store.config?.closing_buffer_minutes || 0;
-
-            if (closingBuffer > 0 && minutesUntilClose <= closingBuffer) {
-                setStoreStatus({
-                    isOpen: true,
-                    canOrder: false,
-                    message: `⚠️ Pedidos encerrados. Funcionamos até ${today.close_time.slice(0, 5)}.`,
-                    isClosingSoon: true,
-                });
-                return;
-            }
-
-            setStoreStatus({
-                isOpen: true,
-                canOrder: true,
-                message: null,
-                isClosingSoon: false,
-            });
         };
-
-        checkStatus();
-        const timer = window.setInterval(checkStatus, 30_000);
-        return () => window.clearInterval(timer);
-    }, [store, storeHours]);
+        void refreshHours();
+        const timer = window.setInterval(() => void refreshHours(), 60_000);
+        return () => { active = false; window.clearInterval(timer); };
+    }, [store?.id, storeSlug]);
 
     const rankedProducts = useMemo(() => (
         products.map((product) => {
