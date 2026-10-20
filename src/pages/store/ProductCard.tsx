@@ -95,7 +95,7 @@ export function ProductCard({
                         loading="lazy"
                     />
                 ) : (
-                    <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-4 text-center text-stone-400 dark:text-slate-400">
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-4 text-center text-stone-500 dark:text-slate-300">
                         <ImageIcon className="h-8 w-8" aria-hidden="true" />
                         <span className="text-[11px] font-semibold">Imagem não cadastrada</span>
                     </div>
@@ -137,7 +137,7 @@ export function ProductCard({
                 </h3>
 
                 {product.description && (
-                    <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
+                    <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-gray-600 dark:text-slate-300">
                         {product.description}
                     </p>
                 )}
@@ -146,7 +146,7 @@ export function ProductCard({
                     <p className="mt-2 inline-flex items-center gap-1 text-xs font-black text-amber-600 dark:text-amber-400">
                         <Star className="h-3.5 w-3.5 fill-current" />
                         {Number(product.rating_avg || 0).toFixed(1)}
-                        <span className="font-semibold text-gray-400">({product.review_count})</span>
+                        <span className="font-semibold text-gray-600 dark:text-slate-300">({product.review_count})</span>
                     </p>
                 )}
 
