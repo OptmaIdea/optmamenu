@@ -414,12 +414,9 @@ export const CustomerService = {
             p_notification_id: notificationId,
             p_all: false,
         });
-        if (error) {
-            console.error('Erro ao marcar notificação como lida:', error);
-            return;
-        }
+        if (error) throw new Error('Não foi possível marcar a mensagem como lida. Tente novamente.');
         const payload = data as SelfRpcPayload | null;
-        if (!payload?.ok) console.error('Erro ao marcar notificação como lida:', payload?.error);
+        if (!payload?.ok) throw selfServiceError(payload, 'Não foi possível marcar a mensagem como lida.');
     },
 
     async markAllAsRead(_customerId?: string) {
@@ -427,12 +424,10 @@ export const CustomerService = {
             p_notification_id: null,
             p_all: true,
         });
-        if (error) {
-            console.error('Erro ao marcar todas as notificações como lidas:', error);
-            return;
-        }
+        if (error) throw new Error('Não foi possível marcar as mensagens como lidas. Tente novamente.');
         const payload = data as SelfRpcPayload | null;
-        if (!payload?.ok) console.error('Erro ao marcar todas as notificações como lida:', payload?.error);
+        if (!payload?.ok) throw selfServiceError(payload, 'Não foi possível marcar as mensagens como lidas.');
+        return Number(payload.updated || 0);
     },
 
     // --- Consentimentos do próprio cliente ---
