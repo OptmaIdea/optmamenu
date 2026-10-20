@@ -1,6 +1,17 @@
 import { supabasePublic } from '@/lib/supabase';
 import type { Category, Product, PublicAvailability, StoreConfig } from '@/types';
 
+export interface PublicStoreOnlineHours {
+    ok: boolean;
+    is_open?: boolean;
+    can_order?: boolean;
+    closing_soon?: boolean;
+    accepting_while_closed?: boolean;
+    outside_hours_policy?: 'accept' | 'block';
+    next_opening_local?: string | null;
+    time_zone?: string;
+}
+
 export interface PublicStorefrontStore {
     id: string;
     slug: string;
@@ -18,6 +29,7 @@ export interface PublicStorefrontStore {
     cookie_policy_text?: string | null;
     whatsapp?: PublicStoreWhatsapp;
     hours?: PublicStoreHour[];
+    order_hours?: PublicStoreOnlineHours;
     messages?: PublicStoreMessage[];
 }
 
@@ -309,6 +321,11 @@ function wait(milliseconds: number) {
 }
 
 export const PublicStorefrontService = {
+    async getOnlineOrderHoursBySlug(slug: string): Promise<PublicStoreOnlineHours> {
+        const { data, error } = await supabasePublic.rpc('get_public_store_order_hours_by_slug', { p_slug: slug });
+        if (error) throw error;
+        return data as PublicStoreOnlineHours;
+    },
     async getStorefrontBySlug(slug: string): Promise<PublicStorefrontResponse> {
         const normalizedSlug = slug.trim();
         let lastError: unknown = null;
