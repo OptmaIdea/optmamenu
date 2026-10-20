@@ -322,6 +322,12 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
         setMessage(null);
 
         try {
+            const desiredHost = (config.custom_domain || '').trim().toLowerCase();
+            if (desiredHost && (
+                desiredHost.length > 253
+                || !/^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$/.test(desiredHost)
+                || desiredHost.endsWith('.optmamenu.com.br')
+            )) throw new Error('Informe um domínio válido, como loja.exemplo.com.br, fora dos domínios reservados do OptmaMenu.');
             if ((config.banners || []).length > 5) throw new Error('Selecione no máximo cinco mídias do carrossel.');
             if ((config.banners || []).some(item => !/^https:\/\//i.test(item.url))) {
                 throw new Error('As mídias publicadas devem usar HTTPS.');
@@ -698,6 +704,28 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
                                         </div>
                                     </div>
                                 )}
+                            </section>
+
+                            <section className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-600 dark:bg-slate-900 sm:p-7">
+                                <h2 className="flex items-center gap-2 text-lg font-black text-gray-900 dark:text-white">
+                                    <Globe size={20} className="text-emerald-600"/> Domínio próprio — preparação
+                                </h2>
+                                <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-slate-200">
+                                    Registre o domínio que deseja usar no futuro para esta loja, sem alterar o link atual por slug.
+                                    A ativação exige verificação de titularidade via DNS, configuração TLS e vínculo ao domínio na Vercel.
+                                    Ainda não ativamos redirecionamento nem recebemos tráfego neste domínio.
+                                </p>
+                                <label className="mt-4 block text-sm font-bold text-gray-800 dark:text-slate-100">
+                                    Domínio desejado (sem https://)
+                                    <input type="text" value={config.custom_domain || ''} disabled={disabled}
+                                        onChange={e => setConfig(prev => ({ ...prev, custom_domain: e.target.value.toLowerCase().trim() }))}
+                                        placeholder="loja.exemplo.com.br" maxLength={253}
+                                        className="mt-2 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-gray-900 dark:border-slate-500 dark:bg-slate-950 dark:text-white"/>
+                                </label>
+                                <p className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs leading-5 text-amber-950 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
+                                    Status: solicitação registrada, não verificada. Nenhum domínio personalizado estará ativo
+                                    até a prova de DNS e a configuração do roteamento seguro por loja. A classificação premium será definida depois.
+                                </p>
                             </section>
 
                             <section className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-600 dark:bg-slate-900 sm:p-7">
