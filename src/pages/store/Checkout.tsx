@@ -23,6 +23,7 @@ import type { Product } from '@/types';
 import { useCartStore } from '@/store/useCartStore';
 import { useCustomerAuth } from '@/store/useCustomerAuth';
 import { CustomerService } from '@/services/customerService';
+import { PublicStorefrontService } from '@/services/publicStorefrontService';
 import { ProductModal } from '@/pages/store/ProductModal';
 import { CheckoutPromotionsModal } from '@/pages/store/components/CheckoutPromotionsModal';
 import { GelinharesTestNotice, useGelinharesTestNotice } from '@/pages/store/components/GelinharesTestNotice';
@@ -660,6 +661,18 @@ export default function Checkout() {
             setError(null);
             setStockIssue(false);
 
+            // Fast UX preflight; the backend independently checks again before stock reservation.
+            try {
+                const hours = await PublicStorefrontService.getOnlineOrderHoursBySlug(storeSlug);
+                if (hours.ok && hours.can_order === false) {
+                    setError('A loja não recebe pedidos online neste horário. Seu carrinho foi preservado; volte durante o expediente.');
+                    setView('review');
+                    return;
+                }
+            } catch {
+                // Offline or stale UI never grants permission: order RPC fails closed when configured.
+            }
+
             const result = await PublicOrderService.createPublicOrder({
                 slug: storeSlug,
                 customer_name: clientName.trim(),
@@ -728,6 +741,7 @@ export default function Checkout() {
                         invalid_customer_phone: 'Confira o número de telefone informado.',
                         customer_auth_required_for_checkout: 'Entre na sua conta desta loja para pagar antecipadamente ou solicitar entrega. Sem login, escolha retirada e pagamento posterior.',
                         empty_cart: 'Seu carrinho está vazio.',
+                        store_closed: 'A loja está fechada para pedidos online neste horário. Seu carrinho foi preservado.',
                     };
                     setError(labels[result.error || ''] || result.message || 'Não foi possível criar o pedido. Confira os dados e tente novamente.');
                 }
