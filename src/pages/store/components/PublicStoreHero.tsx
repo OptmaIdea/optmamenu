@@ -149,7 +149,7 @@ export function PublicStoreHero({ storeName, storeSlug, config }: PublicStoreHer
         else void video.play().catch(() => undefined);
     }, [activeIndex, active, paused, reduceMotion]);
 
-    if (!media.length) return null;
+    if (config?.storefront_carousel_enabled === false || !media.length) return null;
 
     return (
         <section aria-label={`Destaques da ${storeName}`} className="mx-auto mt-4 max-w-5xl px-4">
