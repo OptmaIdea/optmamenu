@@ -58,13 +58,13 @@ export function GelinharesTestNotice({ slug, compact = false }: { slug?: string 
     };
 
     return (
-        <section role="note" aria-label="Aviso obrigatório: ambiente de testes" className="mx-auto w-full max-w-5xl rounded-xl border border-amber-400 bg-amber-50 text-amber-950 shadow-sm dark:border-amber-600 dark:bg-amber-950/40 dark:text-amber-100">
+        <section role="note" aria-label="Aviso obrigatório: ambiente de testes" className="mx-auto w-full max-w-5xl rounded-xl border border-amber-400 bg-amber-50 text-amber-950 shadow-sm dark:border-amber-500 dark:bg-amber-950 dark:text-amber-50">
             <button
                 type="button"
                 aria-expanded={expanded}
                 aria-controls="gelinhares-test-notice-details"
                 onClick={() => setExpanded(value => !value)}
-                className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2 text-left hover:bg-amber-100/60 dark:hover:bg-amber-900/30"
+                className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2 text-left hover:bg-amber-100/60 dark:hover:bg-amber-900/80"
             >
                 <AlertTriangle aria-hidden="true" className="h-4 w-4 shrink-0 text-amber-700 dark:text-amber-300" />
                 <span className="min-w-0 flex-1 text-xs font-black uppercase tracking-wide sm:text-sm">Gelinhares — loja exclusiva de testes e demonstração</span>
