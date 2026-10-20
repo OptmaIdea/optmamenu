@@ -10,7 +10,11 @@ describe('ensureReadableStorefrontTextColor', () => {
         expect(ensureReadableStorefrontTextColor('#ffffff', '#111827')).toBe('#111827');
     });
 
+    it('corrige a paleta rosa Gelinhares que tinha contraste insuficiente no cabeçalho', () => {
+        expect(ensureReadableStorefrontTextColor('#D94E77', '#2C2A2D')).toBe('#020617');
+    });
+
     it('escolhe texto escuro para fundo muito claro', () => {
-        expect(ensureReadableStorefrontTextColor('#f9fafb', '#e5e7eb')).toBe('#111827');
+        expect(ensureReadableStorefrontTextColor('#f9fafb', '#e5e7eb')).toBe('#020617');
     });
 });
