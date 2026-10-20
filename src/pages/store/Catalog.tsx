@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import type { CartItem, Category, Product, StoreConfig } from '@/types';
+import type { CartItem, Category, Product, StoreConfig, StorefrontNoticeCard } from '@/types';
 import { ProductCard } from '@/pages/store/ProductCard';
 import { ProductModal } from '@/pages/store/ProductModal';
 import { PublicStoreHero } from '@/pages/store/components/PublicStoreHero';
@@ -12,6 +12,7 @@ import { CustomerService } from '@/services/customerService';
 import CustomerProfile from '@/pages/store/components/CustomerProfile';
 import {
     PublicStorefrontService,
+    ensureReadableStorefrontTextColor,
     type PublicDeliveryMethod,
     type PublicProductRanking,
 } from '@/services/publicStorefrontService';
@@ -145,7 +146,7 @@ export default function Catalog() {
     const [recommendationMode, setRecommendationMode] = useState<'popular' | 'favorites'>('popular');
     const [productRankings, setProductRankings] = useState<Map<string, PublicProductRanking>>(new Map());
     const [showCategoryPanel, setShowCategoryPanel] = useState(false);
-    const [infoModal, setInfoModal] = useState<'pricing' | 'delivery' | 'loyalty' | null>(null);
+    const [infoModal, setInfoModal] = useState<'pricing' | 'delivery' | 'loyalty' | 'notice' | null>(null);
     const sharedCartLoadedKeyRef = useRef<string | null>(null);
     const sharedCartRemoteRevisionRef = useRef(0);
     const sharedCartLastSyncedFingerprintRef = useRef('');
@@ -767,6 +768,20 @@ export default function Catalog() {
         [categories, products],
     );
 
+    const visibleNoticeCards = useMemo(() => {
+        const defaults: StorefrontNoticeCard[] = [
+            { id: 'pricing', enabled: hasProgressivePricing, title: 'Compre mais, pague menos', description: '', background_color: '#0B43C9', text_color: '#FFFFFF' },
+            { id: 'delivery', enabled: hasDelivery, title: 'Delivery · consulte condições', description: '', background_color: '#0B43C9', text_color: '#FFFFFF' },
+            { id: 'notice', enabled: false, title: 'Novidades e avisos', description: '', background_color: '#047857', text_color: '#FFFFFF' },
+        ];
+        const configured = store?.config?.storefront_notice_cards;
+        return defaults.map(card => ({
+            ...card,
+            ...(Array.isArray(configured) ? configured.find(value => value.id === card.id) : undefined),
+        })).filter(card => card.enabled);
+    }, [hasProgressivePricing, hasDelivery, store?.config?.storefront_notice_cards]);
+    const selectedNoticeCard = store?.config?.storefront_notice_cards?.find(card => card.id === infoModal);
+
     const resetLoginForm = () => {
         setLoginStep('password_login');
         setLoginPhone('');
@@ -908,7 +923,7 @@ export default function Catalog() {
 
     return (
         <div
-            className="min-h-screen bg-gray-50 pb-28 transition-colors duration-300 dark:bg-slate-900"
+            className="min-h-screen bg-gray-50 pb-28 transition-colors duration-300 dark:!bg-slate-950"
             style={{ backgroundColor: store.config?.visual_color_secondary }}
         >
             <div className="mx-auto max-w-5xl px-4 pt-3">
@@ -977,7 +992,7 @@ export default function Catalog() {
                                     )}
                                 </button>
                                 {cartHeaderIcon}
-                                <span className="block max-w-[40vw] truncate text-xs font-black text-white/95 sm:text-sm">
+                                <span className="block max-w-[40vw] truncate text-xs font-black sm:text-sm" style={{color:store.config?.visual_color_text || '#ffffff'}}>
                                     Olá, {customer?.nickname || customer?.full_name || 'cliente'}
                                 </span>
                             </>
@@ -998,6 +1013,7 @@ export default function Catalog() {
             </header>
 
             <PublicStoreHero
+                storeSlug={store.slug}
                 storeName={store.name}
                 description={store.description}
                 config={store.config}
@@ -1011,35 +1027,20 @@ export default function Catalog() {
                 </div>
             )}
 
-            {(hasProgressivePricing || hasDelivery) && (
-            <section
-                aria-label="Informações da loja"
-                className="mx-auto mt-5 flex max-w-5xl gap-3 overflow-x-auto px-4 pb-2 scrollbar-hide"
-            >
-                {hasProgressivePricing && (
-                <button
-                    type="button"
-                    onClick={() => setInfoModal('pricing')}
-                    title="Ver como funciona o desconto por quantidade"
-                    className="flex min-w-44 flex-1 items-center gap-3 rounded-2xl bg-[#0b43c9] px-4 py-4 text-left text-white shadow-sm transition hover:brightness-105"
-                >
-                    <BadgePercent className="h-8 w-8 shrink-0" />
-                    <span className="text-sm font-black leading-4">Compre mais<br />pague menos</span>
-                </button>
-                )}
-
-                {hasDelivery && (
-                <button
-                    type="button"
-                    onClick={() => setInfoModal('delivery')}
-                    title="Ver condições de entrega"
-                    className="flex min-w-44 flex-1 items-center gap-3 rounded-2xl bg-[#0b43c9] px-4 py-4 text-left text-white shadow-sm transition hover:brightness-105"
-                >
-                    <Truck className="h-8 w-8 shrink-0" />
-                    <span className="text-sm font-black leading-4">Delivery<br />consulte condições</span>
-                </button>
-                )}
-            </section>
+            {visibleNoticeCards.length > 0 && (
+                <section aria-label="Avisos e promoções da loja"
+                    className="mx-auto mt-5 flex max-w-5xl gap-3 overflow-x-auto px-4 pb-2 scrollbar-hide">
+                    {visibleNoticeCards.map(card => (
+                        <button key={card.id} type="button"
+                            onClick={() => setInfoModal(card.id)}
+                            title={card.description || card.title}
+                            className="flex min-h-20 min-w-44 flex-1 items-center gap-3 rounded-2xl border border-black/10 px-4 py-4 text-left shadow-sm transition hover:brightness-105 focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-emerald-400"
+                            style={{backgroundColor:card.background_color || '#0B43C9',color:ensureReadableStorefrontTextColor(card.background_color,card.text_color)}}>
+                            {card.id === 'pricing' ? <BadgePercent className="h-8 w-8 shrink-0" /> : card.id === 'delivery' ? <Truck className="h-8 w-8 shrink-0" /> : <BellRing className="h-8 w-8 shrink-0" />}
+                            <span className="whitespace-normal text-sm font-black leading-5">{card.title}</span>
+                        </button>
+                    ))}
+                </section>
             )}
 
             <main className="mx-auto mt-5 max-w-5xl px-4">
@@ -1377,6 +1378,7 @@ export default function Catalog() {
                                         ? 'Compre mais e pague menos'
                                         : infoModal === 'delivery'
                                             ? 'Condições de delivery'
+                                            : infoModal === 'notice' ? (selectedNoticeCard?.title || 'Novidades e avisos')
                                             : 'Fidelidade e benefícios'}
                                 </h2>
                             </div>
@@ -1391,6 +1393,16 @@ export default function Catalog() {
                             </button>
                         </div>
 
+                        {infoModal === 'notice' && (
+                            <div className="mt-4 whitespace-pre-wrap rounded-2xl bg-slate-100 p-4 text-sm leading-6 text-slate-800 dark:bg-slate-800 dark:text-slate-100">
+                                {selectedNoticeCard?.description || 'Entre em contato com a loja para saber mais.'}
+                            </div>
+                        )}
+                        {infoModal !== 'notice' && selectedNoticeCard?.description && (
+                            <p className="mt-4 whitespace-pre-wrap rounded-2xl bg-emerald-50 p-3 text-sm leading-6 text-emerald-950 dark:bg-emerald-950/40 dark:text-emerald-100">
+                                {selectedNoticeCard.description}
+                            </p>
+                        )}
                         {infoModal === 'pricing' && (
                             <div className="mt-4 space-y-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
                                 <p>Alguns produtos podem ter preços progressivos conforme a quantidade, inclusive quando a loja configura grupos ou categorias combinadas.</p>
