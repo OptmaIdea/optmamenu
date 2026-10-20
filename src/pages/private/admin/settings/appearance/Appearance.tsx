@@ -27,6 +27,7 @@ import {
 import type { StoreConfig, StorefrontBannerMedia, StorefrontNoticeCard } from '@/types';
 import { ensureReadableStorefrontTextColor } from '@/services/publicStorefrontService';
 import StorePreview from '@/components/admin/StorePreview';
+import { GELINHARES_DEMO_MEDIA } from '@/pages/store/components/PublicStoreHero';
 import PageContainer from '@/components/common/PageContainer';
 
 interface ColorInputProps {
@@ -173,8 +174,8 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
             toast.error('Informe uma URL HTTPS para a mídia.');
             return;
         }
-        if ((config.banners || []).length >= 5) {
-            toast.error('O carrossel aceita até cinco mídias publicadas nesta etapa.');
+        if ((config.banners || []).length  >= 6) {
+            toast.error('O carrossel aceita até seis mídias publicadas nesta etapa.');
             return;
         }
         setConfig(prev => ({
@@ -194,7 +195,7 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
     };
     const uploadCarouselImage = async (file: File) => {
         if (disabled) return;
-        if ((config.banners || []).length >= 5) {
+        if ((config.banners || []).length  >= 6) {
             toast.error('Remova uma mídia antes de adicionar outra.');
             return;
         }
@@ -328,7 +329,7 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
                 || !/^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(desiredHost)
                 || desiredHost.endsWith('.optmamenu.com.br')
             )) throw new Error('Informe um domínio válido, como loja.exemplo.com.br, fora dos domínios reservados do OptmaMenu.');
-            if ((config.banners || []).length > 5) throw new Error('Selecione no máximo cinco mídias do carrossel.');
+            if ((config.banners || []).length > 6) throw new Error('Selecione no máximo seis mídias do carrossel.');
             if ((config.banners || []).some(item => !/^https:\/\//i.test(item.url))) {
                 throw new Error('As mídias publicadas devem usar HTTPS.');
             }
@@ -628,7 +629,7 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
                             <section className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-600 dark:bg-slate-900 sm:p-7">
                                 <h2 className="text-lg font-black text-gray-900 dark:text-white">Carrossel da loja pública</h2>
                                 <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-slate-200">
-                                    Escolha até 5 imagens ou vídeos, defina a ordem e publique somente os itens desejados.
+                                    Escolha até 6 imagens ou vídeos, defina a ordem e publique somente os itens desejados.
                                     Para vídeos, informe uma URL HTTPS. As imagens podem ser enviadas diretamente aqui.
                                 </p>
                                 <label className="mt-4 flex items-center gap-3 text-sm font-bold text-gray-900 dark:text-white">
@@ -638,10 +639,16 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
                                     Exibir carrossel no cardápio
                                 </label>
                                 {storeSlug === 'gelinharessjn' && !(config.banners || []).length && (
-                                    <p className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs leading-5 text-amber-950 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
-                                        A Gelinhares está usando as mídias demonstrativas atuais. Adicione mídias abaixo para substituí-las;
-                                        se quiser ocultar completamente, desative o carrossel.
-                                    </p>
+                                    <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs leading-5 text-amber-950 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
+                                        <p>A Gelinhares usa uma vitrine demonstrativa. Importe as seis mídias atuais para escolher quais ficam publicadas,
+                                        alterar a ordem e substituir imagens. Nenhuma alteração ocorre antes de salvar.</p>
+                                        {!disabled && <button type="button" className="mt-3 min-h-10 rounded-xl bg-amber-900 px-4 py-2 text-xs font-bold text-white"
+                                            onClick={() => setConfig(prev => ({
+                                                ...prev, banners: GELINHARES_DEMO_MEDIA.map((item, idx) => ({
+                                                    ...item, active: true, published: true, sort_order: idx + 1,
+                                                })),
+                                            }))}>Carregar mídias atuais para edição</button>}
+                                    </div>
                                 )}
                                 <div className="mt-5 space-y-4">
                                     {(config.banners || []).map((item, index) => (
@@ -685,7 +692,7 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
                                         </div>
                                     ))}
                                 </div>
-                                {!disabled && (config.banners || []).length < 5 && (
+                                {!disabled && (config.banners || []).length < 6 && (
                                     <div className="mt-5 space-y-3 rounded-2xl border border-dashed border-emerald-300 p-4 dark:border-emerald-700">
                                         <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2 text-sm font-bold text-white">
                                             <Upload size={17}/> Enviar imagem
