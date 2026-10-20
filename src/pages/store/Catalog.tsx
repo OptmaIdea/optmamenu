@@ -67,7 +67,7 @@ function hoursBannerState(hours: PublicStoreOnlineHours) {
     if (hours.can_order) {
         return {
             isOpen: Boolean(hours.is_open), canOrder: true,
-            message: 'Loja fechada para atendimento. Pedidos online continuam disponíveis; o atendimento será no expediente.',
+            message: 'Loja fechada para atendimento. Você ainda pode pedir, mas a reserva e o prazo de pagamento não são prorrogados.',
             isClosingSoon: Boolean(hours.closing_soon),
         };
     }
