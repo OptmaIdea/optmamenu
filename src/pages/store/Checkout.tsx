@@ -823,7 +823,7 @@ export default function Checkout() {
 
     if (items.length === 0) {
         return (
-            <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 dark:bg-slate-800 p-4">
+            <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 p-4 text-slate-950 dark:bg-slate-950 dark:text-slate-100">
                 <ShoppingBag size={64} className="mb-4 text-slate-300" />
                 <h1 className="text-xl font-black text-slate-800 dark:text-slate-100">Seu carrinho está vazio</h1>
                 <p className="mb-6 mt-2 text-center text-slate-500 dark:text-slate-300">Seus dados de checkout continuam salvos neste navegador.</p>
@@ -942,7 +942,7 @@ export default function Checkout() {
                     )}
                 </main>
 
-                <div className="fixed inset-x-0 bottom-0 z-50 border-t bg-white dark:bg-slate-900 px-4 pb-4 pt-3">
+                <div className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white px-4 text-slate-950 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 pb-4 pt-3">
                     <div className="mx-auto flex max-w-3xl items-center gap-4">
                         <div className="flex-1">
                             <p className="text-2xl font-black">R$ {formatBRL(totalValue)}</p>
@@ -962,7 +962,7 @@ export default function Checkout() {
 
     if (view === 'fulfillment') {
         return (
-            <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-24">
+            <div className="min-h-screen bg-slate-50 pb-24 text-slate-950 dark:bg-slate-950 dark:text-slate-100">
                 <CheckoutHeader storeSlug={storeSlug} title="Entrega" subtitle="Escolha como deseja receber" onBack={() => setView('review')} />
                 <main className="mx-auto max-w-3xl px-4 py-5">
                     <section className="overflow-hidden rounded-2xl bg-white dark:bg-slate-900 shadow-sm">
@@ -1414,7 +1414,7 @@ export default function Checkout() {
                 )}
             </main>
 
-            <div className="fixed inset-x-0 bottom-0 z-50 border-t bg-white dark:bg-slate-900 px-4 pb-4 pt-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)]">
+            <div className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white px-4 text-slate-950 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 pb-4 pt-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)]">
                 <div className="relative mx-auto flex max-w-3xl items-center gap-4">
                     <div className="min-w-0 flex-1">
                         <p className="text-2xl font-black">R$ {formatBRL(totalValue)}</p>
