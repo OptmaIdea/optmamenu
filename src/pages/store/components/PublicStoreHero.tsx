@@ -66,9 +66,11 @@ function configuredMedia(config?: StoreConfig): StorefrontBannerMedia[] {
         .filter((item) => item.active !== false && item.published !== false && item.url)
         .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0));
 
-    if (published.length) {
-        const planLimit = Math.max(1, Math.min(MAX_PUBLIC_MEDIA, Number(config?.banner_publication_limit || MAX_PUBLIC_MEDIA)));
-        return published.slice(0, planLimit);
+    // An explicitly configured list is authoritative, even when every item is unpublished.
+    // Never silently restore the demo slides over the merchant's explicit choice.
+    if (Array.isArray(config?.banners)) {
+        const publicationLimit = Math.max(1, Math.min(MAX_PUBLIC_MEDIA, Number(config?.banner_publication_limit || MAX_PUBLIC_MEDIA)));
+        return published.slice(0, publicationLimit);
     }
 
     const legacy: StorefrontBannerMedia[] = [];
@@ -101,8 +103,10 @@ export function PublicStoreHero({ storeName, storeSlug, config }: PublicStoreHer
     const fromConfig = useMemo(() => configuredMedia(config), [config]);
     const isGelinhares = String(storeSlug || '').toLowerCase() === 'gelinharessjn';
     const media = useMemo(
-        () => fromConfig.length ? fromConfig : isGelinhares ? GELINHARES_DEMO_MEDIA : [],
-        [fromConfig, isGelinhares],
+        () => Array.isArray(config?.banners)
+            ? fromConfig
+            : fromConfig.length ? fromConfig : isGelinhares ? GELINHARES_DEMO_MEDIA : [],
+        [config?.banners, fromConfig, isGelinhares],
     );
 
     const [activeIndex, setActiveIndex] = useState(0);
