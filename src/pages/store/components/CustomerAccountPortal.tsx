@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
 import {
     BellRing,
+    CheckCheck,
     ChevronDown,
     ChevronUp,
     CreditCard,
@@ -462,6 +463,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     const [notifications, setNotifications] = useState<CustomerNotificationSummary[]>([]);
     const [notificationCategoryFilter, setNotificationCategoryFilter] = useState<NotificationCategoryFilter>('all');
     const [notificationsLoading, setNotificationsLoading] = useState(false);
+    const [notificationsMarkingAll, setNotificationsMarkingAll] = useState(false);
     const [consentEvents, setConsentEvents] = useState<CustomerSelfConsentEvent[]>([]);
     const [profileDirty, setProfileDirty] = useState(false);
     const [emailVerificationSending, setEmailVerificationSending] = useState(false);
@@ -1947,15 +1949,28 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     };
 
     const markNotificationRead = async (notificationId: string) => {
-        await CustomerService.markAsRead(notificationId);
-        setNotifications((current) => current.map((notification) =>
-            notification.id === notificationId ? { ...notification, read: true } : notification
-        ));
+        try {
+            await CustomerService.markAsRead(notificationId);
+            setNotifications((current) => current.map((notification) =>
+                notification.id === notificationId ? { ...notification, read: true } : notification
+            ));
+        } catch (markError) {
+            toast.error(markError instanceof Error ? markError.message : 'Não foi possível marcar a mensagem como lida.');
+        }
     };
 
     const markAllNotificationsRead = async () => {
-        await CustomerService.markAllAsRead(customer?.id);
-        setNotifications((current) => current.map((notification) => ({ ...notification, read: true })));
+        if (notificationsMarkingAll || !notifications.some((notification) => !notification.read)) return;
+        setNotificationsMarkingAll(true);
+        try {
+            await CustomerService.markAllAsRead(customer?.id);
+            setNotifications((current) => current.map((notification) => ({ ...notification, read: true })));
+            toast.success('Todas as mensagens foram marcadas como lidas.');
+        } catch (markError) {
+            toast.error(markError instanceof Error ? markError.message : 'Não foi possível marcar todas as mensagens como lidas.');
+        } finally {
+            setNotificationsMarkingAll(false);
+        }
     };
 
     const leaveLoyaltyProgram = async () => {
@@ -3245,7 +3260,16 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                                     <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">Pedidos, fidelidade, sistema, perfil e segurança organizados por categoria.</p>
                                                 </div>
                                             </div>
-                                            <span className="shrink-0 rounded-full bg-emerald-600 px-3 py-1 text-[10px] font-black uppercase tracking-wide text-white">{notifications.filter((item) => !item.read).length} não lida(s)</span>
+                                            <div className="flex shrink-0 flex-col items-end gap-2">
+                                                <span aria-live="polite" className="rounded-full bg-emerald-600 px-3 py-1 text-[10px] font-black uppercase tracking-wide text-white">{notifications.filter((item) => !item.read).length} não lida(s)</span>
+                                                <button type="button" onClick={() => void markAllNotificationsRead()}
+                                                    disabled={notificationsMarkingAll || !notifications.some((item) => !item.read)}
+                                                    className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-emerald-300 bg-white px-3 py-2 text-xs font-black text-emerald-800 shadow-sm transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-800 dark:bg-slate-900 dark:text-emerald-300"
+                                                    aria-label="Marcar todas as mensagens desta loja como lidas">
+                                                    {notificationsMarkingAll ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <CheckCheck className="h-4 w-4" aria-hidden="true" />}
+                                                    {notificationsMarkingAll ? 'Marcando…' : 'Marcar todas como lidas'}
+                                                </button>
+                                            </div>
                                         </div>
                                     </section>
                                     <section className="rounded-3xl border border-slate-200 p-4 dark:border-slate-800">
@@ -3259,7 +3283,6 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                         </div>
                                         <div className="mt-4 flex gap-2">
                                             <button type="button" onClick={() => void loadNotifications()} disabled={notificationsLoading} className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-600 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300">{notificationsLoading ? 'Atualizando…' : 'Atualizar'}</button>
-                                            {notifications.some((item) => !item.read) && <button type="button" onClick={() => void markAllNotificationsRead()} className="flex-1 rounded-xl border border-emerald-200 px-3 py-2 text-xs font-black text-emerald-700 dark:border-emerald-900 dark:text-emerald-300">Marcar todas como lidas</button>}
                                         </div>
                                     </section>
                                     {notificationsLoading && notifications.length === 0 ? (
