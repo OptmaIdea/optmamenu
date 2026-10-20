@@ -325,7 +325,7 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
             const desiredHost = (config.custom_domain || '').trim().toLowerCase();
             if (desiredHost && (
                 desiredHost.length > 253
-                || !/^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$/.test(desiredHost)
+                || !/^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(desiredHost)
                 || desiredHost.endsWith('.optmamenu.com.br')
             )) throw new Error('Informe um domínio válido, como loja.exemplo.com.br, fora dos domínios reservados do OptmaMenu.');
             if ((config.banners || []).length > 5) throw new Error('Selecione no máximo cinco mídias do carrossel.');
