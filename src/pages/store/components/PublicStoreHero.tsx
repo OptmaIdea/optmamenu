@@ -10,11 +10,11 @@ interface PublicStoreHeroProps {
 }
 
 
-const MAX_PUBLIC_MEDIA = 5;
+const MAX_PUBLIC_MEDIA = 6;
 
 
 
-const GELINHARES_DEMO_MEDIA: StorefrontBannerMedia[] = [
+export const GELINHARES_DEMO_MEDIA: StorefrontBannerMedia[] = [
     {
         id: 'demo-1',
         type: 'image',
@@ -99,7 +99,7 @@ function overlayOpacity(value?: number) {
 
 export function PublicStoreHero({ storeName, storeSlug, config }: PublicStoreHeroProps) {
     const fromConfig = useMemo(() => configuredMedia(config), [config]);
-    const isGelinhares = `${storeSlug || ''} ${storeName}`.toLowerCase().includes('gelinhares');
+    const isGelinhares = String(storeSlug || '').toLowerCase() === 'gelinharessjn';
     const media = useMemo(
         () => fromConfig.length ? fromConfig : isGelinhares ? GELINHARES_DEMO_MEDIA : [],
         [fromConfig, isGelinhares],
