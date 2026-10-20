@@ -1,4 +1,5 @@
 import { supabaseCustomer } from '@/lib/supabase';
+import { AuthService } from '@/services/customerAuth';
 import { useCartStore } from '@/store/useCartStore';
 import type { CartItem, Product } from '@/types';
 
@@ -426,6 +427,7 @@ function enqueueServerSave(owner: CustomerCartOwner, generation: number, mutatio
             try {
                 await persistServerCart(owner, generation, mutationVersion);
             } catch (error) {
+                if (await handleRevokedCustomerSession(owner, generation, error)) return;
                 console.warn('[CUSTOMER_CART] Falha ao sincronizar carrinho no servidor:', error);
             }
         });
@@ -494,8 +496,35 @@ async function hydrateCustomerCart(
             await enqueueServerSave(owner, generation, localMutationVersion);
         }
     } catch (error) {
+        if (await handleRevokedCustomerSession(owner, generation, error)) return;
         console.warn('[CUSTOMER_CART] Não foi possível restaurar o carrinho do servidor:', error);
     }
+}
+
+function isSessionAccessDenied(error: unknown) {
+    const message = error instanceof Error ? error.message : String(error || '');
+    return /access_denied|session_expired|jwt.*expired|invalid.*jwt/i.test(message);
+}
+
+async function handleRevokedCustomerSession(
+    owner: CustomerCartOwner,
+    generation: number,
+    error: unknown,
+): Promise<boolean> {
+    if (!isSessionAccessDenied(error)) return false;
+    if (generation !== activeGeneration || !isSameOwner(activeOwner, owner)) return true;
+
+    // A revoked session must never regain access to a different customer's cart.
+    // Confirm the customer's auth boundary before treating a denial as expected.
+    const alive = await AuthService.checkSessionAlive();
+    if (generation !== activeGeneration || !isSameOwner(activeOwner, owner)) return true;
+    if (alive !== false) return false;
+
+    // A password change or remote logout revokes the old JWT. Stop old polling
+    // immediately and clear the displayed private cart; retain its account-
+    // scoped snapshot for a future legitimate login.
+    deactivateCustomerCart(owner.customerId, owner.storeId);
+    return true;
 }
 
 function startServerPoll(owner: CustomerCartOwner, generation: number) {
@@ -506,7 +535,8 @@ function startServerPoll(owner: CustomerCartOwner, generation: number) {
         if (generation !== activeGeneration || !isSameOwner(activeOwner, owner)) return;
         if (serverSaveTimer !== null || syncedMutationVersion < localMutationVersion) return;
 
-        void fetchServerCart(owner, generation).catch((error) => {
+        void fetchServerCart(owner, generation).catch(async (error) => {
+            if (await handleRevokedCustomerSession(owner, generation, error)) return;
             console.warn('[CUSTOMER_CART] Falha ao atualizar carrinho entre dispositivos:', error);
         });
     }, SERVER_SYNC_POLL_MS);
