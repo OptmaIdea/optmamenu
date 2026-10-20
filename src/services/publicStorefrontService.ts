@@ -225,11 +225,11 @@ export function ensureReadableStorefrontTextColor(background: unknown, preferred
     }
 
     const light = { r: 255, g: 255, b: 255 };
-    const dark = { r: 17, g: 24, b: 39 };
+    const dark = { r: 2, g: 6, b: 23 };
 
     return contrastRatio(backgroundRgb, light) >= contrastRatio(backgroundRgb, dark)
         ? '#ffffff'
-        : '#111827';
+        : '#020617';
 }
 
 function normalizePriceRules(value: unknown) {
