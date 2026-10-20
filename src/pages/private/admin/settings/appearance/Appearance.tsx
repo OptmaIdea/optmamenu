@@ -24,7 +24,8 @@ import {
     MessageCircle,
     Star
 } from 'lucide-react';
-import type { StoreConfig } from '@/types';
+import type { StoreConfig, StorefrontBannerMedia, StorefrontNoticeCard } from '@/types';
+import { ensureReadableStorefrontTextColor } from '@/services/publicStorefrontService';
 import StorePreview from '@/components/admin/StorePreview';
 import PageContainer from '@/components/common/PageContainer';
 
@@ -56,7 +57,7 @@ const ColorInput = ({ label, value, placeholder, disabled = false, onChange }: C
             className="flex flex-col gap-2"
             title={disabled ? 'Você não tem permissão para executar esta alteração.' : undefined}
         >
-            <label className="text-xs font-bold text-gray-500 uppercase">{label}</label>
+            <label className="text-xs font-bold text-gray-700 uppercase dark:text-gray-200">{label}</label>
             <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 p-2 rounded-lg border border-gray-200 dark:border-gray-600 focus-within:ring-2 focus-within:ring-brand-green">
                 <div className="relative">
                     <input
@@ -97,6 +98,8 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
     const [storeId, setStoreId] = useState<string | null>(null);
     const [storeSlug, setStoreSlug] = useState<string | null>(null);
     const [uploadingAbout, setUploadingAbout] = useState(false);
+    const [newMediaUrl, setNewMediaUrl] = useState('');
+    const [newMediaType, setNewMediaType] = useState<'image' | 'video'>('image');
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
     const [config, setConfig] = useState<StoreConfig>({
@@ -131,6 +134,95 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
     });
 
     const [activeTab, setActiveTab] = useState<'visual' | 'institutional' | 'contact'>('visual');
+    const noticeDefaults: StorefrontNoticeCard[] = [
+        { id: 'pricing', enabled: true, title: 'Compre mais, pague menos', description: 'Confira as promoções por quantidade da loja.', background_color: '#0B43C9', text_color: '#FFFFFF' },
+        { id: 'delivery', enabled: true, title: 'Delivery · consulte condições', description: 'Veja as modalidades e taxas de entrega.', background_color: '#0B43C9', text_color: '#FFFFFF' },
+        { id: 'notice', enabled: false, title: 'Novidades e avisos', description: 'Acompanhe novidades, eventos e campanhas desta loja.', background_color: '#047857', text_color: '#FFFFFF' },
+    ];
+    const noticeCards = noticeDefaults.map(defaultCard => ({
+        ...defaultCard, ...(config.storefront_notice_cards || []).find(item => item.id === defaultCard.id),
+    }));
+    const changeNotice = (id: StorefrontNoticeCard['id'], patch: Partial<StorefrontNoticeCard>) => {
+        setConfig(prev => ({
+            ...prev,
+            storefront_notice_cards: noticeDefaults.map(defaultCard => ({
+                ...defaultCard,
+                ...(prev.storefront_notice_cards || []).find(item => item.id === defaultCard.id),
+                ...(defaultCard.id === id ? patch : {}),
+            })),
+        }));
+    };
+    const updateBanner = (index: number, patch: Partial<StorefrontBannerMedia>) => {
+        setConfig(prev => ({
+            ...prev,
+            banners: (prev.banners || []).map((item, idx) => idx === index ? { ...item, ...patch } : item),
+        }));
+    };
+    const moveBanner = (index: number, direction: -1 | 1) => {
+        setConfig(prev => {
+            const next = [...(prev.banners || [])];
+            const to = index + direction;
+            if (to < 0 || to >= next.length) return prev;
+            [next[index], next[to]] = [next[to], next[index]];
+            return { ...prev, banners: next.map((item, idx) => ({ ...item, sort_order: idx + 1 })) };
+        });
+    };
+    const addMediaUrl = () => {
+        const url = newMediaUrl.trim();
+        if (!/^https:\/\//i.test(url)) {
+            toast.error('Informe uma URL HTTPS para a mídia.');
+            return;
+        }
+        if ((config.banners || []).length >= 5) {
+            toast.error('O carrossel aceita até cinco mídias publicadas nesta etapa.');
+            return;
+        }
+        setConfig(prev => ({
+            ...prev,
+            banners: [...(prev.banners || []), {
+                id: crypto.randomUUID(),
+                type: newMediaType,
+                url,
+                alt_text: '',
+                active: true,
+                published: true,
+                sort_order: (prev.banners || []).length + 1,
+            }],
+        }));
+        setNewMediaUrl('');
+        toast.success('Mídia adicionada. Salve a aparência para publicar.');
+    };
+    const uploadCarouselImage = async (file: File) => {
+        if (disabled) return;
+        if ((config.banners || []).length >= 5) {
+            toast.error('Remova uma mídia antes de adicionar outra.');
+            return;
+        }
+        try {
+            setSaving(true);
+            const optimized = await optimizeImageForUpload(file, IMAGE_PROFILES.banner);
+            const safeName = createSafeImageFilename(file.name, 'carousel');
+            const key = `store-assets/${safeName}`;
+            const { error } = await supabase.storage.from('logos').upload(key, optimized.file, {
+                contentType: 'image/webp', cacheControl: '31536000', upsert: false,
+            });
+            if (error) throw error;
+            const { data: { publicUrl } } = supabase.storage.from('logos').getPublicUrl(key);
+            setConfig(prev => ({
+                ...prev,
+                banners: [...(prev.banners || []), {
+                    id: crypto.randomUUID(), type: 'image', url: publicUrl,
+                    alt_text: file.name.slice(0, 90), active: true, published: true,
+                    sort_order: (prev.banners || []).length + 1,
+                }],
+            }));
+            toast.success('Imagem enviada. Clique em Salvar Aparência da Loja para publicar.');
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Não foi possível enviar a imagem.');
+        } finally {
+            setSaving(false);
+        }
+    };
     const [categoryOptions, setCategoryOptions] = useState<Array<{ id: string; name: string }>>([]);
 
     useEffect(() => {
@@ -230,7 +322,10 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
         setMessage(null);
 
         try {
-            // ✅ UPDATE direto pode ficar (escrita)
+            if ((config.banners || []).length > 5) throw new Error('Selecione no máximo cinco mídias do carrossel.');
+            if ((config.banners || []).some(item => !/^https:\/\//i.test(item.url))) {
+                throw new Error('As mídias publicadas devem usar HTTPS.');
+            }
             const { error } = await supabase
                 .from('stores')
                 .update({ config })
@@ -521,6 +616,128 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
                                             )
                                         )}
                                     </div>
+                                </div>
+                            </section>
+
+                            <section className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-600 dark:bg-slate-900 sm:p-7">
+                                <h2 className="text-lg font-black text-gray-900 dark:text-white">Carrossel da loja pública</h2>
+                                <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-slate-200">
+                                    Escolha até 5 imagens ou vídeos, defina a ordem e publique somente os itens desejados.
+                                    Para vídeos, informe uma URL HTTPS. As imagens podem ser enviadas diretamente aqui.
+                                </p>
+                                <label className="mt-4 flex items-center gap-3 text-sm font-bold text-gray-900 dark:text-white">
+                                    <input type="checkbox" className="h-5 w-5 accent-emerald-600"
+                                        checked={config.storefront_carousel_enabled !== false} disabled={disabled}
+                                        onChange={e => setConfig(prev => ({ ...prev, storefront_carousel_enabled: e.target.checked }))}/>
+                                    Exibir carrossel no cardápio
+                                </label>
+                                {storeSlug === 'gelinharessjn' && !(config.banners || []).length && (
+                                    <p className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs leading-5 text-amber-950 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
+                                        A Gelinhares está usando as mídias demonstrativas atuais. Adicione mídias abaixo para substituí-las;
+                                        se quiser ocultar completamente, desative o carrossel.
+                                    </p>
+                                )}
+                                <div className="mt-5 space-y-4">
+                                    {(config.banners || []).map((item, index) => (
+                                        <div key={item.id || index} className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-slate-600 dark:bg-slate-800">
+                                            <div className="flex flex-wrap items-center gap-3">
+                                                {item.type === 'image' && <img src={item.url} alt={item.alt_text || 'Prévia da mídia'} className="h-20 w-32 rounded-xl object-cover" />}
+                                                {item.type === 'video' && <span className="rounded-xl bg-slate-900 px-4 py-5 text-xs font-bold text-white">Vídeo</span>}
+                                                <span className="text-sm font-black text-gray-900 dark:text-white">Mídia {index + 1}</span>
+                                                <label className="inline-flex items-center gap-2 text-xs font-bold text-gray-800 dark:text-slate-100">
+                                                    <input type="checkbox" checked={item.active !== false && item.published !== false}
+                                                        disabled={disabled}
+                                                        onChange={e => updateBanner(index, { active: e.target.checked, published: e.target.checked })}/>
+                                                    Publicada
+                                                </label>
+                                            </div>
+                                            <div className="mt-3 grid gap-3">
+                                                <label className="text-xs font-bold text-gray-700 dark:text-slate-200">URL da mídia
+                                                    <input type="url" value={item.url} disabled={disabled}
+                                                        onChange={e => updateBanner(index, { url: e.target.value })}
+                                                        className="mt-1 w-full rounded-xl border border-gray-300 bg-white p-2 text-sm text-gray-900 dark:border-slate-500 dark:bg-slate-950 dark:text-white"/>
+                                                </label>
+                                                <label className="text-xs font-bold text-gray-700 dark:text-slate-200">Descrição acessível
+                                                    <input value={item.alt_text || ''} maxLength={120} disabled={disabled}
+                                                        onChange={e => updateBanner(index, { alt_text: e.target.value })}
+                                                        className="mt-1 w-full rounded-xl border border-gray-300 bg-white p-2 text-sm text-gray-900 dark:border-slate-500 dark:bg-slate-950 dark:text-white"/>
+                                                </label>
+                                                <label className="text-xs font-bold text-gray-700 dark:text-slate-200">Título sobre a imagem (opcional)
+                                                    <input value={item.title || ''} maxLength={100} disabled={disabled}
+                                                        onChange={e => updateBanner(index, { title: e.target.value })}
+                                                        className="mt-1 w-full rounded-xl border border-gray-300 bg-white p-2 text-sm text-gray-900 dark:border-slate-500 dark:bg-slate-950 dark:text-white"/>
+                                                </label>
+                                            </div>
+                                            {!disabled && <div className="mt-3 flex flex-wrap gap-2">
+                                                <button type="button" disabled={index === 0} onClick={() => moveBanner(index, -1)}
+                                                    className="rounded-xl border border-gray-300 px-3 py-2 text-xs font-bold text-gray-800 disabled:opacity-40 dark:border-slate-500 dark:text-white">↑ Subir</button>
+                                                <button type="button" disabled={index === (config.banners || []).length - 1} onClick={() => moveBanner(index, 1)}
+                                                    className="rounded-xl border border-gray-300 px-3 py-2 text-xs font-bold text-gray-800 disabled:opacity-40 dark:border-slate-500 dark:text-white">↓ Descer</button>
+                                                <button type="button" onClick={() => setConfig(prev => ({ ...prev, banners: (prev.banners || []).filter((_, i) => i !== index) }))}
+                                                    className="rounded-xl border border-red-300 px-3 py-2 text-xs font-bold text-red-700 dark:border-red-700 dark:text-red-300">Remover</button>
+                                            </div>}
+                                        </div>
+                                    ))}
+                                </div>
+                                {!disabled && (config.banners || []).length < 5 && (
+                                    <div className="mt-5 space-y-3 rounded-2xl border border-dashed border-emerald-300 p-4 dark:border-emerald-700">
+                                        <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2 text-sm font-bold text-white">
+                                            <Upload size={17}/> Enviar imagem
+                                            <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only"
+                                                onChange={e => {const file=e.target.files?.[0]; if(file)void uploadCarouselImage(file);e.currentTarget.value='';}}/>
+                                        </label>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <select value={newMediaType} onChange={e => setNewMediaType(e.target.value as 'image' | 'video')}
+                                                className="min-h-11 rounded-xl border border-gray-300 bg-white px-3 text-sm text-gray-900 dark:border-slate-500 dark:bg-slate-950 dark:text-white">
+                                                <option value="image">Imagem por URL</option><option value="video">Vídeo por URL</option>
+                                            </select>
+                                            <input type="url" placeholder="https://..." aria-label="URL da mídia do carrossel" value={newMediaUrl}
+                                                onChange={e => setNewMediaUrl(e.target.value)}
+                                                className="min-h-11 min-w-0 flex-1 rounded-xl border border-gray-300 bg-white px-3 text-sm text-gray-900 dark:border-slate-500 dark:bg-slate-950 dark:text-white"/>
+                                            <button type="button" onClick={addMediaUrl} className="min-h-11 rounded-xl bg-emerald-700 px-4 text-sm font-bold text-white">Adicionar</button>
+                                        </div>
+                                    </div>
+                                )}
+                            </section>
+
+                            <section className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-600 dark:bg-slate-900 sm:p-7">
+                                <h2 className="text-lg font-black text-gray-900 dark:text-white">Quadros promocionais e avisos</h2>
+                                <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-slate-200">
+                                    Exiba ou oculte cada quadro e personalize texto e cores. O terceiro é um aviso livre para novidades e campanhas.
+                                    A cor do texto é ajustada automaticamente no cardápio se não atingir contraste adequado.
+                                </p>
+                                <div className="mt-5 space-y-5">
+                                    {noticeCards.map(card => (
+                                        <div key={card.id} className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-slate-600 dark:bg-slate-800">
+                                            <label className="inline-flex items-center gap-3 text-sm font-black text-gray-900 dark:text-white">
+                                                <input type="checkbox" className="h-5 w-5 accent-emerald-600" disabled={disabled} checked={card.enabled}
+                                                    onChange={e => changeNotice(card.id, { enabled: e.target.checked })}/>
+                                                {card.id === 'pricing' ? 'Promoções / descontos' : card.id === 'delivery' ? 'Informações de delivery' : 'Novidades e avisos'}
+                                            </label>
+                                            <div className="mt-4 grid gap-3">
+                                                <label className="text-xs font-bold text-gray-700 dark:text-slate-200">Título
+                                                    <input value={card.title} maxLength={70} disabled={disabled}
+                                                        onChange={e => changeNotice(card.id, { title: e.target.value })}
+                                                        className="mt-1 w-full rounded-xl border border-gray-300 bg-white p-3 text-gray-900 dark:border-slate-500 dark:bg-slate-950 dark:text-white"/>
+                                                </label>
+                                                <label className="text-xs font-bold text-gray-700 dark:text-slate-200">Descrição exibida ao abrir
+                                                    <textarea value={card.description || ''} rows={2} maxLength={500} disabled={disabled}
+                                                        onChange={e => changeNotice(card.id, { description: e.target.value })}
+                                                        className="mt-1 w-full rounded-xl border border-gray-300 bg-white p-3 text-gray-900 dark:border-slate-500 dark:bg-slate-950 dark:text-white"/>
+                                                </label>
+                                            </div>
+                                            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                                <ColorInput label="Cor de fundo" value={card.background_color} placeholder="#0B43C9" disabled={disabled}
+                                                    onChange={value => changeNotice(card.id, { background_color: value })}/>
+                                                <ColorInput label="Cor do texto" value={card.text_color} placeholder="#FFFFFF" disabled={disabled}
+                                                    onChange={value => changeNotice(card.id, { text_color: value })}/>
+                                            </div>
+                                            <div className="mt-3 rounded-xl px-4 py-3 font-bold"
+                                                style={{backgroundColor:card.background_color,color:ensureReadableStorefrontTextColor(card.background_color,card.text_color)}}>
+                                                {card.title || 'Título do quadro'}
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             </section>
 
