@@ -34,6 +34,9 @@ jobs:
           src/pages/private/admin/products/inventory/utils/purchaseReceiptUtils.ts
           src/pages/private/admin/products/inventory/utils/purchaseReceiptUtils.test.ts
 
+      - name: Security contract — payment internal RPC only via service_role
+        run: node --test supabase/tests/p01_internal_payment_rpc_callers.test.mjs
+
       - name: Tests
         run: npm run test
 
