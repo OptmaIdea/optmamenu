@@ -111,3 +111,31 @@ jobs:
             postgres:17 \
             psql -h 127.0.0.1 -U postgres -d optmamenu_acl_test \
             -v ON_ERROR_STOP=1 -f supabase/tests/p01_future_table_grants.sql
+
+  p02-customer-isolation:
+    name: P02 customer-session isolation PostgreSQL 17
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: optmamenu_p02_isolation
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d optmamenu_p02_isolation"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Validate current customer and owner RLS expressions with synthetic sessions
+        run: |
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_p02_isolation \
+            -v ON_ERROR_STOP=1 -f supabase/tests/p02_customer_isolation_rls_pg17.sql
