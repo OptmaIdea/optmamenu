@@ -170,7 +170,7 @@ create policy loyalty_transactions_customer_select_own on public.loyalty_transac
 using ((app_current_role() = 'customer'::text) AND (customer_id = app_current_customer_id()));
 
 create policy loyalty_transactions_staff_select_realtime on public.loyalty_transactions for SELECT to authenticated
-using can_view_loyalty_transaction_staff_safe(customer_id);
+using (can_view_loyalty_transaction_staff_safe(customer_id));
 
 create policy orders_customer_select_own on public.orders for SELECT to anon, authenticated
 using ((app_current_role() = 'customer'::text) AND (store_id = app_current_store_id()) AND ((customer_id = app_current_customer_id()) OR ((customer_phone IS NOT NULL) AND (customer_phone = app_jwt_claim('phone'::text)))));
