@@ -37,6 +37,9 @@ jobs:
       - name: Test disabled Asaas legacy endpoints
         run: node --test supabase/tests/p01_asaas_retirement.test.mjs
 
+      - name: Security contract — payment internal RPC only via service_role
+        run: node --test supabase/tests/p01_internal_payment_rpc_callers.test.mjs
+
       - name: Tests
         run: npm run test
 
@@ -70,3 +73,41 @@ jobs:
             -v "$PWD:/repo:ro" -w /repo postgres:17 \
             psql -h 127.0.0.1 -U postgres -d optmamenu_legacy_test \
             -v ON_ERROR_STOP=1 -f supabase/tests/p01_retired_asaas_provider_pg17.sql
+
+  p00-postgres-acl:
+    name: P00 PostgreSQL 17 permissions
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: optmamenu_acl_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d optmamenu_acl_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Real PostgreSQL role-grant regression (synthetic data only)
+        run: |
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo \
+            postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_acl_test \
+            -v ON_ERROR_STOP=1 -f supabase/tests/p00_internal_payment_rpc_grants.sql
+      - name: Simulate the October 30 future-table grant behavior
+        run: |
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo \
+            postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_acl_test \
+            -v ON_ERROR_STOP=1 -f supabase/tests/p01_future_table_grants.sql
