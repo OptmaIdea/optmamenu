@@ -180,7 +180,7 @@ using ((app_current_role() <> 'customer'::text) AND (store_id = app_current_stor
 with check ((app_current_role() <> 'customer'::text) AND (store_id = app_current_store_id()));
 
 \echo 'P02: apply targeted policy migration on real captured RLS snapshot'
-\ir ../migrations/20261021235200_orders_customer_phone_fallback_only_unlinked.sql
+\ir ../migrations/20261021205404_orders_customer_phone_fallback_only_unlinked_20261021.sql
 
 \echo 'P02: seed 2 stores, 3 customers, 3 customer sessions and 1 store owner'
 insert into public.stores values

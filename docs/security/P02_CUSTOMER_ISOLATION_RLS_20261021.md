@@ -44,7 +44,7 @@ A live read-only aggregate on 21/10 found 143 orders:
 - zero store+phone groups have multiple distinct linked customer IDs in current data.
 
 The existing policy is permissive for future matching-phone accounts, even without a demonstrated live conflict.
-Migration `supabase/migrations/20261021235200_orders_customer_phone_fallback_only_unlinked.sql` narrows the phone fallback to orders where `customer_id IS NULL`.
+Migration `supabase/migrations/20261021205404_orders_customer_phone_fallback_only_unlinked_20261021.sql` narrows the phone fallback to orders where `customer_id IS NULL`.
 It preserves all 89 phone-only legacy records for access by a properly verified customer, but denies linking an already-identified order to a different customer merely because its phone matches.
 
 **Rollback strategy:** keep the previous RLS policy expression on record in the captured P02 test and restore with `ALTER POLICY orders_customer_select_own ON public.orders USING (...)` only if monitored legitimate history retrieval regresses. No order row is updated.
@@ -52,3 +52,12 @@ It preserves all 89 phone-only legacy records for access by a properly verified 
 **Release gate:** confirm that the isolated PostgreSQL 17 test passes both negative (other linked customer) and positive (unlinked guest order) cases, and that existing CI stays green before applying to the active Supabase. This migration is not a JWT signature verifier.
 
 No customer account changes, deletion, financial mutation, token exposure or data export.
+
+## Real deployment and read-only verification (21/10)
+
+- PostgreSQL 17 synthetic RLS isolation suite and all package tests passed at commit `bd18cb3` in GitHub Actions run #39696155792.
+- Supabase migration applied successfully and recorded as version **20261021205404**, name `orders_customer_phone_fallback_only_unlinked_20261021`.
+- Live policy introspection confirmed `orders_customer_select_own` includes `customer_id IS NULL` only in the phone fallback branch, and retains store and identity checks.
+- No changes to orders or customer data. Existing RLS policies outside this one remain untouched.
+- Security Advisors after the change: 27 no-policy informational, 2 mutable search-path warnings, 43 anon and 319 authenticated SECURITY DEFINER warnings, 1 leaked password protection warning. These need separate classification, not mass revocation.
+- Full signed-JWT integration test on real Supabase Auth remains pending. Do not interpret PostgreSQL synthetic role tests as authentication cryptography tests.
