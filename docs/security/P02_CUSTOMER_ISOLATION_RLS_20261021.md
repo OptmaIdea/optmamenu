@@ -24,7 +24,7 @@
 
 The current `orders_customer_select_own` policy authorizes an order either by `customer_id` OR by the current verified customer session's `phone`, provided store matches.
 
-This means that *two different customer_id records in the same store sharing the same normalized phone* can expose orders across customer identities. The fixture deliberately includes one such order and asserts current behavior. This is **evidence of policy behavior**, not proof that a production attacker can obtain a verified account with a victim's phone.
+This means that *two different customer_id records in the same store sharing the same normalized phone* can expose orders across customer identities. The initial fixture demonstrated this current behavior; the targeted migration now asserts the other linked customer's order is hidden while an unlinked guest order remains visible. This is **evidence of policy behavior**, not proof that a production attacker can obtain a verified account with a victim's phone.
 
 **Recommendation:** Review phone ownership verification, phone-reassignment, deleted-account re-registration, and customer identity linking before eliminating the fallback. Prefer a migration path that binds legacy guest orders to customer_id after proof, rather than exposing all same-phone orders indefinitely. Treat as P1 privacy investigation; preserve current behavior until intent and consequences are confirmed.
 
@@ -33,3 +33,22 @@ The official Supabase changelog says that existing grants persist; tables create
 This package does **not** change production default privileges or add broad grants. Use the same PostgreSQL 17 approach to test any targeted future migration and its specific API consumers.
 
 Source: https://supabase.com/changelog/45329-breaking-change-tables-not-exposed-to-data-and-graphql-api-automatically
+
+
+## Targeted fix prepared after the baseline test
+
+A live read-only aggregate on 21/10 found 143 orders:
+- 89 have phone but no customer_id (25 share a phone with a registered customer);
+- 37 have a linked customer_id and phone;
+- 17 have neither;
+- zero store+phone groups have multiple distinct linked customer IDs in current data.
+
+The existing policy is permissive for future matching-phone accounts, even without a demonstrated live conflict.
+Migration `supabase/migrations/20261021235200_orders_customer_phone_fallback_only_unlinked.sql` narrows the phone fallback to orders where `customer_id IS NULL`.
+It preserves all 89 phone-only legacy records for access by a properly verified customer, but denies linking an already-identified order to a different customer merely because its phone matches.
+
+**Rollback strategy:** keep the previous RLS policy expression on record in the captured P02 test and restore with `ALTER POLICY orders_customer_select_own ON public.orders USING (...)` only if monitored legitimate history retrieval regresses. No order row is updated.
+
+**Release gate:** confirm that the isolated PostgreSQL 17 test passes both negative (other linked customer) and positive (unlinked guest order) cases, and that existing CI stays green before applying to the active Supabase. This migration is not a JWT signature verifier.
+
+No customer account changes, deletion, financial mutation, token exposure or data export.

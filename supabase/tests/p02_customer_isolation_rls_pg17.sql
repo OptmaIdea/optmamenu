@@ -1,5 +1,5 @@
 \set ON_ERROR_STOP on
-\echo 'P02: PostgreSQL 17 isolated simulation using REAL Oct-21 production RLS policy expressions and identity functions'
+\echo 'P02: synthetic customers, real identity/RLS snapshot + targeted privacy migration'
 -- Caution: JWT claims injected by trusted database test runner, not cryptographically verified.
 -- All UUIDs/phones here are synthetic; no calls to production SQL or customer data.
 create role anon nologin;
@@ -179,6 +179,9 @@ create policy orders_owner_all on public.orders for ALL to authenticated
 using ((app_current_role() <> 'customer'::text) AND (store_id = app_current_store_id()))
 with check ((app_current_role() <> 'customer'::text) AND (store_id = app_current_store_id()));
 
+\echo 'P02: apply targeted policy migration on real captured RLS snapshot'
+\ir ../migrations/20261021235200_orders_customer_phone_fallback_only_unlinked.sql
+
 \echo 'P02: seed 2 stores, 3 customers, 3 customer sessions and 1 store owner'
 insert into public.stores values
  ('10000000-0000-0000-0000-000000000001','e0000000-0000-0000-0000-000000000001'),
@@ -203,7 +206,8 @@ insert into public.orders(id,store_id,customer_id,customer_phone) values
  ('11000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000001','+5511999000001'),
  ('11000000-0000-0000-0000-000000000002','10000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000002','+5511999000002'),
  ('11000000-0000-0000-0000-000000000003','20000000-0000-0000-0000-000000000002','b0000000-0000-0000-0000-000000000001','+5511999000001'),
- ('11000000-0000-0000-0000-000000000004','10000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000002','+5511999000001');
+ ('11000000-0000-0000-0000-000000000004','10000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000002','+5511999000001'),
+ ('11000000-0000-0000-0000-000000000005','10000000-0000-0000-0000-000000000001',null,'+5511999000001');
 insert into public.loyalty_transactions(id,customer_id) values
  ('22000000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-000000000001'),
  ('22000000-0000-0000-0000-000000000002','a0000000-0000-0000-0000-000000000002'),
@@ -227,9 +231,9 @@ $assert$;
 set role authenticated;
 select set_config('request.jwt.claims',
  '{"sub":"c0000000-0000-0000-0000-000000000001","role":"authenticated","session_id":"f0000000-0000-0000-0000-000000000001","iat":1780000000,"phone":"+5511999000001","store_id":"20000000-0000-0000-0000-000000000002"}',false);
--- Two visible orders: own id, PLUS order 4 linked to another customer
--- in same store with same phone. Explicitly document this legacy fallback risk.
-select public.p02_assert_counts(2,1,'A valid, other-store claim ignored and loyalty isolated');
+-- Two visible orders: own linked id + legacy order 5 without customer_id.
+-- Order 4 of another customer with matching phone must now stay hidden.
+select public.p02_assert_counts(2,1,'A valid, other-store claim ignored, legacy retained');
 do $guard$
 begin
  if public.app_current_store_id() is distinct from '10000000-0000-0000-0000-000000000001'::uuid
@@ -238,6 +242,20 @@ begin
  end if;
 end
 $guard$;
+do $anti_leak$
+declare
+  v_other_linked int;
+  v_unlinked int;
+begin
+  select count(*) into v_other_linked from public.orders
+    where id='11000000-0000-0000-0000-000000000004'::uuid;
+  select count(*) into v_unlinked from public.orders
+    where id='11000000-0000-0000-0000-000000000005'::uuid;
+  if v_other_linked<>0 or v_unlinked<>1 then
+    raise exception 'P02 FAIL: expected other linked order hidden (got %) and unlinked guest order visible (got %)',v_other_linked,v_unlinked;
+  end if;
+end
+$anti_leak$;
 
 \echo 'P02 customer role claim escalation remains customer if device session is valid'
 select set_config('request.jwt.claims',
@@ -257,7 +275,7 @@ select public.p02_assert_counts(2,1,'A2 only own customer orders and loyalty');
 \echo 'P02 staff A can see its own store orders; staff loyalty is deliberately not simulated'
 select set_config('request.jwt.claims',
  '{"sub":"e0000000-0000-0000-0000-000000000001","role":"authenticated","iat":1780000000}',false);
-select public.p02_assert_counts(3,0,'staff A own store only');
+select public.p02_assert_counts(4,0,'staff A own store only');
 reset role;
 
 \echo 'P02 revoke trusted device A (no remaining client access)'
