@@ -29,7 +29,7 @@ values
 ('00000000-0000-0000-0000-000000000001','optma_sandbox','sandbox','OptmaPay',true,false);
 
 \echo 'P01: apply exact migration from repository'
-\ir ../migrations/20261021150000_retire_asaas_provider_safe.sql
+\ir ../migrations/20261021121959_retire_asaas_provider_safe_20261021.sql
 
 do $checks$
 declare r jsonb;
