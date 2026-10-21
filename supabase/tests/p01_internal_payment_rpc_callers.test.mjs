@@ -6,7 +6,10 @@ import test from 'node:test';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const targetRpc = 'mark_online_payment_provider_credential_status_internal';
-const allowedCaller = 'supabase/functions/optmapay-sandbox-adapter/index.ts';
+const allowedCallers = [
+  'supabase/functions/asaas-sandbox-adapter/index.ts',
+  'supabase/functions/optmapay-sandbox-adapter/index.ts',
+];
 
 function collectSourceFiles(folder) {
   if (!fs.existsSync(folder)) return [];
@@ -34,13 +37,14 @@ test('internal payment-status RPC is not invoked by the browser or new Edge Func
 
   assert.deepEqual(
     calls,
-    [allowedCaller],
-    'Expected sole caller to be ' + allowedCaller + '; review new RPC callers.',
+    allowedCallers,
+    'Unexpected direct caller of internal payment RPC; new callers require security review.',
   );
 });
 
-test('known server caller uses service_role after store authorization', () => {
-  const code = fs.readFileSync(path.join(root, allowedCaller), 'utf8');
+test('all known server callers use service_role after store authorization', () => {
+  for (const allowedCaller of allowedCallers) {
+    const code = fs.readFileSync(path.join(root, allowedCaller), 'utf8');
   assert.match(code, /const serviceKey\s*=\s*Deno\.env\.get\(["']SUPABASE_SERVICE_ROLE_KEY["']\)/);
   assert.match(code, /const service\s*=\s*createClient\(\s*supabaseUrl,\s*serviceKey\s*\)/);
 
@@ -54,5 +58,6 @@ test('known server caller uses service_role after store authorization', () => {
   assert.ok(
     code.slice(call, call + 650).includes('p_store_id: storeId'),
     'Internal status update must scope the target store',
-  );
+    );
+  }
 });
