@@ -58,7 +58,7 @@ end
 $precondition$;
 
 \echo 'P00: apply actual migration against fresh isolated Postgres'
-\ir ../migrations/20261021100000_revoke_public_payment_credential_status_internal.sql
+\ir ../migrations/20261021122536_revoke_public_payment_credential_status_internal_20261021.sql
 
 \echo 'P00: negative role access — anon'
 set role anon;

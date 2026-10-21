@@ -57,3 +57,7 @@ Levantamento das 129 tabelas: 67 com SELECT por `anon`; 58 com INSERT por `anon`
 - **Próximo:** Pacote 01 — grants mínimos por tabela criadora, comparação de efeitos das migrations e testes de recriação no ambiente isolado, com matriz completa e GO/NO-GO.
 
 Referência oficial: https://supabase.com/changelog/45329-breaking-change-tables-not-exposed-to-data-and-graphql-api-automatically
+
+## Deployment update (21/10)
+
+The minimal RPC EXECUTE revocation is now applied on active Supabase as version **20261021122536**. Read-only verification: anon=false, authenticated=false, service_role=true. The earlier staged-only references above describe the historical status before deployment. Branch source has been synchronized with the merged Asaas retirement PR #11.

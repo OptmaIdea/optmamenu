@@ -39,3 +39,7 @@ service_role callers and perform get_online_payments_workspace_safe before the
 privileged call. The allowlist was corrected rather than weakening the access rule.
 Asaas status also returns sandbox balances after workspace view authorization;
 review the intended view/manage visibility in the separate payments-security front.
+
+## Post retirement integration (21/10)
+
+The Asaas adapters have been retired by merged PR #11. Only optmapay-sandbox-adapter remains an allowed caller of the internal status RPC. The production SQL migration was applied as version 20261021122536 and verified to deny anon/authenticated while permitting service_role.

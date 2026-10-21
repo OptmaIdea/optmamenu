@@ -7,7 +7,6 @@ import test from 'node:test';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const targetRpc = 'mark_online_payment_provider_credential_status_internal';
 const allowedCallers = [
-  'supabase/functions/asaas-sandbox-adapter/index.ts',
   'supabase/functions/optmapay-sandbox-adapter/index.ts',
 ];
 
