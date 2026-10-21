@@ -50,6 +50,15 @@ create function public.can_view_loyalty_transaction_staff_safe(uuid)
 returns boolean language sql stable as $h$ select false $h$;
 
 -- Real helper definitions (read-only snapshot from project lgkkfmqzaorrutuoqeax):
+CREATE OR REPLACE FUNCTION public.app_jwt_claim(claim text)
+ RETURNS text
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+  select nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> claim;
+$function$;
+
 CREATE OR REPLACE FUNCTION public.app_current_customer_id()
  RETURNS uuid
  LANGUAGE sql
@@ -154,15 +163,6 @@ AS $function$
     ),
     (select s.id from public.stores s where s.user_id = auth.uid() limit 1)
   );
-$function$;
-
-CREATE OR REPLACE FUNCTION public.app_jwt_claim(claim text)
- RETURNS text
- LANGUAGE sql
- STABLE
- SET search_path TO 'public', 'pg_temp'
-AS $function$
-  select nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> claim;
 $function$;
 
 -- Real policy expressions (read-only snapshot):
