@@ -69,3 +69,11 @@ jobs:
             postgres:17 \
             psql -h 127.0.0.1 -U postgres -d optmamenu_acl_test \
             -v ON_ERROR_STOP=1 -f supabase/tests/p00_internal_payment_rpc_grants.sql
+      - name: Simulate the October 30 future-table grant behavior
+        run: |
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo \
+            postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_acl_test \
+            -v ON_ERROR_STOP=1 -f supabase/tests/p01_future_table_grants.sql
