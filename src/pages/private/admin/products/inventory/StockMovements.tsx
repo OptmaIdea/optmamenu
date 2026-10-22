@@ -411,8 +411,8 @@ export default function StockMovementsPage() {
             : '',
         getMovementOperationLabel(movement),
         formatNumberPtBr(movement.quantity),
-        formatNumberPtBr(movement.previous_stock),
-        formatNumberPtBr(movement.new_stock),
+        movement.affects_physical === false ? '—' : formatNumberPtBr(movement.previous_stock),
+        movement.affects_physical === false ? '—' : formatNumberPtBr(movement.new_stock),
         getMovementOriginLabel(movement),
         getMovementDestinationLabel(movement),
         getMovementReferenceLabel(movement),
@@ -510,7 +510,7 @@ export default function StockMovementsPage() {
 
       <PageContainer
         title={selectedProduct ? `Movimentações: ${selectedProduct.name}` : 'Movimentações de Estoque'}
-        subtitle="Entradas, saídas, baixas e ajustes centralizados em um único lugar"
+        subtitle="Entradas, saídas, reservas, baixas e ajustes centralizados em um único lugar"
         category="Produtos"
         icon={<History size={28} className="text-[#19A999]" />}
         onRefresh={loadMovements}
@@ -856,8 +856,12 @@ export default function StockMovementsPage() {
                           </td>
                           <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-center"><span className={`px-3 py-1 rounded-full text-xs font-bold ${config.color} print:border print:border-gray-300`}>{operationLabel}</span></td>
                           <td className={`px-3 py-3 md:px-4 md:py-4 print:p-2 text-right font-bold ${movement.quantity > 0 ? 'text-green-600' : 'text-red-600'}`}>{formatQuantity(movement.quantity)}</td>
-                          <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-right text-gray-600 dark:text-gray-400">{movement.previous_stock}</td>
-                          <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-right font-bold text-gray-900 dark:text-white">{movement.new_stock}</td>
+                          <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-right text-gray-600 dark:text-gray-400">
+                            {movement.affects_physical === false ? '—' : movement.previous_stock}
+                          </td>
+                          <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-right font-bold text-gray-900 dark:text-white">
+                            {movement.affects_physical === false ? '—' : movement.new_stock}
+                          </td>
                           <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-sm text-gray-600 dark:text-gray-400 min-w-[220px]">
                             <div className="space-y-1">
                               <div>

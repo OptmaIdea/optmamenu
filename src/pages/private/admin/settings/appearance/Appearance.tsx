@@ -24,8 +24,10 @@ import {
     MessageCircle,
     Star
 } from 'lucide-react';
-import type { StoreConfig } from '@/types';
+import type { StoreConfig, StorefrontBannerMedia, StorefrontNoticeCard } from '@/types';
+import { ensureReadableStorefrontTextColor } from '@/services/publicStorefrontService';
 import StorePreview from '@/components/admin/StorePreview';
+import { GELINHARES_DEMO_MEDIA } from '@/pages/store/components/PublicStoreHero';
 import PageContainer from '@/components/common/PageContainer';
 
 interface ColorInputProps {
@@ -56,7 +58,7 @@ const ColorInput = ({ label, value, placeholder, disabled = false, onChange }: C
             className="flex flex-col gap-2"
             title={disabled ? 'Você não tem permissão para executar esta alteração.' : undefined}
         >
-            <label className="text-xs font-bold text-gray-500 uppercase">{label}</label>
+            <label className="text-xs font-bold text-gray-700 uppercase dark:text-gray-200">{label}</label>
             <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 p-2 rounded-lg border border-gray-200 dark:border-gray-600 focus-within:ring-2 focus-within:ring-brand-green">
                 <div className="relative">
                     <input
@@ -97,6 +99,8 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
     const [storeId, setStoreId] = useState<string | null>(null);
     const [storeSlug, setStoreSlug] = useState<string | null>(null);
     const [uploadingAbout, setUploadingAbout] = useState(false);
+    const [newMediaUrl, setNewMediaUrl] = useState('');
+    const [newMediaType, setNewMediaType] = useState<'image' | 'video'>('image');
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
     const [config, setConfig] = useState<StoreConfig>({
@@ -110,6 +114,7 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
         visual_color_highlight: '#fbbf24',
         visual_banner_url: '',
         visual_slogan: '',
+        catalog_search_placeholder: '',
         about_text: '',
         about_image_url: '',
         contact_phone: '',
@@ -130,6 +135,96 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
     });
 
     const [activeTab, setActiveTab] = useState<'visual' | 'institutional' | 'contact'>('visual');
+    const noticeDefaults: StorefrontNoticeCard[] = [
+        { id: 'pricing', enabled: true, title: 'Compre mais, pague menos', description: 'Confira as promoções por quantidade da loja.', background_color: '#0B43C9', text_color: '#FFFFFF' },
+        { id: 'delivery', enabled: true, title: 'Delivery · consulte condições', description: 'Veja as modalidades e taxas de entrega.', background_color: '#0B43C9', text_color: '#FFFFFF' },
+        { id: 'notice', enabled: false, title: 'Novidades e avisos', description: 'Acompanhe novidades, eventos e campanhas desta loja.', background_color: '#047857', text_color: '#FFFFFF' },
+    ];
+    const noticeCards = noticeDefaults.map(defaultCard => ({
+        ...defaultCard, ...(config.storefront_notice_cards || []).find(item => item.id === defaultCard.id),
+    }));
+    const changeNotice = (id: StorefrontNoticeCard['id'], patch: Partial<StorefrontNoticeCard>) => {
+        setConfig(prev => ({
+            ...prev,
+            storefront_notice_cards: noticeDefaults.map(defaultCard => ({
+                ...defaultCard,
+                ...(prev.storefront_notice_cards || []).find(item => item.id === defaultCard.id),
+                ...(defaultCard.id === id ? patch : {}),
+            })),
+        }));
+    };
+    const updateBanner = (index: number, patch: Partial<StorefrontBannerMedia>) => {
+        setConfig(prev => ({
+            ...prev,
+            banners: (prev.banners || []).map((item, idx) => idx === index ? { ...item, ...patch } : item),
+        }));
+    };
+    const moveBanner = (index: number, direction: -1 | 1) => {
+        setConfig(prev => {
+            const next = [...(prev.banners || [])];
+            const to = index + direction;
+            if (to < 0 || to >= next.length) return prev;
+            [next[index], next[to]] = [next[to], next[index]];
+            return { ...prev, banners: next.map((item, idx) => ({ ...item, sort_order: idx + 1 })) };
+        });
+    };
+    const addMediaUrl = () => {
+        const url = newMediaUrl.trim();
+        if (!/^https:\/\//i.test(url)) {
+            toast.error('Informe uma URL HTTPS para a mídia.');
+            return;
+        }
+        if ((config.banners || []).length  >= 6) {
+            toast.error('O carrossel aceita até seis mídias publicadas nesta etapa.');
+            return;
+        }
+        setConfig(prev => ({
+            ...prev,
+            banners: [...(prev.banners || []), {
+                id: crypto.randomUUID(),
+                type: newMediaType,
+                url,
+                alt_text: '',
+                active: true,
+                published: true,
+                sort_order: (prev.banners || []).length + 1,
+            }],
+        }));
+        setNewMediaUrl('');
+        toast.success('Mídia adicionada. Salve a aparência para publicar.');
+    };
+    const uploadCarouselImage = async (file: File) => {
+        if (disabled) return;
+        if ((config.banners || []).length  >= 6) {
+            toast.error('Remova uma mídia antes de adicionar outra.');
+            return;
+        }
+        try {
+            setSaving(true);
+            const optimized = await optimizeImageForUpload(file, IMAGE_PROFILES.banner);
+            const safeName = createSafeImageFilename(file.name, 'carousel');
+            const key = `store-assets/${safeName}`;
+            const { error } = await supabase.storage.from('logos').upload(key, optimized.file, {
+                contentType: 'image/webp', cacheControl: '31536000', upsert: false,
+            });
+            if (error) throw error;
+            const { data: { publicUrl } } = supabase.storage.from('logos').getPublicUrl(key);
+            setConfig(prev => ({
+                ...prev,
+                banners: [...(prev.banners || []), {
+                    id: crypto.randomUUID(), type: 'image', url: publicUrl,
+                    alt_text: file.name.slice(0, 90), active: true, published: true,
+                    sort_order: (prev.banners || []).length + 1,
+                }],
+            }));
+            toast.success('Imagem enviada. Clique em Salvar Aparência da Loja para publicar.');
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Não foi possível enviar a imagem.');
+        } finally {
+            setSaving(false);
+        }
+    };
+    const [categoryOptions, setCategoryOptions] = useState<Array<{ id: string; name: string }>>([]);
 
     useEffect(() => {
         fetchConfig();
@@ -175,6 +270,24 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
             setStoreId(storeData.id);
             setStoreSlug(storeData.slug);
 
+            const { data: categoriesData, error: categoriesError } = await supabase
+                .from('categories')
+                .select('id, name, sort_order')
+                .eq('store_id', activeStoreId)
+                .eq('active', true)
+                .order('sort_order', { ascending: true })
+                .order('name', { ascending: true });
+
+            if (categoriesError) {
+                console.warn('[APPEARANCE] Não foi possível carregar categorias para destaque:', categoriesError);
+                setCategoryOptions([]);
+            } else {
+                setCategoryOptions((categoriesData || []).map((category) => ({
+                    id: String(category.id),
+                    name: String(category.name || 'Categoria'),
+                })));
+            }
+
             setConfig(prev => ({
                 ...prev,
                 ...(configRow?.config || {}),
@@ -210,7 +323,16 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
         setMessage(null);
 
         try {
-            // ✅ UPDATE direto pode ficar (escrita)
+            const desiredHost = (config.custom_domain || '').trim().toLowerCase();
+            if (desiredHost && (
+                desiredHost.length > 253
+                || !/^(?=.{4,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(desiredHost)
+                || desiredHost.endsWith('.optmamenu.com.br')
+            )) throw new Error('Informe um domínio válido, como loja.exemplo.com.br, fora dos domínios reservados do OptmaMenu.');
+            if ((config.banners || []).length > 6) throw new Error('Selecione no máximo seis mídias do carrossel.');
+            if ((config.banners || []).some(item => !/^https:\/\//i.test(item.url))) {
+                throw new Error('As mídias publicadas devem usar HTTPS.');
+            }
             const { error } = await supabase
                 .from('stores')
                 .update({ config })
@@ -503,6 +625,210 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
                                     </div>
                                 </div>
                             </section>
+
+                            <section className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-600 dark:bg-slate-900 sm:p-7">
+                                <h2 className="text-lg font-black text-gray-900 dark:text-white">Carrossel da loja pública</h2>
+                                <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-slate-200">
+                                    Escolha até 6 imagens ou vídeos, defina a ordem e publique somente os itens desejados.
+                                    Para vídeos, informe uma URL HTTPS. As imagens podem ser enviadas diretamente aqui.
+                                </p>
+                                <label className="mt-4 flex items-center gap-3 text-sm font-bold text-gray-900 dark:text-white">
+                                    <input type="checkbox" className="h-5 w-5 accent-emerald-600"
+                                        checked={config.storefront_carousel_enabled !== false} disabled={disabled}
+                                        onChange={e => setConfig(prev => ({ ...prev, storefront_carousel_enabled: e.target.checked }))}/>
+                                    Exibir carrossel no cardápio
+                                </label>
+                                {storeSlug === 'gelinharessjn' && !(config.banners || []).length && (
+                                    <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs leading-5 text-amber-950 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
+                                        <p>A Gelinhares usa uma vitrine demonstrativa. Importe as seis mídias atuais para escolher quais ficam publicadas,
+                                        alterar a ordem e substituir imagens. Nenhuma alteração ocorre antes de salvar.</p>
+                                        {!disabled && <button type="button" className="mt-3 min-h-10 rounded-xl bg-amber-900 px-4 py-2 text-xs font-bold text-white"
+                                            onClick={() => setConfig(prev => ({
+                                                ...prev, banners: GELINHARES_DEMO_MEDIA.map((item, idx) => ({
+                                                    ...item, active: true, published: true, sort_order: idx + 1,
+                                                })),
+                                            }))}>Carregar mídias atuais para edição</button>}
+                                    </div>
+                                )}
+                                <div className="mt-5 space-y-4">
+                                    {(config.banners || []).map((item, index) => (
+                                        <div key={item.id || index} className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-slate-600 dark:bg-slate-800">
+                                            <div className="flex flex-wrap items-center gap-3">
+                                                {item.type === 'image' && <img src={item.url} alt={item.alt_text || 'Prévia da mídia'} className="h-20 w-32 rounded-xl object-cover" />}
+                                                {item.type === 'video' && <span className="rounded-xl bg-slate-900 px-4 py-5 text-xs font-bold text-white">Vídeo</span>}
+                                                <span className="text-sm font-black text-gray-900 dark:text-white">Mídia {index + 1}</span>
+                                                <label className="inline-flex items-center gap-2 text-xs font-bold text-gray-800 dark:text-slate-100">
+                                                    <input type="checkbox" checked={item.active !== false && item.published !== false}
+                                                        disabled={disabled}
+                                                        onChange={e => updateBanner(index, { active: e.target.checked, published: e.target.checked })}/>
+                                                    Publicada
+                                                </label>
+                                            </div>
+                                            <div className="mt-3 grid gap-3">
+                                                <label className="text-xs font-bold text-gray-700 dark:text-slate-200">URL da mídia
+                                                    <input type="url" value={item.url} disabled={disabled}
+                                                        onChange={e => updateBanner(index, { url: e.target.value })}
+                                                        className="mt-1 w-full rounded-xl border border-gray-300 bg-white p-2 text-sm text-gray-900 dark:border-slate-500 dark:bg-slate-950 dark:text-white"/>
+                                                </label>
+                                                <label className="text-xs font-bold text-gray-700 dark:text-slate-200">Descrição acessível
+                                                    <input value={item.alt_text || ''} maxLength={120} disabled={disabled}
+                                                        onChange={e => updateBanner(index, { alt_text: e.target.value })}
+                                                        className="mt-1 w-full rounded-xl border border-gray-300 bg-white p-2 text-sm text-gray-900 dark:border-slate-500 dark:bg-slate-950 dark:text-white"/>
+                                                </label>
+                                                <label className="text-xs font-bold text-gray-700 dark:text-slate-200">Título sobre a imagem (opcional)
+                                                    <input value={item.title || ''} maxLength={100} disabled={disabled}
+                                                        onChange={e => updateBanner(index, { title: e.target.value })}
+                                                        className="mt-1 w-full rounded-xl border border-gray-300 bg-white p-2 text-sm text-gray-900 dark:border-slate-500 dark:bg-slate-950 dark:text-white"/>
+                                                </label>
+                                            </div>
+                                            {!disabled && <div className="mt-3 flex flex-wrap gap-2">
+                                                <button type="button" disabled={index === 0} onClick={() => moveBanner(index, -1)}
+                                                    className="rounded-xl border border-gray-300 px-3 py-2 text-xs font-bold text-gray-800 disabled:opacity-40 dark:border-slate-500 dark:text-white">↑ Subir</button>
+                                                <button type="button" disabled={index === (config.banners || []).length - 1} onClick={() => moveBanner(index, 1)}
+                                                    className="rounded-xl border border-gray-300 px-3 py-2 text-xs font-bold text-gray-800 disabled:opacity-40 dark:border-slate-500 dark:text-white">↓ Descer</button>
+                                                <button type="button" onClick={() => setConfig(prev => ({ ...prev, banners: (prev.banners || []).filter((_, i) => i !== index) }))}
+                                                    className="rounded-xl border border-red-300 px-3 py-2 text-xs font-bold text-red-700 dark:border-red-700 dark:text-red-300">Remover</button>
+                                            </div>}
+                                        </div>
+                                    ))}
+                                </div>
+                                {!disabled && (config.banners || []).length < 6 && (
+                                    <div className="mt-5 space-y-3 rounded-2xl border border-dashed border-emerald-300 p-4 dark:border-emerald-700">
+                                        <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2 text-sm font-bold text-white">
+                                            <Upload size={17}/> Enviar imagem
+                                            <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only"
+                                                onChange={e => {const file=e.target.files?.[0]; if(file)void uploadCarouselImage(file);e.currentTarget.value='';}}/>
+                                        </label>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <select value={newMediaType} onChange={e => setNewMediaType(e.target.value as 'image' | 'video')}
+                                                className="min-h-11 rounded-xl border border-gray-300 bg-white px-3 text-sm text-gray-900 dark:border-slate-500 dark:bg-slate-950 dark:text-white">
+                                                <option value="image">Imagem por URL</option><option value="video">Vídeo por URL</option>
+                                            </select>
+                                            <input type="url" placeholder="https://..." aria-label="URL da mídia do carrossel" value={newMediaUrl}
+                                                onChange={e => setNewMediaUrl(e.target.value)}
+                                                className="min-h-11 min-w-0 flex-1 rounded-xl border border-gray-300 bg-white px-3 text-sm text-gray-900 dark:border-slate-500 dark:bg-slate-950 dark:text-white"/>
+                                            <button type="button" onClick={addMediaUrl} className="min-h-11 rounded-xl bg-emerald-700 px-4 text-sm font-bold text-white">Adicionar</button>
+                                        </div>
+                                    </div>
+                                )}
+                            </section>
+
+                            <section className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-600 dark:bg-slate-900 sm:p-7">
+                                <h2 className="flex items-center gap-2 text-lg font-black text-gray-900 dark:text-white">
+                                    <Globe size={20} className="text-emerald-600"/> Domínio próprio — preparação
+                                </h2>
+                                <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-slate-200">
+                                    Registre o domínio que deseja usar no futuro para esta loja, sem alterar o link atual por slug.
+                                    A ativação exige verificação de titularidade via DNS, configuração TLS e vínculo ao domínio na Vercel.
+                                    Ainda não ativamos redirecionamento nem recebemos tráfego neste domínio.
+                                </p>
+                                <label className="mt-4 block text-sm font-bold text-gray-800 dark:text-slate-100">
+                                    Domínio desejado (sem https://)
+                                    <input type="text" value={config.custom_domain || ''} disabled={disabled}
+                                        onChange={e => setConfig(prev => ({ ...prev, custom_domain: e.target.value.toLowerCase().trim() }))}
+                                        placeholder="loja.exemplo.com.br" maxLength={253}
+                                        className="mt-2 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3 text-gray-900 dark:border-slate-500 dark:bg-slate-950 dark:text-white"/>
+                                </label>
+                                <p className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs leading-5 text-amber-950 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
+                                    Status: solicitação registrada, não verificada. Nenhum domínio personalizado estará ativo
+                                    até a prova de DNS e a configuração do roteamento seguro por loja. A classificação premium será definida depois.
+                                </p>
+                            </section>
+
+                            <section className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-600 dark:bg-slate-900 sm:p-7">
+                                <h2 className="text-lg font-black text-gray-900 dark:text-white">Quadros promocionais e avisos</h2>
+                                <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-slate-200">
+                                    Exiba ou oculte cada quadro e personalize texto e cores. O terceiro é um aviso livre para novidades e campanhas.
+                                    A cor do texto é ajustada automaticamente no cardápio se não atingir contraste adequado.
+                                </p>
+                                <div className="mt-5 space-y-5">
+                                    {noticeCards.map(card => (
+                                        <div key={card.id} className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-slate-600 dark:bg-slate-800">
+                                            <label className="inline-flex items-center gap-3 text-sm font-black text-gray-900 dark:text-white">
+                                                <input type="checkbox" className="h-5 w-5 accent-emerald-600" disabled={disabled} checked={card.enabled}
+                                                    onChange={e => changeNotice(card.id, { enabled: e.target.checked })}/>
+                                                {card.id === 'pricing' ? 'Promoções / descontos' : card.id === 'delivery' ? 'Informações de delivery' : 'Novidades e avisos'}
+                                            </label>
+                                            <div className="mt-4 grid gap-3">
+                                                <label className="text-xs font-bold text-gray-700 dark:text-slate-200">Título
+                                                    <input value={card.title} maxLength={70} disabled={disabled}
+                                                        onChange={e => changeNotice(card.id, { title: e.target.value })}
+                                                        className="mt-1 w-full rounded-xl border border-gray-300 bg-white p-3 text-gray-900 dark:border-slate-500 dark:bg-slate-950 dark:text-white"/>
+                                                </label>
+                                                <label className="text-xs font-bold text-gray-700 dark:text-slate-200">Descrição exibida ao abrir
+                                                    <textarea value={card.description || ''} rows={2} maxLength={500} disabled={disabled}
+                                                        onChange={e => changeNotice(card.id, { description: e.target.value })}
+                                                        className="mt-1 w-full rounded-xl border border-gray-300 bg-white p-3 text-gray-900 dark:border-slate-500 dark:bg-slate-950 dark:text-white"/>
+                                                </label>
+                                            </div>
+                                            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                                <ColorInput label="Cor de fundo" value={card.background_color} placeholder="#0B43C9" disabled={disabled}
+                                                    onChange={value => changeNotice(card.id, { background_color: value })}/>
+                                                <ColorInput label="Cor do texto" value={card.text_color} placeholder="#FFFFFF" disabled={disabled}
+                                                    onChange={value => changeNotice(card.id, { text_color: value })}/>
+                                            </div>
+                                            <div className="mt-3 rounded-xl px-4 py-3 font-bold"
+                                                style={{backgroundColor:card.background_color,color:ensureReadableStorefrontTextColor(card.background_color,card.text_color)}}>
+                                                {card.title || 'Título do quadro'}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </section>
+
+                            <section className="bg-white dark:bg-gray-800 rounded-3xl p-8 shadow-sm border border-emerald-100 dark:border-emerald-900/40">
+                                <h2 className="text-lg font-bold text-gray-800 dark:text-white mb-2 flex items-center gap-2">
+                                    <LayoutTemplate className="text-emerald-500" size={20} /> Categorias em destaque
+                                </h2>
+                                <p className="mb-5 text-sm leading-6 text-gray-500 dark:text-gray-400">
+                                    Escolha manualmente até 4 categorias para os atalhos principais da loja pública. Sem seleção, a loja usa automaticamente as categorias com mais vendas.
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                    {categoryOptions.length === 0 ? (
+                                        <span className="rounded-xl bg-gray-100 px-3 py-2 text-xs font-bold text-gray-500 dark:bg-gray-700 dark:text-gray-300">
+                                            Nenhuma categoria ativa encontrada.
+                                        </span>
+                                    ) : categoryOptions.map((category) => {
+                                        const selected = (config.featured_category_ids || []).includes(category.id);
+                                        const atLimit = !selected && (config.featured_category_ids || []).length >= 4;
+                                        return (
+                                            <button
+                                                key={category.id}
+                                                type="button"
+                                                disabled={disabled || atLimit}
+                                                onClick={() => {
+                                                    if (disabled) return;
+                                                    const current = config.featured_category_ids || [];
+                                                    const next = selected
+                                                        ? current.filter((id) => id !== category.id)
+                                                        : [...current, category.id].slice(0, 4);
+                                                    setConfig({ ...config, featured_category_ids: next });
+                                                }}
+                                                className={`rounded-full border px-3 py-2 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-40 ${selected
+                                                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300'
+                                                    : 'border-gray-200 bg-white text-gray-600 hover:border-emerald-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300'}`}
+                                            >
+                                                {selected ? '✓ ' : ''}{category.name}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                <div className="mt-4 flex flex-wrap items-center gap-3">
+                                    <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
+                                        {(config.featured_category_ids || []).length}/4 selecionadas
+                                    </span>
+                                    {(config.featured_category_ids || []).length > 0 && !disabled && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setConfig({ ...config, featured_category_ids: [] })}
+                                            className="text-xs font-bold text-gray-500 underline-offset-2 hover:text-emerald-700 hover:underline dark:text-gray-400"
+                                        >
+                                            Usar seleção automática
+                                        </button>
+                                    )}
+                                </div>
+                            </section>
+
                         </div>
                     )}
 
@@ -524,6 +850,21 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
                                             className="w-full p-4 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl font-medium focus:ring-2 focus:ring-blue-400 outline-none transition"
                                             disabled={disabled}
                                         />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Texto da busca no catálogo</label>
+                                        <input
+                                            type="text"
+                                            value={config.catalog_search_placeholder || ''}
+                                            onChange={(e) => setConfig({ ...config, catalog_search_placeholder: e.target.value.slice(0, 80) })}
+                                            placeholder="Ex: Qual produto você procura?"
+                                            maxLength={80}
+                                            className="w-full p-4 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl font-medium focus:ring-2 focus:ring-blue-400 outline-none transition"
+                                            disabled={disabled}
+                                        />
+                                        <p className="mt-2 text-xs leading-5 text-gray-400">
+                                            Use uma frase adequada ao seu negócio. Se ficar vazio, a loja exibirá “Buscar produtos”.
+                                        </p>
                                     </div>
                                     <div>
                                         <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Frase do Rodapé</label>
@@ -621,10 +962,10 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
                                                 disabled={disabled}
                                             />
                                         </div>
-                                        <p className="text-xs text-gray-400 mt-1">Aparecerá no botão flutuante.</p>
+                                        <p className="text-xs text-gray-400 mt-1">Usado na área “Fale com a loja” e nos canais de atendimento da página pública.</p>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Email de Contato</label>
+                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">E-mail de atendimento ao cliente</label>
                                         <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 p-2 rounded-xl border border-gray-200 dark:border-gray-600">
                                             <Mail size={20} className="text-gray-400 ml-2" />
                                             <input
@@ -636,6 +977,9 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
                                                 disabled={disabled}
                                             />
                                         </div>
+                                        <p className="text-xs text-gray-400 mt-1">
+                                            Pedidos, entrega, retirada, produtos e dúvidas comerciais devem chegar ao próprio lojista. A OptmaIdea fica restrita às questões da infraestrutura da plataforma.
+                                        </p>
                                     </div>
                                     <div className="md:col-span-2">
                                         <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Endereço Completo</label>

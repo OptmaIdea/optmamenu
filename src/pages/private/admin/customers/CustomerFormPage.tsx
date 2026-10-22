@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, Loader2, Save, UserPlus } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, ShieldCheck, UserPlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useCurrentStore } from '@/hooks/store/useCurrentStore';
@@ -19,6 +19,7 @@ export default function CustomerFormPage() {
     const { hasPermission } = usePermissions(storeId ?? null);
 
     const canManageCustomers = hasPermission('customers.manage');
+    const canManageConsents = hasPermission('customers.consent.manage');
 
     const [fullName, setFullName] = useState('');
     const [phone, setPhone] = useState('');
@@ -28,7 +29,7 @@ export default function CustomerFormPage() {
     const [tags, setTags] = useState('');
     const [internalNotes, setInternalNotes] = useState('');
     const [marketingConsent, setMarketingConsent] = useState(false);
-    const [loyaltyOptIn, setLoyaltyOptIn] = useState(true);
+    const [loyaltyOptIn, setLoyaltyOptIn] = useState(false);
 
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -104,13 +105,10 @@ export default function CustomerFormPage() {
                     <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
                         <UserPlus size={24} />
                     </div>
-
                     <div>
-                        <h1 className="text-2xl font-black text-gray-900 dark:text-white">
-                            Novo cliente
-                        </h1>
+                        <h1 className="text-2xl font-black text-gray-900 dark:text-white">Novo cliente</h1>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Cadastro manual, editável pelo lojista.
+                            Cadastro manual, editável pelo lojista. Marketing e fidelidade começam desativados.
                         </p>
                     </div>
                 </div>
@@ -128,9 +126,7 @@ export default function CustomerFormPage() {
             >
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div className="sm:col-span-2">
-                        <label className="text-sm font-bold text-gray-700 dark:text-gray-200">
-                            Nome
-                        </label>
+                        <label className="text-sm font-bold text-gray-700 dark:text-gray-200">Nome</label>
                         <input
                             value={fullName}
                             onChange={(event) => setFullName(event.target.value)}
@@ -140,9 +136,7 @@ export default function CustomerFormPage() {
                     </div>
 
                     <div>
-                        <label className="text-sm font-bold text-gray-700 dark:text-gray-200">
-                            WhatsApp / telefone
-                        </label>
+                        <label className="text-sm font-bold text-gray-700 dark:text-gray-200">WhatsApp / telefone</label>
                         <input
                             value={phone}
                             onChange={(event) => setPhone(event.target.value)}
@@ -153,9 +147,7 @@ export default function CustomerFormPage() {
                     </div>
 
                     <div>
-                        <label className="text-sm font-bold text-gray-700 dark:text-gray-200">
-                            E-mail
-                        </label>
+                        <label className="text-sm font-bold text-gray-700 dark:text-gray-200">E-mail</label>
                         <input
                             value={email}
                             onChange={(event) => setEmail(event.target.value)}
@@ -165,9 +157,7 @@ export default function CustomerFormPage() {
                     </div>
 
                     <div>
-                        <label className="text-sm font-bold text-gray-700 dark:text-gray-200">
-                            CPF
-                        </label>
+                        <label className="text-sm font-bold text-gray-700 dark:text-gray-200">CPF</label>
                         <input
                             value={cpf}
                             onChange={(event) => setCpf(event.target.value)}
@@ -176,9 +166,7 @@ export default function CustomerFormPage() {
                     </div>
 
                     <div>
-                        <label className="text-sm font-bold text-gray-700 dark:text-gray-200">
-                            Data de nascimento
-                        </label>
+                        <label className="text-sm font-bold text-gray-700 dark:text-gray-200">Data de nascimento</label>
                         <input
                             type="date"
                             value={birthDate}
@@ -188,24 +176,18 @@ export default function CustomerFormPage() {
                     </div>
 
                     <div className="sm:col-span-2">
-                        <label className="text-sm font-bold text-gray-700 dark:text-gray-200">
-                            Tags
-                        </label>
+                        <label className="text-sm font-bold text-gray-700 dark:text-gray-200">Tags</label>
                         <input
                             value={tags}
                             onChange={(event) => setTags(event.target.value)}
                             className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                             placeholder="vip, revendedor, bairro-centro"
                         />
-                        <p className="mt-1 text-xs text-gray-500">
-                            Separe por vírgula.
-                        </p>
+                        <p className="mt-1 text-xs text-gray-500">Separe por vírgula.</p>
                     </div>
 
                     <div className="sm:col-span-2">
-                        <label className="text-sm font-bold text-gray-700 dark:text-gray-200">
-                            Observações internas
-                        </label>
+                        <label className="text-sm font-bold text-gray-700 dark:text-gray-200">Observações internas</label>
                         <textarea
                             value={internalNotes}
                             onChange={(event) => setInternalNotes(event.target.value)}
@@ -215,42 +197,51 @@ export default function CustomerFormPage() {
                     </div>
                 </div>
 
-                <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <label className="rounded-2xl border border-gray-200 p-4 dark:border-gray-800">
+                <div className="mt-5 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-100">
+                    <div className="flex items-start gap-3">
+                        <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" />
+                        <div>
+                            <p className="font-black">Consentimento não é presumido</p>
+                            <p className="mt-1 text-xs leading-5">
+                                Só marque marketing ou fidelidade quando o cliente tiver manifestado essa escolha de forma explícita. O sistema registra quem fez a marcação e a data para auditoria.
+                            </p>
+                            {!canManageConsents && (
+                                <p className="mt-2 text-xs font-bold">
+                                    Seu perfil não possui a permissão customers.consent.manage; estas opções ficam somente para consulta.
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <label className={`rounded-2xl border border-gray-200 p-4 dark:border-gray-800 ${!canManageConsents ? 'opacity-60' : ''}`}>
                         <div className="flex items-center justify-between gap-3">
                             <div>
-                                <p className="font-bold text-gray-900 dark:text-white">
-                                    Aceita marketing
-                                </p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">
-                                    Usado futuramente para campanhas.
-                                </p>
+                                <p className="font-bold text-gray-900 dark:text-white">Aceita marketing</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">Autorização para comunicações promocionais.</p>
                             </div>
-
                             <input
                                 type="checkbox"
                                 checked={marketingConsent}
                                 onChange={(event) => setMarketingConsent(event.target.checked)}
+                                disabled={!canManageConsents}
                                 className="h-5 w-5"
                             />
                         </div>
                     </label>
 
-                    <label className="rounded-2xl border border-gray-200 p-4 dark:border-gray-800">
+                    <label className={`rounded-2xl border border-gray-200 p-4 dark:border-gray-800 ${!canManageConsents ? 'opacity-60' : ''}`}>
                         <div className="flex items-center justify-between gap-3">
                             <div>
-                                <p className="font-bold text-gray-900 dark:text-white">
-                                    Participa da fidelidade
-                                </p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">
-                                    Permite acumular pontos.
-                                </p>
+                                <p className="font-bold text-gray-900 dark:text-white">Participa da fidelidade</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">Adesão ao programa; começa desmarcada por padrão.</p>
                             </div>
-
                             <input
                                 type="checkbox"
                                 checked={loyaltyOptIn}
                                 onChange={(event) => setLoyaltyOptIn(event.target.checked)}
+                                disabled={!canManageConsents}
                                 className="h-5 w-5"
                             />
                         </div>
