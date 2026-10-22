@@ -29,6 +29,7 @@ import {
   type CustomerDeletionAuditItem,
 } from '@/services/customers360Service';
 import { getShortDocumentReference } from '@/utils/documentReference';
+import { customerDeletionStatusLabel } from '@/utils/customers/customerDeletionState';
 import { supabase } from '@/lib/supabase';
 import { systemConfirm } from '@/components/common/SystemDialogProvider';
 import { toast } from 'sonner';
@@ -263,7 +264,7 @@ export default function CustomerLifecyclePage() {
                 <div className="rounded-2xl bg-gray-50 p-4 dark:bg-gray-950">
                   <p className="text-xs font-bold uppercase text-gray-500">{executed ? 'Concluída em' : 'Status'}</p>
                   <p className="mt-1 font-black text-gray-900 dark:text-white">
-                    {executed ? formatDateTime(deletedAudit.executed_at) : deletedAudit.status}
+                    {executed ? formatDateTime(deletedAudit.executed_at) : customerDeletionStatusLabel(deletedAudit.status)}
                   </p>
                 </div>
               </div>

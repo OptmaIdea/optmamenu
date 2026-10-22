@@ -19,6 +19,7 @@ import {
   type CustomerTimelineResult,
 } from '@/services/customers360Service';
 import { getShortDocumentReference } from '@/utils/documentReference';
+import { formatCustomerOrderTimelineStatus } from '@/utils/customers/customerDeletionState';
 
 type TimelineFilter = 'all' | 'profile' | 'order' | 'loyalty' | 'consent' | 'address' | 'merge' | 'communication';
 
@@ -101,7 +102,7 @@ function TimelineMetadata({ event }: { event: CustomerTimelineEvent }) {
 
   if (event.category === 'order') {
     const total = formatCurrency(metadata.total);
-    const status = typeof metadata.status === 'string' ? metadata.status : null;
+    const status = formatCustomerOrderTimelineStatus(typeof metadata.status === 'string' ? metadata.status : null);
     const orderId = typeof metadata.order_id === 'string' ? metadata.order_id : null;
     const orderCode = typeof metadata.order_code === 'string' ? metadata.order_code : null;
 

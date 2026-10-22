@@ -499,6 +499,9 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     const [trustedDevices, setTrustedDevices] = useState<TrustedCustomerDevice[]>([]);
     const [trustedDevicesLoading, setTrustedDevicesLoading] = useState(false);
     const [trustedDevicesRevoking, setTrustedDevicesRevoking] = useState(false);
+    // A slow device poll must not undo a newly confirmed nickname/revocation.
+    const trustedDeviceRequestGenerationRef = useRef(0);
+    const trustedDeviceMutationRef = useRef(false);
     const [editingTrustedDeviceId, setEditingTrustedDeviceId] = useState<string | null>(null);
     const [editingTrustedDeviceLabel, setEditingTrustedDeviceLabel] = useState('');
     const [revokingTrustedDeviceId, setRevokingTrustedDeviceId] = useState<string | null>(null);
@@ -1056,11 +1059,21 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     }, [customer?.id]);
 
     const loadTrustedDevices = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
-        if (!customer) return;
+        if (!customer || trustedDeviceMutationRef.current) return;
+        const customerIdAtRequest = customer.id;
+        const requestGeneration = ++trustedDeviceRequestGenerationRef.current;
         if (!silent) setTrustedDevicesLoading(true);
         try {
             const devices = await AuthService.listTrustedDevices();
-            setTrustedDevices(devices);
+            if (requestGeneration === trustedDeviceRequestGenerationRef.current
+                && !trustedDeviceMutationRef.current
+                && useCustomerAuth.getState().customer?.id === customerIdAtRequest) {
+                setTrustedDevices(devices);
+            }
+        } catch (deviceError) {
+            if (!silent) {
+                toast.error(deviceError instanceof Error ? deviceError.message : 'Não foi possível atualizar os dispositivos.');
+            }
         } finally {
             if (!silent) setTrustedDevicesLoading(false);
         }
@@ -2215,6 +2228,8 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             return;
         }
 
+        trustedDeviceMutationRef.current = true;
+        ++trustedDeviceRequestGenerationRef.current;
         setTrustedDevicesLoading(true);
         try {
             const savedLabel = await AuthService.renameTrustedDevice(deviceId, label);
@@ -2231,6 +2246,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             setError(feedback);
             toast.error(feedback);
         } finally {
+            trustedDeviceMutationRef.current = false;
             setTrustedDevicesLoading(false);
         }
     };
@@ -2259,6 +2275,8 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             return;
         }
 
+        trustedDeviceMutationRef.current = true;
+        ++trustedDeviceRequestGenerationRef.current;
         setTrustedDevicesRevoking(true);
         try {
             const result = await AuthService.revokeTrustedDevice(device.id, targetDevicePassword);
@@ -2275,6 +2293,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             setError(feedback);
             toast.error(feedback);
         } finally {
+            trustedDeviceMutationRef.current = false;
             setTrustedDevicesRevoking(false);
         }
     };
@@ -2286,6 +2305,8 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             return;
         }
 
+        trustedDeviceMutationRef.current = true;
+        ++trustedDeviceRequestGenerationRef.current;
         setTrustedDevicesRevoking(true);
         try {
             const result = await AuthService.revokeOtherTrustedDevices(revokeAllDevicesPassword);
@@ -2304,6 +2325,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             setError(feedback);
             toast.error(feedback);
         } finally {
+            trustedDeviceMutationRef.current = false;
             setTrustedDevicesRevoking(false);
         }
     };
