@@ -94,7 +94,7 @@ begin
   raise exception 'P05 fixture did not reproduce original open ACL';
  end if;
 end $pre$;
-\ir ../migrations/20261022004000_inventory_sync_revoke_anon_execute.sql
+\ir ../migrations/20261021214612_inventory_sync_revoke_anon_execute_20261022.sql
 
 set role anon;
 do $neg$
