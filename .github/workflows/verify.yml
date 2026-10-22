@@ -23,6 +23,11 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: P03 enforce grants on future public tables
+        run: |
+          node --test scripts/security/audit-future-table-grants.test.mjs
+          node scripts/security/audit-future-table-grants.mjs
+
       - name: Install dependencies
         run: npm ci
 
