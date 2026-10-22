@@ -7,7 +7,7 @@ do $p04$
 begin
   if exists(select 1 from pg_proc p join pg_namespace n on p.pronamespace=n.oid
     where n.nspname='public' and p.proname in ('financial_easter_sunday','financial_banking_holidays_for_year')
-      and (p.proconfig is null or not ('search_path='=any(p.proconfig)) or p.prosecdef))
+      and (p.proconfig is null or not exists (select 1 from unnest(p.proconfig) cfg where starts_with(cfg,'search_path=')) or p.prosecdef))
   then raise exception 'P04 search_path pin or SECURITY INVOKER assertion failed'; end if;
 end
 $p04$;
