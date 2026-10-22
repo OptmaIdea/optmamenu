@@ -18,6 +18,8 @@ import {
     type PublicStoreOnlineHours,
 } from '@/services/publicStorefrontService';
 import { formatBRL } from '@/utils/pricing';
+import { resolveCustomerProductDeepLink } from '@/utils/storefront/customerProductDeepLink';
+import { toast } from 'sonner';
 import {
     AlertCircle,
     ArrowUp,
@@ -171,6 +173,7 @@ export default function Catalog() {
     const [showCategoryPanel, setShowCategoryPanel] = useState(false);
     const [infoModal, setInfoModal] = useState<'pricing' | 'delivery' | 'loyalty' | 'notice' | null>(null);
     const sharedCartLoadedKeyRef = useRef<string | null>(null);
+    const handledMissingConsumedProductRef = useRef<string | null>(null);
     const sharedCartRemoteRevisionRef = useRef(0);
     const sharedCartLastSyncedFingerprintRef = useRef('');
     const sharedCartSaveChainRef = useRef<Promise<void>>(Promise.resolve());
@@ -863,16 +866,38 @@ export default function Catalog() {
     };
 
     useEffect(() => {
-        if (loadingProducts || products.length === 0) return;
-        const productId = new URLSearchParams(location.search).get('product');
-        if (!productId) return;
+        const link = resolveCustomerProductDeepLink(
+            location.search,
+            products.map((product) => product.id),
+            !loadingProducts,
+        );
+        if (!link.productId) {
+            handledMissingConsumedProductRef.current = null;
+            return;
+        }
+        if (loadingProducts) return;
 
-        const product = products.find((item) => item.id === productId);
-        if (!product) return;
+        const product = products.find((item) => item.id === link.productId);
+        if (!product) {
+            // A product bought previously may have been removed/unpublished.
+            // Do not strand the customer on a blank catalog deep link.
+            if (!link.shouldReturnToConsumption || handledMissingConsumedProductRef.current === location.search) return;
+            handledMissingConsumedProductRef.current = location.search;
+            setIsProductModalOpen(false);
+            toast.info('Este produto não está mais disponível no catálogo. Seu histórico continua acessível.');
+            navigate(`${location.pathname}${link.cleanSearch ? `?${link.cleanSearch}` : ''}`, { replace: true });
+            window.setTimeout(() => {
+                window.dispatchEvent(new CustomEvent('optmamenu:open-customer-account', {
+                    detail: { tab: 'consumption' },
+                }));
+            }, 0);
+            return;
+        }
 
+        handledMissingConsumedProductRef.current = null;
         setSelectedProduct(product);
         setIsProductModalOpen(true);
-    }, [loadingProducts, location.search, products]);
+    }, [loadingProducts, location.pathname, location.search, navigate, products]);
 
     if (loadingStore) {
         return (
