@@ -12,7 +12,7 @@ As funções chamam apenas funções internas padrão do PostgreSQL e, quando um
 
 ## Pacote técnico
 
-- Migration SQL: `supabase/migrations/20261022001000_financial_calendar_pin_search_path.sql`;
+- Migration SQL: `supabase/migrations/20261021212432_financial_calendar_pin_search_path_20261021.sql`;
 - teste real PostgreSQL 17: `supabase/tests/p04_financial_calendar_search_path_pg17.sql`;
 - GitHub Actions: job `p04-calendar-security`, no qual se instanciam as definições originais capturadas e se aplica a mesma migration.
 - Cobertura: feriados e Páscoa 2025/2026/2027/2100 antes/depois, 14 datas por ano, acesso anon/auth preservado, invariantes de SECURITY INVOKER.
@@ -33,3 +33,11 @@ Referência oficial: https://supabase.com/docs/guides/observability/advisors?que
 ## Limites
 
 O teste SQL não substitui um teste HTTP do calendário financeiro e não avalia as outras 43/319 funções SECURITY DEFINER. A aplicação no Supabase ativo depende de CI verde e verificação posterior do Advisor.
+
+## Resultado da implantação e pós-checagens
+
+- CI #39699141904 aprovado, incluindo PostgreSQL 17, HTTP JWT sintético, suíte da aplicação e build.
+- Migration aplicada no projeto ativo como **20261021212432** / `financial_calendar_pin_search_path_20261021`.
+- `pg_proc.proconfig` contém `search_path=""` nas duas funções, preservando SECURITY INVOKER e grants.
+- Advisor `function_search_path_mutable` reduziu de 2 para **0**.
+- Páscoa de 2025/2026/2027/2100 e 14 datas por ano preservadas em consulta direta após a mudança.

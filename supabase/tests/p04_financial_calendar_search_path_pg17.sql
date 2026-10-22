@@ -49,7 +49,7 @@ select y, public.financial_easter_sunday(y) easter,
   (select max(holiday_date) from public.financial_banking_holidays_for_year(y)) last_holiday
 from (values (2025),(2026),(2027),(2100)) a(y);
 \echo 'P04 apply exact versioned migration in isolated PostgreSQL'
-\ir ../migrations/20261022001000_financial_calendar_pin_search_path.sql
+\ir ../migrations/20261021212432_financial_calendar_pin_search_path_20261021.sql
 create temporary table p04_after as
 select y, public.financial_easter_sunday(y) easter,
   (select count(*) from public.financial_banking_holidays_for_year(y)) holidays,
