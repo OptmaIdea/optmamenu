@@ -1075,7 +1075,10 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                 toast.error(deviceError instanceof Error ? deviceError.message : 'Não foi possível atualizar os dispositivos.');
             }
         } finally {
-            if (!silent) setTrustedDevicesLoading(false);
+            if (!silent && requestGeneration === trustedDeviceRequestGenerationRef.current
+                && !trustedDeviceMutationRef.current) {
+                setTrustedDevicesLoading(false);
+            }
         }
     }, [customer?.id]);
 
