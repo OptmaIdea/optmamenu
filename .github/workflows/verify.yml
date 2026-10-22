@@ -255,3 +255,100 @@ jobs:
             -v "$PWD:/repo:ro" -w /repo postgres:17 \
             psql -h 127.0.0.1 -U postgres -d optmamenu_p05_acl \
             -v ON_ERROR_STOP=1 -f supabase/tests/p05_inventory_sync_acl_pg17.sql
+
+  p06-internal-stock-gateway:
+    name: P06 private inventory helper and signed JWT HTTP
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: optmamenu_p06
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d optmamenu_p06"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build original schema and relocate privileged helper on PostgreSQL 17
+        run: |
+          docker run --rm --network host -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_p06 -v ON_ERROR_STOP=1 \
+            -f supabase/tests/p05_inventory_sync_acl_pg17.sql
+          docker run --rm --network host -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_p06 -v ON_ERROR_STOP=1 \
+            -f supabase/tests/p06_private_stock_sync_pg17.sql
+          docker run --rm --network host -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_p06 -v ON_ERROR_STOP=1 \
+            -f supabase/tests/p06_postgrest_fixture.sql
+      - name: Issue ephemeral local JWT secret
+        run: echo "P06_JWT_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+      - name: Start PostgREST with public schema only
+        run: |
+          docker run -d --name optmamenu-p06-rest --network host \
+            -e PGRST_DB_URI='postgres://authenticator:p06-lab-postgrest-only@127.0.0.1:5432/optmamenu_p06' \
+            -e PGRST_DB_SCHEMAS='public' -e PGRST_DB_ANON_ROLE='anon' \
+            -e PGRST_JWT_SECRET="$P06_JWT_SECRET" -e PGRST_SERVER_PORT=3031 \
+            postgrest/postgrest:v14.13
+          for i in $(seq 1 40); do
+            if curl -fsS -o /dev/null http://127.0.0.1:3031/; then exit 0; fi
+            sleep 1
+          done
+          docker logs optmamenu-p06-rest
+          exit 1
+      - name: Test signed JWT, hidden RPC, cross-store and read-only cases
+        run: node --test supabase/tests/p06_stock_gateway_postgrest.test.mjs
+      - name: Cleanup ephemeral gateway
+        if: always()
+        run: docker rm -f optmamenu-p06-rest || true
+
+
+  p06-real-stock-movement:
+    name: P06 full real stock movement function PostgreSQL 17
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: optmamenu_p06_full
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d optmamenu_p06_full"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Reproduce original inventory schema on PostgreSQL 17
+        run: |
+          docker run --rm --network host -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_p06_full -v ON_ERROR_STOP=1 \
+            -f supabase/tests/p05_inventory_sync_acl_pg17.sql
+          docker run --rm --network host -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_p06_full -v ON_ERROR_STOP=1 \
+            -f supabase/tests/p06_private_stock_sync_pg17.sql
+      - name: Execute real inventory movement function on synthetic stores
+        run: |
+          docker run --rm --network host -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_p06_full -v ON_ERROR_STOP=1 \
+            -f supabase/tests/p06_full_stock_movement_pg17.sql
