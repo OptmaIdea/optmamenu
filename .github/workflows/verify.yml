@@ -144,3 +144,31 @@ jobs:
             -v "$PWD:/repo:ro" -w /repo postgres:17 \
             psql -h 127.0.0.1 -U postgres -d optmamenu_p02_isolation \
             -v ON_ERROR_STOP=1 -f supabase/tests/p02_customer_isolation_rls_pg17.sql
+
+  p04-calendar-security:
+    name: P04 financial calendar search_path PostgreSQL 17
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: optmamenu_p04_calendar
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d optmamenu_p04_calendar"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Test calendar outputs and permissions before/after hardening
+        run: |
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_p04_calendar \
+            -v ON_ERROR_STOP=1 -f supabase/tests/p04_financial_calendar_search_path_pg17.sql
