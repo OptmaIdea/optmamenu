@@ -1,5 +1,6 @@
 import { supabase, supabaseCustomer } from '@/lib/supabase';
 import { getCustomerToken } from '@/lib/jwt';
+import { customerDeletionErrorMessage } from '@/utils/customers/customerDeletionState';
 import type { Order } from '@/types';
 
 export type CustomerConsentType =
@@ -876,36 +877,31 @@ export const CustomerService = {
             body: {},
         });
 
-        if (error) {
-            const status = Number((error as { context?: { status?: number } })?.context?.status || 0);
-            if (status === 401) throw new Error('Sua sessão expirou. Entre novamente para concluir a exclusão.');
-            throw new Error('Não foi possível concluir a exclusão da conta agora.');
-        }
+        type Result = {
+            ok?: boolean; error?: string; status?: string; activeOrderCount?: number;
+            auditId?: string; executedAt?: string; requiresLogout?: boolean;
+        };
+        let payload = data as Result | null;
+        const context = (error as { context?: Response } | null)?.context;
+        const httpStatus = Number(context?.status || 0);
 
-        const payload = data as {
-            ok?: boolean;
-            error?: string;
-            status?: string;
-            activeOrderCount?: number;
-            auditId?: string;
-            executedAt?: string;
-            requiresLogout?: boolean;
-        } | null;
-
-        if (!payload?.ok) {
-            if (payload?.error === 'active_orders_exist') {
-                const count = Number(payload.activeOrderCount || 0);
-                throw new Error(
-                    count > 0
-                        ? `Sua conta possui ${count} pedido(s) ainda em andamento. Conclua ou cancele esses pedidos antes da exclusão definitiva.`
-                        : 'Há pedidos em andamento vinculados à conta.',
-                );
+        // Supabase wraps Edge Function non-2xx responses in error.context.
+        // Parse the 409 body, so customers know about active orders.
+        if (error && context && typeof context.clone === 'function') {
+            try {
+                payload = await context.clone().json() as Result;
+            } catch {
+                // Never reveal untrusted HTTP error details.
             }
-            throw new Error('Não foi possível concluir a exclusão da conta agora.');
         }
-
+        if (error || !payload?.ok) {
+            throw new Error(customerDeletionErrorMessage(payload, httpStatus));
+        }
+        if (payload.status !== 'executed') {
+            throw new Error('A exclusão ainda não foi concluída pelo servidor. Sua solicitação continua em acompanhamento.');
+        }
         return {
-            status: payload.status || 'executed',
+            status: payload.status,
             auditId: payload.auditId || null,
             executedAt: payload.executedAt || null,
             requiresLogout: Boolean(payload.requiresLogout),
