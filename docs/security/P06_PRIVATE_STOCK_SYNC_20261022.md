@@ -35,3 +35,13 @@ Essa política deve receber endurecimento em pacote separado com mapeamento de c
 
 Não alterar a lista de esquemas expostos, nem conceder ALL, nem alterar saldos de estoque na implantação.
 Não há instância paga envolvida.
+
+## Implantação e verificação após CI (22/10)
+
+- Workflow #39705433000: SUCCESS em todos os 9 jobs, incluindo HTTP/JWT local e execução completa da função `apply_stock_movement_delta_v2` em dados sintéticos (entrada, saída, reserva, cancelamento e confirmação).
+- Migration Supabase aplicada com sucesso na versão **20261021222535**, nome `move_stock_sync_to_unexposed_schema_20261022`.
+- O `public.sync_inventory_balance_from_locations(uuid,uuid,uuid)` está ausente; agora existe somente `optmamenu_stock_internal.sync_inventory_balance_from_locations`.
+- `public.apply_stock_movement_delta_v2` preservou SECURITY INVOKER e grants de authenticated/service_role; referência qualificada ao helper novo confirmada via pg_proc.
+- `anon` não possui USAGE no esquema interno nem EXECUTE na função; authenticated e service_role mantêm USAGE/EXECUTE internos.
+- Security Advisor: 318 funções SECURITY DEFINER alcançáveis por authenticated (antes 319), 42 anon, 27 INFO sem policies.
+- Nenhum registro de estoque foi alterado pela migration, que só executou DDL. Não assumir que outras RPCs/Policies de estoque já estejam seguras.

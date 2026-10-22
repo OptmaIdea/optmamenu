@@ -226,7 +226,7 @@ $function$;
 revoke execute on function public.apply_stock_movement_delta_v2(uuid,uuid,stock_movement_type,numeric,boolean,text,uuid,text,jsonb,uuid,uuid,uuid,uuid,uuid,uuid,text,uuid,boolean) from public,anon;
 grant execute on function public.apply_stock_movement_delta_v2(uuid,uuid,stock_movement_type,numeric,boolean,text,uuid,text,jsonb,uuid,uuid,uuid,uuid,uuid,uuid,text,uuid,boolean) to authenticated,service_role;
 \echo 'P06: apply EXACT migration to synthetic PG17'
-\ir ../migrations/20261022013000_move_stock_sync_to_unexposed_schema.sql
+\ir ../migrations/20261021222535_move_stock_sync_to_unexposed_schema_20261022.sql
 
 -- A representative invoker authorization gate. The full production movement RPC
 -- remains SECURITY INVOKER but has a wider set of DB/RLS dependencies.
