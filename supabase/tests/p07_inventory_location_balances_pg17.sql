@@ -73,7 +73,7 @@ end $vulnerable$;
 reset role;
 update public.inventory_location_balances set on_hand=20 where id='f0000000-0000-0000-0000-000000000001';
 \echo 'P07 apply exact production migration'
-\ir ../migrations/20261022095000_inventory_location_balances_write_policy_hardening.sql
+\ir ../migrations/20261022063929_inventory_location_balances_write_policy_hardening_20261022.sql
 
 -- Safe test utility executes under caller RLS, checks actual ROW_COUNT and effects.
 create function public.p07_attempt_write(p_action text,p_target_store uuid)

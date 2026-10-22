@@ -19,3 +19,11 @@ GitHub Actions PostgreSQL 17 reproduces seven current policies (with synthetic u
 
 ## Operation
 This closes a genuine authorization weakness, not merely an adaptation to Supabase 2026 grants. Release only after CI fully passes and SQL checks confirm RLS write policies remain narrow. Expected cost R$ 0.
+
+## Verificação no banco ativo e no CI — 22/10
+
+- GitHub Actions #39756817389 **SUCCESS** (P07 PostgreSQL 17, regressões anteriores, suíte da aplicação e build).
+- Migration efetivamente aplicada no Supabase sob versão **20261022063929**, nome `inventory_location_balances_write_policy_hardening_20261022`.
+- `pg_policies`: três policies de escrita legadas agora têm `roles={authenticated}` e cláusulas de permissão owner / `stock.adjust` / `stock.transfer`. As duas policies SELECT e os nomes das policies permanecem intactos.
+- Não foi executada nenhuma atualização direta em registros de estoque, pedido ou cliente no projeto ativo.
+- Próximo aceite humano: perfil read-only da loja deve consultar estoque sem poder ajustar, operador autorizado deve movimentar, e tentativa em loja alheia deve ser negada.
