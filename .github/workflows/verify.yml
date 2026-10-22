@@ -8,6 +8,7 @@ on:
   pull_request:
     branches:
       - agent/homologacao-geral-20260820
+      - agent/p09-optmapay-cross-db-reconciliation-20261022
 
 jobs:
   verify:
@@ -38,6 +39,9 @@ jobs:
           src/pages/private/admin/products/inventory/components/PurchaseReceiptModal.tsx
           src/pages/private/admin/products/inventory/utils/purchaseReceiptUtils.ts
           src/pages/private/admin/products/inventory/utils/purchaseReceiptUtils.test.ts
+
+      - name: P09 OptmaPay dual-app sandbox ledger reconciliation contract
+        run: node --test supabase/tests/p09_optmapay_reconciliation.test.mjs
 
       - name: Test disabled Asaas legacy endpoints
         run: node --test supabase/tests/p01_asaas_retirement.test.mjs
