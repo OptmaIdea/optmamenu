@@ -227,3 +227,31 @@ jobs:
       - name: Remove ephemeral HTTP service
         if: always()
         run: docker rm -f optmamenu-p04-jwt || true
+
+  p05-inventory-acl:
+    name: P05 inventory RPC grant regression PostgreSQL 17
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: optmamenu_p05_acl
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d optmamenu_p05_acl"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Validate legacy stock grants, deny anonymous, preserve invoker and service
+        run: |
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_p05_acl \
+            -v ON_ERROR_STOP=1 -f supabase/tests/p05_inventory_sync_acl_pg17.sql
