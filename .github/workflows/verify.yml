@@ -314,3 +314,41 @@ jobs:
       - name: Cleanup ephemeral gateway
         if: always()
         run: docker rm -f optmamenu-p06-rest || true
+
+
+  p06-real-stock-movement:
+    name: P06 full real stock movement function PostgreSQL 17
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: optmamenu_p06_full
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d optmamenu_p06_full"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Reproduce original inventory schema on PostgreSQL 17
+        run: |
+          docker run --rm --network host -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_p06_full -v ON_ERROR_STOP=1 \
+            -f supabase/tests/p05_inventory_sync_acl_pg17.sql
+          docker run --rm --network host -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_p06_full -v ON_ERROR_STOP=1 \
+            -f supabase/tests/p06_private_stock_sync_pg17.sql
+      - name: Execute real inventory movement function on synthetic stores
+        run: |
+          docker run --rm --network host -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_p06_full -v ON_ERROR_STOP=1 \
+            -f supabase/tests/p06_full_stock_movement_pg17.sql
