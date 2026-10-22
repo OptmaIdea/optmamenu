@@ -33,6 +33,7 @@ import {
     XCircle,
 } from 'lucide-react';
 import { AuthService, type TrustedCustomerDevice } from '@/services/customerAuth';
+import { isCustomerDeletionPending } from '@/utils/customers/customerDeletionState';
 import {
     CustomerService,
     type CustomerLoyaltyReward,
@@ -498,6 +499,9 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     const [trustedDevices, setTrustedDevices] = useState<TrustedCustomerDevice[]>([]);
     const [trustedDevicesLoading, setTrustedDevicesLoading] = useState(false);
     const [trustedDevicesRevoking, setTrustedDevicesRevoking] = useState(false);
+    // A slow device poll must not undo a newly confirmed nickname/revocation.
+    const trustedDeviceRequestGenerationRef = useRef(0);
+    const trustedDeviceMutationRef = useRef(false);
     const [editingTrustedDeviceId, setEditingTrustedDeviceId] = useState<string | null>(null);
     const [editingTrustedDeviceLabel, setEditingTrustedDeviceLabel] = useState('');
     const [revokingTrustedDeviceId, setRevokingTrustedDeviceId] = useState<string | null>(null);
@@ -1055,13 +1059,26 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     }, [customer?.id]);
 
     const loadTrustedDevices = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
-        if (!customer) return;
+        if (!customer || trustedDeviceMutationRef.current) return;
+        const customerIdAtRequest = customer.id;
+        const requestGeneration = ++trustedDeviceRequestGenerationRef.current;
         if (!silent) setTrustedDevicesLoading(true);
         try {
             const devices = await AuthService.listTrustedDevices();
-            setTrustedDevices(devices);
+            if (requestGeneration === trustedDeviceRequestGenerationRef.current
+                && !trustedDeviceMutationRef.current
+                && useCustomerAuth.getState().customer?.id === customerIdAtRequest) {
+                setTrustedDevices(devices);
+            }
+        } catch (deviceError) {
+            if (!silent) {
+                toast.error(deviceError instanceof Error ? deviceError.message : 'Não foi possível atualizar os dispositivos.');
+            }
         } finally {
-            if (!silent) setTrustedDevicesLoading(false);
+            if (!silent && requestGeneration === trustedDeviceRequestGenerationRef.current
+                && !trustedDeviceMutationRef.current) {
+                setTrustedDevicesLoading(false);
+            }
         }
     }, [customer?.id]);
 
@@ -1615,6 +1632,20 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
         }
     };
 
+    const finishAccountDeletion = async () => {
+        const processed = await CustomerService.processSelfAccountDeletion();
+        setDeletionRequestStatus(processed.status);
+        setDeletionPassword('');
+        setDeletionOtp('');
+        setDeletionOtpSent(false);
+
+        const feedback = 'Sua conta foi excluída. Registros que precisem permanecer por obrigação legal foram desvinculados da sua identidade.';
+        toast.success(feedback);
+        setMessage(feedback);
+        await AuthService.logoutCustomer();
+        setOpen(false);
+    };
+
     const submitDeletionRequest = async () => {
         clearFeedback();
         if (!deletionPassword) {
@@ -1633,19 +1664,26 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                 onlyDigits(deletionOtp),
             );
             setDeletionRequestStatus(request.status || 'pending');
+            await finishAccountDeletion();
+        } catch (deletionError) {
+            const feedback = deletionError instanceof Error
+                ? deletionError.message
+                : 'Não foi possível concluir a exclusão da conta.';
+            setError(feedback);
+            toast.error(feedback);
+        } finally {
+            setDeletionSubmitting(false);
+        }
+    };
 
-            const processed = await CustomerService.processSelfAccountDeletion();
-            setDeletionRequestStatus(processed.status || 'executed');
-            setDeletionPassword('');
-            setDeletionOtp('');
-            setDeletionOtpSent(false);
-
-            const feedback = 'Sua conta foi excluída. Registros que precisem permanecer por obrigação legal foram desvinculados da sua identidade.';
-            toast.success(feedback);
-            setMessage(feedback);
-
-            await AuthService.logoutCustomer();
-            setOpen(false);
+    // Existing request: never submit a second password/OTP challenge.
+    // The protected Edge Function must check outstanding orders and session again.
+    const retryPendingDeletion = async () => {
+        if (deletionSubmitting || deletionRequestStatus !== 'pending') return;
+        clearFeedback();
+        setDeletionSubmitting(true);
+        try {
+            await finishAccountDeletion();
         } catch (deletionError) {
             const feedback = deletionError instanceof Error
                 ? deletionError.message
@@ -2193,6 +2231,8 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             return;
         }
 
+        trustedDeviceMutationRef.current = true;
+        ++trustedDeviceRequestGenerationRef.current;
         setTrustedDevicesLoading(true);
         try {
             const savedLabel = await AuthService.renameTrustedDevice(deviceId, label);
@@ -2209,6 +2249,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             setError(feedback);
             toast.error(feedback);
         } finally {
+            trustedDeviceMutationRef.current = false;
             setTrustedDevicesLoading(false);
         }
     };
@@ -2237,6 +2278,8 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             return;
         }
 
+        trustedDeviceMutationRef.current = true;
+        ++trustedDeviceRequestGenerationRef.current;
         setTrustedDevicesRevoking(true);
         try {
             const result = await AuthService.revokeTrustedDevice(device.id, targetDevicePassword);
@@ -2253,6 +2296,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             setError(feedback);
             toast.error(feedback);
         } finally {
+            trustedDeviceMutationRef.current = false;
             setTrustedDevicesRevoking(false);
         }
     };
@@ -2264,6 +2308,8 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             return;
         }
 
+        trustedDeviceMutationRef.current = true;
+        ++trustedDeviceRequestGenerationRef.current;
         setTrustedDevicesRevoking(true);
         try {
             const result = await AuthService.revokeOtherTrustedDevices(revokeAllDevicesPassword);
@@ -2282,6 +2328,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             setError(feedback);
             toast.error(feedback);
         } finally {
+            trustedDeviceMutationRef.current = false;
             setTrustedDevicesRevoking(false);
         }
     };
@@ -3627,9 +3674,25 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                                     Recomendamos exportar seus dados acima antes de continuar.
                                                 </p>
 
-                                                {deletionRequestStatus === 'pending' ? (
-                                                    <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200" role="status">
-                                                        Sua solicitação de exclusão está registrada e aguardando processamento.
+                                                {isCustomerDeletionPending(deletionRequestStatus) ? (
+                                                    <div className="mt-3 space-y-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200" role="status">
+                                                        <p>
+                                                            {deletionRequestStatus === 'processing'
+                                                                ? 'Sua solicitação de exclusão está em processamento.'
+                                                                : 'Sua solicitação está registrada. Se havia pedidos em andamento, conclua-os ou cancele-os antes de tentar novamente.'}
+                                                        </p>
+                                                        {deletionRequestStatus === 'pending' && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => void retryPendingDeletion()}
+                                                                disabled={deletionSubmitting}
+                                                                className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-amber-700 px-3 py-2 text-sm font-black transition hover:bg-amber-100 disabled:opacity-50 dark:border-amber-400 dark:hover:bg-amber-950/40"
+                                                            >
+                                                                {deletionSubmitting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
+                                                                {deletionSubmitting ? 'Verificando solicitação…' : 'Tentar concluir exclusão pendente'}
+                                                            </button>
+                                                        )}
+                                                        <p className="text-xs">Esta ação reaproveita a solicitação registrada sem solicitar outro código SMS. Pedidos e pagamentos existentes não são modificados por esta tela.</p>
                                                     </div>
                                                 ) : (
                                                     <>
