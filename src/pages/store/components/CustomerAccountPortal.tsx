@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { AuthService, type TrustedCustomerDevice } from '@/services/customerAuth';
 import { isCustomerDeletionPending } from '@/utils/customers/customerDeletionState';
+import { LatestCustomerRequest, resolveConsumedOrderFocus } from '@/utils/customers/customerScopedRequest';
 import {
     CustomerService,
     type CustomerLoyaltyReward,
@@ -469,6 +470,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     const [profileDirty, setProfileDirty] = useState(false);
     const [emailVerificationSending, setEmailVerificationSending] = useState(false);
     const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+    const [focusedConsumptionOrderId, setFocusedConsumptionOrderId] = useState<string | null>(null);
     const [expandedConsumptionKey, setExpandedConsumptionKey] = useState<string | null>(null);
     const [reorderLoadingOrderId, setReorderLoadingOrderId] = useState<string | null>(null);
     const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
@@ -482,7 +484,11 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
         imageUrl: string | null;
     }>>(new Map());
     const ordersRef = useRef<CustomerOrderSummary[]>([]);
-    const ordersRequestInFlightRef = useRef(false);
+    const ordersRequestInFlightRef = useRef<string | null>(null);
+    const ordersResponseGuardRef = useRef(new LatestCustomerRequest());
+    const notificationsResponseGuardRef = useRef(new LatestCustomerRequest());
+    const addressesResponseGuardRef = useRef(new LatestCustomerRequest());
+    const ratingsResponseGuardRef = useRef(new LatestCustomerRequest());
     const loyaltyTopRef = useRef<HTMLDivElement | null>(null);
     const accountTabsNavRef = useRef<HTMLElement | null>(null);
     const [storeDisplayName, setStoreDisplayName] = useState('esta loja');
@@ -716,6 +722,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
         const search = orderSearch.trim().toLocaleLowerCase('pt-BR');
 
         return orders.filter((order) => {
+            if (focusedConsumptionOrderId && order.id !== focusedConsumptionOrderId) return false;
             const statusMatches = orderStatusFilter === 'all'
                 || (orderStatusFilter === 'active' && !['completed', 'cancelled'].includes(order.status || ''))
                 || (orderStatusFilter === 'expired' && order.status === 'cancelled' && order.status_reason === 'expired')
@@ -738,7 +745,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
 
             return searchable.includes(search);
         });
-    }, [orders, orderFulfillmentFilter, orderSearch, orderStatusFilter]);
+    }, [orders, orderFulfillmentFilter, orderSearch, orderStatusFilter, focusedConsumptionOrderId]);
 
 
     const loyaltyAgeRestricted = useMemo(() => {
@@ -843,7 +850,9 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
 
     const loadAddresses = async () => {
         if (!customer) return;
+        const request = addressesResponseGuardRef.current.begin(customer);
         const data = await CustomerService.getAddresses(customer.id);
+        if (!addressesResponseGuardRef.current.accepts(request, useCustomerAuth.getState().customer)) return;
         setAddresses(data.map((item) => ({
             id: item.id,
             zip_code: item.zip_code,
@@ -858,10 +867,13 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     };
 
     const loadOrders = useCallback(async (options?: { notifyStatusChanges?: boolean; showSpinner?: boolean }) => {
-        if (!customer || ordersRequestInFlightRef.current) return;
+        if (!customer) return;
+        const inFlightIdentity = customer.store_id + ':' + customer.id;
+        if (ordersRequestInFlightRef.current === inFlightIdentity) return;
+        const request = ordersResponseGuardRef.current.begin(customer);
         const notifyStatusChanges = options?.notifyStatusChanges ?? false;
         const showSpinner = options?.showSpinner ?? false;
-        ordersRequestInFlightRef.current = true;
+        ordersRequestInFlightRef.current = inFlightIdentity;
         if (showSpinner) setOrdersRefreshing(true);
 
         try {
@@ -878,6 +890,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                     data = await CustomerService.getOrders();
                 }
             }
+            if (!ordersResponseGuardRef.current.accepts(request, useCustomerAuth.getState().customer)) return;
             const nextOrders = (data as unknown as Record<string, unknown>[]).map(normalizeOrder);
 
             if (notifyStatusChanges && ordersRef.current.length > 0) {
@@ -893,17 +906,25 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             ordersRef.current = nextOrders;
             setOrders(nextOrders);
             void OrderCancellationRequestService.myRequests()
-                .then(setCancellationRequests)
+                .then((requests) => {
+                    if (ordersResponseGuardRef.current.accepts(request, useCustomerAuth.getState().customer)) {
+                        setCancellationRequests(requests);
+                    }
+                })
                 .catch(() => {
                     // A falta temporária da consulta de solicitações não oculta os pedidos.
                 });
             setOrdersUpdatedAt(new Date());
         } catch (loadError) {
-            if (showSpinner) toast.error('Não foi possível atualizar seus pedidos agora.');
+            if (showSpinner && ordersResponseGuardRef.current.accepts(request, useCustomerAuth.getState().customer)) {
+                toast.error('Não foi possível atualizar seus pedidos agora.');
+            }
             throw loadError;
         } finally {
-            ordersRequestInFlightRef.current = false;
-            if (showSpinner) setOrdersRefreshing(false);
+            if (ordersRequestInFlightRef.current === inFlightIdentity) ordersRequestInFlightRef.current = null;
+            if (showSpinner && ordersResponseGuardRef.current.accepts(request, useCustomerAuth.getState().customer)) {
+                setOrdersRefreshing(false);
+            }
         }
     }, [customer?.id]);
 
@@ -1038,9 +1059,11 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
 
     const loadNotifications = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
         if (!customer) return;
+        const request = notificationsResponseGuardRef.current.begin(customer);
         if (!silent) setNotificationsLoading(true);
         try {
             const rows = await CustomerService.getNotifications(customer.id);
+            if (!notificationsResponseGuardRef.current.accepts(request, useCustomerAuth.getState().customer)) return;
             setNotifications((rows || []).map((row) => {
                 const item = row as Record<string, unknown>;
                 return {
@@ -1054,7 +1077,9 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                 };
             }).filter((item) => item.id));
         } finally {
-            if (!silent) setNotificationsLoading(false);
+            if (!silent && notificationsResponseGuardRef.current.accepts(request, useCustomerAuth.getState().customer)) {
+                setNotificationsLoading(false);
+            }
         }
     }, [customer?.id]);
 
@@ -1084,15 +1109,30 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
 
     const loadProductRatings = useCallback(async () => {
         if (!customer) return;
+        const request = ratingsResponseGuardRef.current.begin(customer);
         const ratings = await CustomerService.getSelfProductRatings();
+        if (!ratingsResponseGuardRef.current.accepts(request, useCustomerAuth.getState().customer)) return;
         setProductRatings(Object.fromEntries(ratings.map((item) => [item.productId, item.rating])));
     }, [customer?.id]);
 
     useEffect(() => {
+        ordersResponseGuardRef.current.invalidate();
+        notificationsResponseGuardRef.current.invalidate();
+        addressesResponseGuardRef.current.invalidate();
+        ratingsResponseGuardRef.current.invalidate();
+        ordersRequestInFlightRef.current = null;
         ordersRef.current = [];
         setOrders([]);
+        setCancellationRequests([]);
+        setNotifications([]);
+        setAddresses([]);
+        setProductRatings({});
+        setExpandedOrderId(null);
+        setFocusedConsumptionOrderId(null);
+        setOrdersRefreshing(false);
+        setNotificationsLoading(false);
         setOrdersUpdatedAt(null);
-    }, [customer?.id]);
+    }, [customer?.id, customer?.store_id]);
 
     useEffect(() => {
         if (!open || !customer) return;
@@ -2981,6 +3021,16 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                         </select>
                                     </div>
 
+                                    {focusedConsumptionOrderId && (
+                                        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm dark:border-emerald-900 dark:bg-emerald-950/30">
+                                            <p className="font-bold text-emerald-900 dark:text-emerald-100">Mostrando o pedido selecionado no Meu consumo.</p>
+                                            <button type="button" onClick={() => setFocusedConsumptionOrderId(null)}
+                                                className="min-h-10 rounded-xl border border-emerald-300 px-3 font-black text-emerald-700 dark:text-emerald-300">
+                                                Ver todos os pedidos
+                                            </button>
+                                        </div>
+                                    )}
+
                                     {orders.length === 0 ? (
                                         <div className="rounded-3xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700">Ainda não há pedidos vinculados a esta conta.</div>
                                     ) : filteredOrders.length === 0 ? (
@@ -3258,6 +3308,29 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                                                 <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">
                                                                     {occurrence.quantity} × R$ {formatBRL(occurrence.unitPrice)} cada
                                                                 </p>
+                                                                <button
+                                                                    type="button"
+                                                                    className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-xl border border-emerald-200 px-3 text-xs font-black text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900 dark:text-emerald-300"
+                                                                    onClick={() => {
+                                                                        const focusId = resolveConsumedOrderFocus(
+                                                                            occurrence.orderId,
+                                                                            orders.map((order) => order.id),
+                                                                        );
+                                                                        if (!focusId) {
+                                                                            toast.error('Este pedido não está mais disponível no histórico desta conta.');
+                                                                            return;
+                                                                        }
+                                                                        setOrderSearch('');
+                                                                        setOrderStatusFilter('all');
+                                                                        setOrderFulfillmentFilter('all');
+                                                                        setFocusedConsumptionOrderId(focusId);
+                                                                        setExpandedOrderId(focusId);
+                                                                        setTab('orders');
+                                                                    }}
+                                                                >
+                                                                    <History className="h-4 w-4" aria-hidden="true" />
+                                                                    Abrir pedido no histórico
+                                                                </button>
                                                             </div>
                                                         ))}
                                                     </div>
