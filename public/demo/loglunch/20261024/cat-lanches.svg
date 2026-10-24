@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="640" viewBox="0 0 960 640" role="img" aria-label="Ilustração da categoria Lanches"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FFE9D1"/><stop offset="1" stop-color="#FFF5E5"/></linearGradient><filter id="soft" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="1" dy="15" stdDeviation="14" flood-color="#273449" flood-opacity=".16"/></filter></defs><rect width="960" height="640" fill="url(#bg)"/><circle cx="838" cy="108" r="191" fill="#CB9358" opacity=".11"/><circle cx="58" cy="582" r="182" fill="#CB9358" opacity=".10"/><circle cx="475" cy="55" r="21" fill="#CB9358" opacity=".12"/><path d="M762 63q62 55 115-8M80 80q66 60 126-4" fill="none" stroke="#CB9358" stroke-width="14" opacity=".13" stroke-linecap="round"/><ellipse cx="476" cy="554" rx="351" ry="43" fill="#253347" opacity=".10"/><g filter="url(#soft)">
+<path d="M126 467L344 162 548 467z" fill="#C68A46" stroke="#A97741" stroke-width="11"/>
+<path d="M163 450L344 194 509 450z" fill="#F2D8A1"/>
+<path d="M197 395h280l-13 20H207z" fill="#F07B54"/><path d="M180 421h314l-12 19H194z" fill="#65A84A"/><path d="M200 375h285l-10 14H210z" fill="#FAECB0"/>
+</g>
+<path d="M655 181c-20 80-97 104-104 188-9 93 42 142 106 142 76 0 115-59 107-137-8-90-91-135-109-193z" fill="#D69B50" stroke="#B67536" stroke-width="9"/>
+<path d="M622 274c-30 48-42 75-38 112" stroke="#FFE1A5" stroke-width="22" fill="none" stroke-linecap="round"/>
+<ellipse cx="492" cy="510" rx="80" ry="62" fill="#F3C883" stroke="#C88C49" stroke-width="8"/><ellipse cx="397" cy="512" rx="72" ry="56" fill="#EAB56D" stroke="#BA8440" stroke-width="8"/><ellipse cx="554" cy="521" rx="53" ry="49" fill="#F6D598" stroke="#DFA758" stroke-width="6"/></svg>
