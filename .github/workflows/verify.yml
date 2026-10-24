@@ -382,3 +382,41 @@ jobs:
             -v "$PWD:/repo:ro" -w /repo postgres:17 \
             psql -h 127.0.0.1 -U postgres -d optmamenu_p07 -v ON_ERROR_STOP=1 \
             -f supabase/tests/p07_inventory_location_balances_pg17.sql
+
+
+  otp-vault-postgres-17:
+    name: OTP V1 private credential vault PostgreSQL 17
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: optmamenu_otp_vault
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d optmamenu_otp_vault"
+          --health-interval 5s
+          --health-timeout 4s
+          --health-retries 16
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build fake tenants and legacy SELECT role grant
+        run: |
+          docker run --rm --network host -e PGPASSWORD=postgres -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_otp_vault -v ON_ERROR_STOP=1 \
+            -f supabase/tests/otp_store_vault_p17_fixture.sql
+      - name: Apply additive private-vault migration twice (local only)
+        run: |
+          for i in 1 2; do
+            docker run --rm --network host -e PGPASSWORD=postgres -v "$PWD:/repo:ro" -w /repo postgres:17 \
+              psql -h 127.0.0.1 -U postgres -d optmamenu_otp_vault -v ON_ERROR_STOP=1 \
+              -f supabase/migrations/20261024215500_prepare_private_store_sms_gateway_credentials.sql
+          done
+      - name: Assert service-only secrets and no browser grant
+        run: |
+          docker run --rm --network host -e PGPASSWORD=postgres -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_otp_vault -v ON_ERROR_STOP=1 \
+            -f supabase/tests/otp_store_vault_p17_assertions.sql
