@@ -39,6 +39,14 @@ O banco **atual** do OptmaMenu concede `SELECT` em `public.stores.sms_gateway_to
 
 A UI `MessageSettings.tsx` também consulta `.from('stores').select('id, name, sms_gateway_token, config')` e mostra a chave em `<input type="text">`, além de atualizar o registro por Data API. **Revogar a coluna bruscamente quebraria essa tela, pois ela é lida e escrita hoje no navegador.**
 
+### Etapa V1 efetivamente preparada no PR (não aplicada ao remoto)
+
+A migration **`supabase/migrations/20261024215500_prepare_private_store_sms_gateway_credentials.sql`** foi adicionada ao PR de forma exclusivamente aditiva. Ela cria o schema `private` (atualmente inexistente no OptmaMenu produtivo), a tabela `private.store_sms_gateway_credentials` com RLS e sem grants para `anon`/`authenticated`, realiza uma cópia controlada de chaves existentes de formato válido e expõe a função `get_store_sms_gateway_token_service_safe(uuid)` **apenas para `service_role`**.
+
+Foi criado também um novo job `OTP V1 private credential vault PostgreSQL 17` no workflow `Verify`. Ele utiliza dois tenants sintéticos, tenta recuperar segredo como `anon` e `authenticated` e exige **SQLSTATE 42501**, verifica que cada token pertence exclusivamente ao `store_id` correto e aplica a migration duas vezes para testar idempotência, mantendo o registro legado intacto.
+
+**Atenção:** V1 sozinha ainda deixa `stores.sms_gateway_token` acessível por política antiga. O cofre prepara a retirada segura, mas **não elimina a exposição enquanto V2–V3 não forem implantadas em sequência**. Aplicar V1 sem o restante não é o aceite de segurança; não usar essa migration como solução completa.
+
 ### Remediação segura em fases, sem desligar OTP real
 
 - **Etapa V1 — cofre:** nova tabela de credenciais em schema não exposto, com acesso só a serviço, funções de leitura para serviço e de substituição restrita a proprietário. Retornar aos navegadores apenas `configured: boolean`, nunca token existente. Testes PostgreSQL 17 como owner, operador `products.view`, anon e serviço.
@@ -50,7 +58,7 @@ A UI `MessageSettings.tsx` também consulta `.from('stores').select('id, name, s
 
 ## 4. Limites, decisões e liberação
 
-Esta investigação não fez mudanças nos projetos Supabase nem publicou Edge Function / frontend. A branch e o PR Draft de regressão são **isolados** da branch de homologação em uso; os novos testes são independentes de OTPs reais.
+Esta investigação não fez mudanças nos projetos Supabase nem publicou Edge Function / frontend. A branch e o PR Draft de regressão são **isolados** da branch de homologação em uso; os novos testes são independentes de OTPs reais. A migration V1 é código preparado, **não aplicada no banco produtivo**.
 
 A segurança do OptmaSMSGate referente aos grants foi aplicada ao banco em 22/10/2026 (39 migrations), mas a sua branch web `agent/supabase-explicit-grants-20261020` permanece em PR Draft #4, sem promoção Vercel Production. **A manutenção e governança de segredos da integração OptmaMenu são um trabalho distinto e não devem impedir a versão existente de transportar OTP enquanto preparamos o corte.**
 
