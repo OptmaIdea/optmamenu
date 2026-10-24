@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="640" viewBox="0 0 960 640" role="img" aria-label="Ilustração da categoria Bebidas"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#DDF4FF"/><stop offset="1" stop-color="#F9F7EB"/></linearGradient><filter id="soft" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="1" dy="15" stdDeviation="14" flood-color="#273449" flood-opacity=".16"/></filter></defs><rect width="960" height="640" fill="url(#bg)"/><circle cx="838" cy="108" r="191" fill="#55ABD0" opacity=".11"/><circle cx="58" cy="582" r="182" fill="#55ABD0" opacity=".10"/><circle cx="475" cy="55" r="21" fill="#55ABD0" opacity=".12"/><path d="M762 63q62 55 115-8M80 80q66 60 126-4" fill="none" stroke="#55ABD0" stroke-width="14" opacity=".13" stroke-linecap="round"/><ellipse cx="476" cy="554" rx="351" ry="43" fill="#253347" opacity=".10"/><g filter="url(#soft)">
+<rect x="163" y="178" width="184" height="334" rx="62" fill="#B8E3F4" stroke="#63ADDA" stroke-width="11"/>
+<rect x="194" y="127" width="121" height="64" rx="25" fill="#C9F2FC"/>
+<rect x="210" y="93" width="91" height="52" rx="15" fill="#318FC2"/>
+<path d="M173 340h165v106q-50 65-165 0z" fill="#65C9EB" opacity=".67"/>
+<path d="M219 203v251" stroke="#FFFFFF" stroke-width="21" opacity=".9" stroke-linecap="round"/>
+<path d="M444 203h269l-44 314H492z" fill="#F5AE3B" stroke="#E78B24" stroke-width="12"/>
+<ellipse cx="578" cy="202" rx="135" ry="24" fill="#FAE8AD"/>
+<path d="M491 236v231" fill="none" stroke="#FFDB7A" stroke-width="22" opacity=".85" stroke-linecap="round"/>
+<path d="M631 204l55-136" stroke="#46A3A0" stroke-width="19" stroke-linecap="round"/>
+<circle cx="735" cy="461" r="66" fill="#F5A837" stroke="#FAE4AC" stroke-width="12"/>
+<path d="M735 461l30-46M735 461l-45-17M735 461l-2 59" stroke="#FFE1A4" stroke-width="11" stroke-linecap="round"/></g></svg>
