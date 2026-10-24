@@ -62,15 +62,11 @@ Deno.serve(async (req: Request) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
   const gatewayBaseUrl = (Deno.env.get("OPTMASMSGATE_BASE_URL") || DEFAULT_GATEWAY_BASE_URL).replace(/\/$/, "");
-  const gatewayApiKey = Deno.env.get("OPTMASMSGATE_API_KEY") || "";
+  let gatewayApiKey = Deno.env.get("OPTMASMSGATE_API_KEY") || "";
 
   if (!supabaseUrl || !serviceRoleKey) {
     return reply({ ok: false, error: "server_configuration_error" }, 503, origin);
   }
-  if (!gatewayApiKey) {
-    return reply({ ok: false, error: "sms_gateway_not_configured" }, 503, origin);
-  }
-
   let body: Record<string, unknown>;
   try {
     body = await req.json();
@@ -203,27 +199,46 @@ Deno.serve(async (req: Request) => {
     }
   }
 
+  // A credencial do OptmaSMSGate configurada no painel pertence à loja.
+  // Se a loja optou pelo gateway, nunca desviar o SMS para a chave global de outra conta.
   let senderLabel = "OptmaMenu";
-  try {
-    const { data: storeData, error: storeError } = await service
-      .from("stores")
-      .select("name, slug, config")
-      .eq("id", storeId)
-      .maybeSingle();
+  const { data: storeData, error: storeError } = await service
+    .from("stores")
+    .select("name, slug, config, sms_gateway_token")
+    .eq("id", storeId)
+    .maybeSingle();
 
-    if (storeError) throw storeError;
-
-    const visualTitle = storeData?.config && typeof storeData.config === "object"
-      ? String((storeData.config as Record<string, unknown>).visual_title || "").trim()
-      : "";
-
-    senderLabel = smsSafeLabel(visualTitle || storeData?.name || storeData?.slug || "OptmaMenu");
-  } catch (error) {
-    console.warn("customer_otp_store_label_fallback", {
-      error: error instanceof Error ? error.name : "unknown_error",
-      storeId,
-    });
+  if (storeError || !storeData) {
+    console.warn("customer_otp_store_lookup_failed", { storeId });
+    return reply({ ok: false, error: "store_unavailable" }, 503, origin);
   }
+
+  const storeConfig = storeData.config && typeof storeData.config === "object" && !Array.isArray(storeData.config)
+    ? storeData.config as Record<string, unknown>
+    : {};
+  const messageSettings = storeConfig.message_settings && typeof storeConfig.message_settings === "object"
+    ? storeConfig.message_settings as Record<string, unknown>
+    : {};
+  const smsSettings = messageSettings.sms && typeof messageSettings.sms === "object"
+    ? messageSettings.sms as Record<string, unknown>
+    : {};
+  const storeGatewayEnabled = smsSettings.use_sms_gateway === true
+    || (messageSettings.sms === undefined && storeConfig.use_sms_gateway === true);
+
+  if (storeGatewayEnabled) {
+    const storeKey = String(storeData.sms_gateway_token || "").trim();
+    if (!/^osg_live_[A-Za-z0-9_-]{24,}$/.test(storeKey)) {
+      return reply({ ok: false, error: "sms_gateway_not_configured" }, 503, origin);
+    }
+    gatewayApiKey = storeKey;
+  }
+
+  if (!gatewayApiKey) {
+    return reply({ ok: false, error: "sms_gateway_not_configured" }, 503, origin);
+  }
+
+  const visualTitle = String(storeConfig.visual_title || "").trim();
+  senderLabel = smsSafeLabel(visualTitle || storeData.name || storeData.slug || "OptmaMenu");
 
   let issued: any = null;
   try {
