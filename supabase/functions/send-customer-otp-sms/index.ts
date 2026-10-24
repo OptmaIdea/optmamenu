@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { resolveOtpGatewayCredential } from "../_shared/otpGatewayRouting.mjs";
 
 const DEFAULT_GATEWAY_BASE_URL = "https://optmasmsgate.optmaidea.com.br";
 const ALLOWED_PURPOSES = new Set([
@@ -216,26 +217,11 @@ Deno.serve(async (req: Request) => {
   const storeConfig = storeData.config && typeof storeData.config === "object" && !Array.isArray(storeData.config)
     ? storeData.config as Record<string, unknown>
     : {};
-  const messageSettings = storeConfig.message_settings && typeof storeConfig.message_settings === "object"
-    ? storeConfig.message_settings as Record<string, unknown>
-    : {};
-  const smsSettings = messageSettings.sms && typeof messageSettings.sms === "object"
-    ? messageSettings.sms as Record<string, unknown>
-    : {};
-  const storeGatewayEnabled = smsSettings.use_sms_gateway === true
-    || (messageSettings.sms === undefined && storeConfig.use_sms_gateway === true);
-
-  if (storeGatewayEnabled) {
-    const storeKey = String(storeData.sms_gateway_token || "").trim();
-    if (!/^osg_live_[A-Za-z0-9_-]{24,}$/.test(storeKey)) {
-      return reply({ ok: false, error: "sms_gateway_not_configured" }, 503, origin);
-    }
-    gatewayApiKey = storeKey;
+  const route = resolveOtpGatewayCredential(storeData, gatewayApiKey);
+  if (!route.ok) {
+    return reply({ ok: false, error: route.error }, 503, origin);
   }
-
-  if (!gatewayApiKey) {
-    return reply({ ok: false, error: "sms_gateway_not_configured" }, 503, origin);
-  }
+  gatewayApiKey = route.key;
 
   const visualTitle = String(storeConfig.visual_title || "").trim();
   senderLabel = smsSafeLabel(visualTitle || storeData.name || storeData.slug || "OptmaMenu");
