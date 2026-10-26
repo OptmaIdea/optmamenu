@@ -25,8 +25,8 @@ AS $f$ SELECT EXISTS(SELECT 1 FROM public.store_members
  WHERE store_id=p_store_id AND user_id=auth.uid() AND status='active' AND permission=p_permission_code) $f$;
 GRANT SELECT,UPDATE ON public.stores TO authenticated;
 \echo 'S08: deploy vault and owner-only RPCs'
-\ir ../migrations/20261025000100_sms_gateway_private_vault.sql
-\ir ../migrations/20261025000200_sms_gateway_owner_rpc.sql
+\ir ../migrations/20261025211710_sms_gateway_private_vault_s08_20261025.sql
+\ir ../migrations/20261025211716_sms_gateway_owner_rpc_s08_20261025.sql
 DO $checks$
 BEGIN
  IF (SELECT COUNT(*) FROM private.store_sms_gateway_credentials)<>2 THEN RAISE EXCEPTION 'Vault backfill failed'; END IF;
@@ -86,7 +86,7 @@ UPDATE public.stores SET sms_gateway_token='osg_live_'||repeat('C',32)
  WHERE id='10000000-0000-4000-8000-000000000001';
 
 \echo 'S08: apply guarded final plaintext cleanup'
-\ir ../migrations/20261025000300_sms_gateway_legacy_plaintext_cutover.sql
+\ir ../migrations/20261025211720_sms_gateway_legacy_plaintext_cutover.sql
 
 DO $final$
 BEGIN
