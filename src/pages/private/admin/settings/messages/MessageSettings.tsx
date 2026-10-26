@@ -27,7 +27,6 @@ interface MessageSettingsProps {
 type StoreMessageSettings = {
     id?: string | null;
     name?: string | null;
-    sms_gateway_token?: string | null;
     config?: Record<string, any> | null;
 };
 
@@ -295,7 +294,7 @@ function normalizeMessageSettings(store?: StoreMessageSettings | null): MessageS
     return {
         customer_message_consent_text: settings.consent.customer_message_consent_text,
         use_sms_gateway: settings.sms.use_sms_gateway === true,
-        sms_gateway_token: store?.sms_gateway_token ?? '',
+        sms_gateway_token: '',
         templates: mergeTemplates(settings.operational),
     };
 }
@@ -322,6 +321,7 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
     const { securityContext, loading: loadingSecurityContext } = useSecurityContext();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [gatewayConfigured, setGatewayConfigured] = useState(false);
     const [store, setStore] = useState<StoreMessageSettings | null>(null);
     const [form, setForm] = useState<MessageSettingsForm>(() => normalizeMessageSettings(null));
     const [activeGroup, setActiveGroup] = useState<MessageTemplate['group']>('Atendimento');
@@ -374,6 +374,7 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
 
             if (!resolvedStoreId) {
                 setStore(null);
+                setGatewayConfigured(false);
                 toast.error('Nenhuma loja ativa selecionada.');
                 return;
             }
@@ -384,13 +385,21 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
 
             const { data: storeRow, error: storeRowError } = await supabase
                 .from('stores')
-                .select('id, name, sms_gateway_token, config')
+                .select('id, name, config')
                 .eq('id', resolvedStoreId)
                 .maybeSingle();
 
             if (storeRowError) {
                 console.warn('Falha ao carregar mensagens direto de stores; tentando fallback RPC:', storeRowError);
             }
+
+            // Read only a boolean; never expose the saved credential.
+            const { data: configured, error: statusError } = await supabase.rpc(
+                'get_store_sms_gateway_configured_safe' as never,
+                { p_store_id: resolvedStoreId } as never,
+            );
+            if (statusError) throw statusError;
+            setGatewayConfigured(configured === true);
 
             if (storeRow) {
                 const normalizedStore = {
@@ -472,6 +481,22 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
 
         setSaving(true);
         try {
+            const newToken = form.sms_gateway_token.trim();
+            if (newToken && !isOwner) {
+                throw new Error('Somente o proprietário pode cadastrar ou substituir a credencial de SMS.');
+            }
+            if (form.use_sms_gateway && !gatewayConfigured && !newToken) {
+                throw new Error('Cadastre uma chave do OptmaSMSGate antes de ativar o envio por esta loja.');
+            }
+            if (newToken) {
+                const { error: keyError } = await supabase.rpc(
+                    'set_store_sms_gateway_credential_safe' as never,
+                    { p_store_id: targetStoreId, p_token: newToken } as never,
+                );
+                if (keyError) throw keyError;
+                setGatewayConfigured(true);
+            }
+
             const nextMessageSettings: MessageSettingsData = {
                 version: 1,
                 consent: {
@@ -495,12 +520,9 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
 
             const { data, error } = await supabase
                 .from('stores')
-                .update({
-                    sms_gateway_token: form.use_sms_gateway ? form.sms_gateway_token : '',
-                    config: nextConfig,
-                })
+                .update({ config: nextConfig })
                 .eq('id', targetStoreId)
-                .select('id, name, sms_gateway_token, config')
+                .select('id, name, config')
                 .single();
 
             if (error) throw error;
@@ -756,16 +778,37 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
                                 Token de Integração (API Key)
                             </label>
                             <input
-                                type="text"
+                                type="password"
+                                autoComplete="new-password"
                                 className="w-full p-3 border border-orange-200 dark:border-orange-800 rounded-lg focus:ring-2 focus:ring-orange-400 outline-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition font-mono text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                                 value={form.sms_gateway_token}
                                 onChange={(e) => setForm((prev) => ({ ...prev, sms_gateway_token: e.target.value }))}
-                                disabled={effectiveDisabled}
-                                placeholder="Cole seu token aqui"
+                                disabled={effectiveDisabled || !isOwner}
+                                placeholder={gatewayConfigured ? 'Chave protegida · digite somente para substituir' : 'Cole sua nova chave do OptmaSMSGate'}
+                                aria-label="Nova chave do OptmaSMSGate, não exibe a chave cadastrada"
                             />
                             <p className="text-xs text-orange-600 mt-2">
-                                Chave necessária para autenticar o envio de mensagens via OptmaSMSGate.
+                                {gatewayConfigured ? 'Chave protegida cadastrada. O valor anterior nunca é exibido; deixe vazio para manter.' : 'Nenhuma chave própria cadastrada.'}
                             </p>
+                            {gatewayConfigured && isOwner && !effectiveDisabled && (
+                                <button type="button" className="mt-2 min-h-10 rounded-xl border border-red-200 px-3 text-sm font-bold text-red-700 dark:border-red-900 dark:text-red-300"
+                                    onClick={async () => {
+                                        if (!window.confirm('Revogar a chave própria? O envio de OTP por esta loja ficará indisponível enquanto o gateway estiver ativado.')) return;
+                                        try {
+                                            const { error } = await supabase.rpc(
+                                                'set_store_sms_gateway_credential_safe' as never,
+                                                { p_store_id: store?.id || activeStoreId, p_token: null } as never,
+                                            );
+                                            if (error) throw error;
+                                            setGatewayConfigured(false);
+                                            setForm((prev) => ({ ...prev, sms_gateway_token: '' }));
+                                            toast.success('Chave própria revogada.');
+                                        } catch {
+                                            toast.error('Não foi possível revogar a chave da loja.');
+                                        }
+                                    }}
+                                >Revogar chave própria</button>
+                            )
                         </div>
 
                         <div className="flex flex-col justify-center items-start md:border-l border-orange-200 dark:border-orange-800 md:pl-6 border-dashed">
