@@ -35,6 +35,7 @@ import {
 import { AuthService, type TrustedCustomerDevice } from '@/services/customerAuth';
 import { isCustomerDeletionPending } from '@/utils/customers/customerDeletionState';
 import { LatestCustomerRequest, resolveConsumedOrderFocus } from '@/utils/customers/customerScopedRequest';
+import { customerMessageAction, filterCustomerInbox } from '@/utils/customers/notificationInbox';
 import {
     CustomerService,
     type CustomerLoyaltyReward,
@@ -464,6 +465,10 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     const [loyaltyTransactionFilter, setLoyaltyTransactionFilter] = useState<LoyaltyTransactionFilter>('all');
     const [notifications, setNotifications] = useState<CustomerNotificationSummary[]>([]);
     const [notificationCategoryFilter, setNotificationCategoryFilter] = useState<NotificationCategoryFilter>('all');
+    const [notificationsUnreadOnly, setNotificationsUnreadOnly] = useState(false);
+    const [notificationsSearch, setNotificationsSearch] = useState('');
+    const [notificationsError, setNotificationsError] = useState<string | null>(null);
+    const [notificationsMarkingId, setNotificationsMarkingId] = useState<string | null>(null);
     const [notificationsLoading, setNotificationsLoading] = useState(false);
     const [notificationsMarkingAll, setNotificationsMarkingAll] = useState(false);
     const [consentEvents, setConsentEvents] = useState<CustomerSelfConsentEvent[]>([]);
@@ -789,10 +794,8 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     }, [loyaltyTransactionFilter, loyaltyTransactions]);
 
     const filteredNotifications = useMemo(() => (
-        notificationCategoryFilter === 'all'
-            ? notifications
-            : notifications.filter((item) => (item.category || 'system') === notificationCategoryFilter)
-    ), [notificationCategoryFilter, notifications]);
+        filterCustomerInbox(notifications, notificationCategoryFilter, notificationsUnreadOnly, notificationsSearch)
+    ), [notificationCategoryFilter, notifications, notificationsSearch, notificationsUnreadOnly]);
 
     const securityActivity = useMemo(() => (
         notifications
@@ -1064,6 +1067,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
         try {
             const rows = await CustomerService.getNotifications(customer.id);
             if (!notificationsResponseGuardRef.current.accepts(request, useCustomerAuth.getState().customer)) return;
+            setNotificationsError(null);
             setNotifications((rows || []).map((row) => {
                 const item = row as Record<string, unknown>;
                 return {
@@ -1076,6 +1080,11 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                     created_at: item.created_at ? String(item.created_at) : null,
                 };
             }).filter((item) => item.id));
+        } catch (notificationError) {
+            if (notificationsResponseGuardRef.current.accepts(request, useCustomerAuth.getState().customer)) {
+                setNotificationsError('Não foi possível atualizar as mensagens. As mensagens já carregadas foram preservadas.');
+            }
+            throw notificationError;
         } finally {
             if (!silent && notificationsResponseGuardRef.current.accepts(request, useCustomerAuth.getState().customer)) {
                 setNotificationsLoading(false);
@@ -1125,6 +1134,11 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
         setOrders([]);
         setCancellationRequests([]);
         setNotifications([]);
+        setNotificationsError(null);
+        setNotificationsMarkingId(null);
+        setNotificationCategoryFilter('all');
+        setNotificationsUnreadOnly(false);
+        setNotificationsSearch('');
         setAddresses([]);
         setProductRatings({});
         setExpandedOrderId(null);
@@ -2027,27 +2041,70 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     };
 
     const markNotificationRead = async (notificationId: string) => {
+        if (!customer || notificationsMarkingId) return;
+        const requestCustomerId = customer.id;
+        const requestStoreId = customer.store_id;
+        setNotificationsMarkingId(notificationId);
         try {
             await CustomerService.markAsRead(notificationId);
-            setNotifications((current) => current.map((notification) =>
-                notification.id === notificationId ? { ...notification, read: true } : notification
-            ));
+            const currentCustomer = useCustomerAuth.getState().customer;
+            if (currentCustomer?.id === requestCustomerId && currentCustomer?.store_id === requestStoreId) {
+                setNotifications((current) => current.map((notification) =>
+                    notification.id === notificationId ? { ...notification, read: true } : notification
+                ));
+            }
         } catch (markError) {
             toast.error(markError instanceof Error ? markError.message : 'Não foi possível marcar a mensagem como lida.');
+        } finally {
+            const currentCustomer = useCustomerAuth.getState().customer;
+            if (currentCustomer?.id === requestCustomerId && currentCustomer?.store_id === requestStoreId) {
+                setNotificationsMarkingId(null);
+            }
         }
     };
 
     const markAllNotificationsRead = async () => {
-        if (notificationsMarkingAll || !notifications.some((notification) => !notification.read)) return;
+        if (!customer || notificationsMarkingAll || !notifications.some((notification) => !notification.read)) return;
+        const requestCustomerId = customer.id;
+        const requestStoreId = customer.store_id;
         setNotificationsMarkingAll(true);
         try {
-            await CustomerService.markAllAsRead(customer?.id);
-            setNotifications((current) => current.map((notification) => ({ ...notification, read: true })));
-            toast.success('Todas as mensagens foram marcadas como lidas.');
+            await CustomerService.markAllAsRead(customer.id);
+            const currentCustomer = useCustomerAuth.getState().customer;
+            if (currentCustomer?.id === requestCustomerId && currentCustomer?.store_id === requestStoreId) {
+                setNotifications((current) => current.map((notification) => ({ ...notification, read: true })));
+                toast.success('Todas as mensagens foram marcadas como lidas.');
+            }
         } catch (markError) {
             toast.error(markError instanceof Error ? markError.message : 'Não foi possível marcar todas as mensagens como lidas.');
         } finally {
-            setNotificationsMarkingAll(false);
+            const currentCustomer = useCustomerAuth.getState().customer;
+            if (currentCustomer?.id === requestCustomerId && currentCustomer?.store_id === requestStoreId) {
+                setNotificationsMarkingAll(false);
+            }
+        }
+    };
+
+    const openMessageDestination = (category?: string | null) => {
+        const target = customerMessageAction(category);
+        if (!target) return;
+        if (target.tab === 'orders') {
+            setFocusedConsumptionOrderId(null);
+            setExpandedOrderId(null);
+            setOrderSearch('');
+            setOrderStatusFilter('all');
+            setOrderFulfillmentFilter('all');
+        }
+        if (target.tab === 'loyalty') setLoyaltySection('overview');
+        setTab(target.tab);
+    };
+
+    const refreshMessages = async () => {
+        try {
+            await loadNotifications();
+            toast.success('Mensagens atualizadas.');
+        } catch {
+            toast.error('Não foi possível atualizar as mensagens. Tente novamente.');
         }
     };
 
@@ -3401,29 +3458,80 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                                 <button key={value} type="button" onClick={() => setNotificationCategoryFilter(value)} className={`rounded-full px-3 py-2 text-xs font-black transition ${notificationCategoryFilter === value ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-900 dark:text-slate-300'}`}>{label}</button>
                                             ))}
                                         </div>
-                                        <div className="mt-4 flex gap-2">
-                                            <button type="button" onClick={() => void loadNotifications()} disabled={notificationsLoading} className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-600 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300">{notificationsLoading ? 'Atualizando…' : 'Atualizar'}</button>
+                                        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-center">
+                                            <label className="relative">
+                                                <span className="sr-only">Buscar mensagens por assunto ou texto</span>
+                                                <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" aria-hidden="true" />
+                                                <input
+                                                    type="search"
+                                                    value={notificationsSearch}
+                                                    onChange={(event) => setNotificationsSearch(event.target.value)}
+                                                    placeholder="Buscar nas mensagens"
+                                                    className="min-h-11 w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                                                />
+                                            </label>
+                                            <label className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-700 dark:border-slate-700 dark:text-slate-200">
+                                                <input type="checkbox" checked={notificationsUnreadOnly} onChange={(event) => setNotificationsUnreadOnly(event.target.checked)} className="accent-emerald-600" />
+                                                Somente não lidas
+                                            </label>
+                                            <button type="button" onClick={() => void refreshMessages()} disabled={notificationsLoading} className="min-h-11 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-600 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300">{notificationsLoading ? 'Atualizando…' : 'Atualizar'}</button>
                                         </div>
+                                        {(notificationCategoryFilter !== 'all' || notificationsUnreadOnly || notificationsSearch.trim()) && (
+                                            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-300" aria-live="polite">
+                                                <span>{filteredNotifications.length} de {notifications.length} mensagens</span>
+                                                <button type="button" onClick={() => {
+                                                    setNotificationCategoryFilter('all');
+                                                    setNotificationsUnreadOnly(false);
+                                                    setNotificationsSearch('');
+                                                }} className="min-h-10 rounded-xl border border-slate-200 px-3 font-bold text-emerald-700 dark:border-slate-700 dark:text-emerald-300">Limpar filtros</button>
+                                            </div>
+                                        )}
                                     </section>
+                                    {notificationsError && (
+                                        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200" role="alert">
+                                            {notificationsError}
+                                            <button type="button" onClick={() => void refreshMessages()} className="ml-2 min-h-10 rounded-xl border border-amber-300 px-3 text-xs font-black dark:border-amber-800">Tentar novamente</button>
+                                        </div>
+                                    )}
                                     {notificationsLoading && notifications.length === 0 ? (
                                         <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-emerald-600" /></div>
                                     ) : filteredNotifications.length === 0 ? (
                                         <div className="rounded-3xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700">Nenhuma mensagem nesta categoria.</div>
                                     ) : (
                                         <div className="space-y-2">
-                                            {filteredNotifications.map((notification) => (
-                                                <button key={notification.id} type="button" onClick={() => { if (!notification.read) void markNotificationRead(notification.id); }} className={`w-full rounded-3xl border p-4 text-left transition ${notification.read ? 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950' : 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/50 dark:bg-emerald-950/20'}`}>
+                                            {filteredNotifications.map((notification) => {
+                                                const action = customerMessageAction(notification.category);
+                                                return (
+                                                <article key={notification.id} className={`w-full rounded-3xl border p-4 text-left transition ${notification.read ? 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950' : 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/50 dark:bg-emerald-950/20'}`}>
                                                     <div className="flex items-start justify-between gap-3">
                                                         <div className="min-w-0">
                                                             <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${notificationCategoryClass(notification.category)}`}>{notificationCategoryLabel(notification.category)}</span>
                                                             <p className="mt-2 font-black text-slate-900 dark:text-white">{notification.title || 'Mensagem da loja'}</p>
-                                                            {notification.message && <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">{notification.message}</p>}
+                                                            {notification.message && <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-slate-600 dark:text-slate-300">{notification.message}</p>}
                                                         </div>
                                                         {!notification.read && <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500" aria-label="Não lida" />}
                                                     </div>
                                                     <p className="mt-3 text-[11px] font-semibold text-slate-400">{notification.created_at ? new Date(notification.created_at).toLocaleString('pt-BR') : 'Data não disponível'}</p>
-                                                </button>
-                                            ))}
+                                                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                                                        {action && (
+                                                            <button type="button" onClick={() => openMessageDestination(notification.category)}
+                                                                className="inline-flex min-h-10 items-center justify-center rounded-xl bg-emerald-600 px-3 text-xs font-black text-white hover:bg-emerald-700">
+                                                                {action.label}
+                                                            </button>
+                                                        )}
+                                                        {!notification.read && (
+                                                            <button type="button" onClick={() => void markNotificationRead(notification.id)}
+                                                                disabled={notificationsMarkingId !== null}
+                                                                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 text-xs font-black text-slate-700 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200">
+                                                                {notificationsMarkingId === notification.id && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+                                                                Marcar como lida
+                                                            </button>
+                                                        )}
+                                                        {notification.read && <span className="text-[11px] font-bold text-slate-400">Lida</span>}
+                                                    </div>
+                                                </article>
+                                                );
+                                            })}
                                         </div>
                                     )}
                                 </div>

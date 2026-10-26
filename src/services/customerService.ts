@@ -385,14 +385,12 @@ export const CustomerService = {
             p_limit: 50,
         });
         if (error) {
-            console.error('Erro ao buscar notificações:', error);
-            return [];
+            throw new Error('Não foi possível carregar suas mensagens. Tente atualizar novamente.');
         }
 
         const payload = data as (SelfRpcPayload & { notifications?: unknown[] }) | null;
         if (!payload?.ok) {
-            console.error('Erro ao buscar notificações:', payload?.error);
-            return [];
+            throw selfServiceError(payload, 'Não foi possível carregar suas mensagens.');
         }
         return Array.isArray(payload.notifications) ? payload.notifications : [];
     },
