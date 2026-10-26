@@ -370,10 +370,10 @@ export default function FinancialAccountsWorkspacePage() {
     setForm({
       ...EMPTY_FORM,
       accountType: 'bank',
-      acceptedPaymentMethods: ['pix', 'bank_transfer'],
+      acceptedPaymentMethods: paymentMethods.map((method) => method.code).filter((code) => ['pix', 'bank_transfer'].includes(code)),
     });
     setFormOpen(true);
-  }, [searchParams, setSearchParams]);
+  }, [searchParams, setSearchParams, paymentMethods]);
 
   function startCreate() {
     const initialMethods = paymentMethods
