@@ -302,6 +302,27 @@ export default function OnlinePaymentsPage() {
     setReceivableClassifier('all');
   }
 
+  async function registerOptmaPayProvider() {
+    if (!storeId || !workspace?.permissions.manage || working || optmaProvider) return;
+    setWorking(true);
+    try {
+      await OnlinePaymentsService.saveProvider({
+        storeId,
+        providerCode: 'optma_sandbox',
+        environment: 'sandbox',
+        enabled: false,
+        isDefault: false,
+        publicConfig: {},
+      });
+      toast.success('Provedor cadastrado. Vincule as credenciais e teste a conexão antes de ativar.');
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Falha ao cadastrar o OptmaPay.');
+    } finally {
+      setWorking(false);
+    }
+  }
+
   async function toggleProvider(provider: OnlinePaymentProvider) {
     if (!storeId || !workspace?.permissions.manage) return;
     setWorking(true);
@@ -491,6 +512,21 @@ export default function OnlinePaymentsPage() {
 
           {activeTab === 'providers' && (
             <div className="grid gap-5 lg:grid-cols-2">
+              {!optmaProvider && (
+                <section className="rounded-2xl border border-teal-300 bg-teal-50 p-5 text-teal-950 dark:border-teal-900 dark:bg-teal-950/30 dark:text-teal-100 lg:col-span-2">
+                  <h2 className="text-lg font-black">Cadastrar OptmaPay Sandbox nesta loja</h2>
+                  <p className="mt-2 text-sm">Esta loja ainda não tem provedor. Crie uma conta PJ fictícia no OptmaPay, copie seu Account ID e gere as credenciais no modo Dev. A conta de liquidação interna da loja é configurada separadamente.</p>
+                  <div className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
+                    <div className="rounded-xl bg-white/80 p-3 dark:bg-gray-950/40"><strong>1. Conta PJ fictícia</strong><p className="mt-1 text-xs">Use o seu login no OptmaPay, não os dados de clientes.</p><a href="https://optmapay-gkspyq3mj-optma-idea-optmapay.vercel.app/onboarding" target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 font-bold underline">Abrir cadastro <ExternalLink size={13} /></a></div>
+                    <div className="rounded-xl bg-white/80 p-3 dark:bg-gray-950/40"><strong>2. Chaves e webhook</strong><p className="mt-1 text-xs">Copie o Account ID; no painel Dev, crie uma API key e registre o webhook mostrado após cadastrar o provedor.</p></div>
+                    <div className="rounded-xl bg-white/80 p-3 dark:bg-gray-950/40"><strong>3. Vincular loja</strong><p className="mt-1 text-xs">Salve os dados no Vault, selecione a conta financeira interna e teste a conexão. Ative somente depois.</p></div>
+                  </div>
+                  {workspace.permissions.manage
+                    ? <button type="button" disabled={working} onClick={() => void registerOptmaPayProvider()} className="mt-4 rounded-xl bg-teal-700 px-4 py-2 font-bold text-white disabled:opacity-50">{working ? 'Cadastrando...' : 'Cadastrar provedor desativado para configurar'}</button>
+                    : <p role="status" className="mt-4 text-sm font-bold">Sem permissão para cadastrar: payments.online.manage.</p>}
+                  <p className="mt-3 text-xs">O cadastro inicial não cobra nem movimenta recursos. A prévia do OptmaPay pode exigir autorização da Vercel.</p>
+                </section>
+              )}
               {[optmaProvider, asaasProvider].filter(Boolean).map((provider) => provider && (
                 <div key={provider.id} className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 sm:p-6">
                   <div className="flex items-start justify-between gap-4">
