@@ -19,7 +19,7 @@ BEGIN
  RAISE EXCEPTION 'S09 synthetic broad grants not reproduced'; END IF;
 END $before$;
 \echo 'S09 apply REAL permissions migration'
-\ir ../migrations/20261026000100_revoke_anonymous_admin_rpcs.sql
+\ir ../migrations/20261025212614_revoke_anonymous_admin_rpcs_s09_20261026.sql
 DO $assert$
 DECLARE v_count integer;
 BEGIN
