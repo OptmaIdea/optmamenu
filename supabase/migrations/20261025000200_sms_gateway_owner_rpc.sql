@@ -12,6 +12,7 @@ BEGIN
        public.app_is_store_owner(p_store_id)
        OR public.user_has_store_permission(p_store_id,'settings.view')
        OR public.user_has_store_permission(p_store_id,'settings.manage')
+       OR public.user_has_store_permission(p_store_id,'settings.messages.manage')
   ) THEN
     RAISE EXCEPTION 'not authorized to view SMS gateway configuration' USING ERRCODE='42501';
   END IF;
