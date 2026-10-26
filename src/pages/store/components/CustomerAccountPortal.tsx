@@ -3493,7 +3493,6 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                             <button type="button" onClick={() => void refreshMessages()} className="ml-2 min-h-10 rounded-xl border border-amber-300 px-3 text-xs font-black dark:border-amber-800">Tentar novamente</button>
                                         </div>
                                     )}
-                                    <section className="sr-only" aria-live="polite">
                                     {notificationsLoading && notifications.length === 0 ? (
                                         <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-emerald-600" /></div>
                                     ) : filteredNotifications.length === 0 ? (
