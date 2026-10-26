@@ -35,6 +35,7 @@ import {
 import { AuthService, type TrustedCustomerDevice } from '@/services/customerAuth';
 import { isCustomerDeletionPending } from '@/utils/customers/customerDeletionState';
 import { LatestCustomerRequest, resolveConsumedOrderFocus } from '@/utils/customers/customerScopedRequest';
+import { customerMessageAction, filterCustomerInbox } from '@/utils/customers/notificationInbox';
 import {
     CustomerService,
     type CustomerLoyaltyReward,
@@ -464,6 +465,10 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     const [loyaltyTransactionFilter, setLoyaltyTransactionFilter] = useState<LoyaltyTransactionFilter>('all');
     const [notifications, setNotifications] = useState<CustomerNotificationSummary[]>([]);
     const [notificationCategoryFilter, setNotificationCategoryFilter] = useState<NotificationCategoryFilter>('all');
+    const [notificationsUnreadOnly, setNotificationsUnreadOnly] = useState(false);
+    const [notificationsSearch, setNotificationsSearch] = useState('');
+    const [notificationsError, setNotificationsError] = useState<string | null>(null);
+    const [notificationsMarkingId, setNotificationsMarkingId] = useState<string | null>(null);
     const [notificationsLoading, setNotificationsLoading] = useState(false);
     const [notificationsMarkingAll, setNotificationsMarkingAll] = useState(false);
     const [consentEvents, setConsentEvents] = useState<CustomerSelfConsentEvent[]>([]);
@@ -789,10 +794,8 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     }, [loyaltyTransactionFilter, loyaltyTransactions]);
 
     const filteredNotifications = useMemo(() => (
-        notificationCategoryFilter === 'all'
-            ? notifications
-            : notifications.filter((item) => (item.category || 'system') === notificationCategoryFilter)
-    ), [notificationCategoryFilter, notifications]);
+        filterCustomerInbox(notifications, notificationCategoryFilter, notificationsUnreadOnly, notificationsSearch)
+    ), [notificationCategoryFilter, notifications, notificationsSearch, notificationsUnreadOnly]);
 
     const securityActivity = useMemo(() => (
         notifications
@@ -1064,6 +1067,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
         try {
             const rows = await CustomerService.getNotifications(customer.id);
             if (!notificationsResponseGuardRef.current.accepts(request, useCustomerAuth.getState().customer)) return;
+            setNotificationsError(null);
             setNotifications((rows || []).map((row) => {
                 const item = row as Record<string, unknown>;
                 return {
@@ -1076,6 +1080,11 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                     created_at: item.created_at ? String(item.created_at) : null,
                 };
             }).filter((item) => item.id));
+        } catch (notificationError) {
+            if (notificationsResponseGuardRef.current.accepts(request, useCustomerAuth.getState().customer)) {
+                setNotificationsError('Não foi possível atualizar as mensagens. As mensagens já carregadas foram preservadas.');
+            }
+            throw notificationError;
         } finally {
             if (!silent && notificationsResponseGuardRef.current.accepts(request, useCustomerAuth.getState().customer)) {
                 setNotificationsLoading(false);
@@ -1125,6 +1134,11 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
         setOrders([]);
         setCancellationRequests([]);
         setNotifications([]);
+        setNotificationsError(null);
+        setNotificationsMarkingId(null);
+        setNotificationCategoryFilter('all');
+        setNotificationsUnreadOnly(false);
+        setNotificationsSearch('');
         setAddresses([]);
         setProductRatings({});
         setExpandedOrderId(null);
@@ -2027,27 +2041,70 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     };
 
     const markNotificationRead = async (notificationId: string) => {
+        if (!customer || notificationsMarkingId) return;
+        const requestCustomerId = customer.id;
+        const requestStoreId = customer.store_id;
+        setNotificationsMarkingId(notificationId);
         try {
             await CustomerService.markAsRead(notificationId);
-            setNotifications((current) => current.map((notification) =>
-                notification.id === notificationId ? { ...notification, read: true } : notification
-            ));
+            const currentCustomer = useCustomerAuth.getState().customer;
+            if (currentCustomer?.id === requestCustomerId && currentCustomer?.store_id === requestStoreId) {
+                setNotifications((current) => current.map((notification) =>
+                    notification.id === notificationId ? { ...notification, read: true } : notification
+                ));
+            }
         } catch (markError) {
             toast.error(markError instanceof Error ? markError.message : 'Não foi possível marcar a mensagem como lida.');
+        } finally {
+            const currentCustomer = useCustomerAuth.getState().customer;
+            if (currentCustomer?.id === requestCustomerId && currentCustomer?.store_id === requestStoreId) {
+                setNotificationsMarkingId(null);
+            }
         }
     };
 
     const markAllNotificationsRead = async () => {
-        if (notificationsMarkingAll || !notifications.some((notification) => !notification.read)) return;
+        if (!customer || notificationsMarkingAll || !notifications.some((notification) => !notification.read)) return;
+        const requestCustomerId = customer.id;
+        const requestStoreId = customer.store_id;
         setNotificationsMarkingAll(true);
         try {
-            await CustomerService.markAllAsRead(customer?.id);
-            setNotifications((current) => current.map((notification) => ({ ...notification, read: true })));
-            toast.success('Todas as mensagens foram marcadas como lidas.');
+            await CustomerService.markAllAsRead(customer.id);
+            const currentCustomer = useCustomerAuth.getState().customer;
+            if (currentCustomer?.id === requestCustomerId && currentCustomer?.store_id === requestStoreId) {
+                setNotifications((current) => current.map((notification) => ({ ...notification, read: true })));
+                toast.success('Todas as mensagens foram marcadas como lidas.');
+            }
         } catch (markError) {
             toast.error(markError instanceof Error ? markError.message : 'Não foi possível marcar todas as mensagens como lidas.');
         } finally {
-            setNotificationsMarkingAll(false);
+            const currentCustomer = useCustomerAuth.getState().customer;
+            if (currentCustomer?.id === requestCustomerId && currentCustomer?.store_id === requestStoreId) {
+                setNotificationsMarkingAll(false);
+            }
+        }
+    };
+
+    const openMessageDestination = (category?: string | null) => {
+        const target = customerMessageAction(category);
+        if (!target) return;
+        if (target.tab === 'orders') {
+            setFocusedConsumptionOrderId(null);
+            setExpandedOrderId(null);
+            setOrderSearch('');
+            setOrderStatusFilter('all');
+            setOrderFulfillmentFilter('all');
+        }
+        if (target.tab === 'loyalty') setLoyaltySection('overview');
+        setTab(target.tab);
+    };
+
+    const refreshMessages = async () => {
+        try {
+            await loadNotifications();
+            toast.success('Mensagens atualizadas.');
+        } catch {
+            toast.error('Não foi possível atualizar as mensagens. Tente novamente.');
         }
     };
 
