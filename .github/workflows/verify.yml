@@ -407,3 +407,29 @@ jobs:
             -f supabase/tests/s08_sms_gateway_vault_pg17.sql
       - name: Verify OTP and frontend do not read public tokens
         run: node --test supabase/tests/s08_sms_gateway_static.test.mjs
+
+  s09-anon-admin-rpc-privileges:
+    name: S09 admin RPC anon grants PostgreSQL 17
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: optmamenu_s09
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d optmamenu_s09"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preserve public checkout and revoke 16 admin RPC grants
+        run: |
+          docker run --rm --network host -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_s09 -v ON_ERROR_STOP=1 \
+            -f supabase/tests/s09_admin_anon_acl_pg17.sql

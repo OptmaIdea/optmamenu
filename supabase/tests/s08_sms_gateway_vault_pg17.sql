@@ -86,7 +86,7 @@ UPDATE public.stores SET sms_gateway_token='osg_live_'||repeat('C',32)
  WHERE id='10000000-0000-4000-8000-000000000001';
 
 \echo 'S08: apply guarded final plaintext cleanup'
-\ir ../migrations/20261025211720_sms_gateway_legacy_plaintext_cutover.sql
+\ir ../migrations/20261025212734_sms_gateway_legacy_plaintext_cutover_s08_20261025.sql
 
 DO $final$
 BEGIN
