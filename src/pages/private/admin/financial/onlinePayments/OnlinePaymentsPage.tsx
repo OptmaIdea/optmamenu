@@ -447,7 +447,7 @@ export default function OnlinePaymentsPage() {
           <FlaskConical className="mt-0.5 shrink-0" size={20} />
           <div>
             <p className="font-bold">Ambiente de homologação</p>
-            <p className="text-sm opacity-90">Use somente contas, CPF/CNPJ e cartões fictícios de Sandbox. Nenhuma chave de API deve aparecer nesta tela, no Git ou em logs.</p>
+            <p className="text-sm opacity-90">O OptmaPay é apenas um provedor de testes com valores fictícios. Contas de bancos reais podem ser cadastradas para controle financeiro, mas não estão conectadas automaticamente. Nunca informe senhas bancárias nem credenciais em campos inadequados.</p>
           </div>
         </div>
       </div>
@@ -512,21 +512,36 @@ export default function OnlinePaymentsPage() {
 
           {activeTab === 'providers' && (
             <div className="grid gap-5 lg:grid-cols-2">
-              {!optmaProvider && (
-                <section className="rounded-2xl border border-teal-300 bg-teal-50 p-5 text-teal-950 dark:border-teal-900 dark:bg-teal-950/30 dark:text-teal-100 lg:col-span-2">
-                  <h2 className="text-lg font-black">Cadastrar OptmaPay Sandbox nesta loja</h2>
-                  <p className="mt-2 text-sm">Esta loja ainda não tem provedor. Crie uma conta PJ fictícia no OptmaPay, copie seu Account ID e gere as credenciais no modo Dev. A conta de liquidação interna da loja é configurada separadamente.</p>
-                  <div className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
-                    <div className="rounded-xl bg-white/80 p-3 dark:bg-gray-950/40"><strong>1. Conta PJ fictícia</strong><p className="mt-1 text-xs">Use o seu login no OptmaPay, não os dados de clientes.</p><a href="https://optmapay-gkspyq3mj-optma-idea-optmapay.vercel.app/onboarding" target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 font-bold underline">Abrir cadastro <ExternalLink size={13} /></a></div>
-                    <div className="rounded-xl bg-white/80 p-3 dark:bg-gray-950/40"><strong>2. Chaves e webhook</strong><p className="mt-1 text-xs">Copie o Account ID; no painel Dev, crie uma API key e registre o webhook mostrado após cadastrar o provedor.</p></div>
-                    <div className="rounded-xl bg-white/80 p-3 dark:bg-gray-950/40"><strong>3. Vincular loja</strong><p className="mt-1 text-xs">Salve os dados no Vault, selecione a conta financeira interna e teste a conexão. Ative somente depois.</p></div>
-                  </div>
-                  {workspace.permissions.manage
-                    ? <button type="button" disabled={working} onClick={() => void registerOptmaPayProvider()} className="mt-4 rounded-xl bg-teal-700 px-4 py-2 font-bold text-white disabled:opacity-50">{working ? 'Cadastrando...' : 'Cadastrar provedor desativado para configurar'}</button>
-                    : <p role="status" className="mt-4 text-sm font-bold">Sem permissão para cadastrar: payments.online.manage.</p>}
-                  <p className="mt-3 text-xs">O cadastro inicial não cobra nem movimenta recursos. A prévia do OptmaPay pode exigir autorização da Vercel.</p>
-                </section>
-              )}
+              <section className="rounded-2xl border border-sky-300 bg-sky-50 p-5 text-sky-950 dark:border-sky-900 dark:bg-sky-950/25 dark:text-sky-100 lg:col-span-2" aria-label="Contas e integrações financeiras">
+                <h2 className="text-lg font-black">Contas bancárias e integrações financeiras</h2>
+                <p className="mt-2 text-sm">O cadastro de uma conta bancária é independente do serviço que processa pagamentos. Utilize bancos reais na gestão financeira ou escolha uma integração quando houver um conector disponível.</p>
+                <div className="mt-4 grid gap-3 text-sm md:grid-cols-3">
+                  <article className="rounded-xl border border-sky-200 bg-white/90 p-4 dark:border-sky-900 dark:bg-gray-950/50">
+                    <p className="text-xs font-black uppercase text-sky-700 dark:text-sky-300">Contas financeiras</p>
+                    <h3 className="mt-1 font-black">Cadastrar banco real</h3>
+                    <p className="mt-1 text-xs">Identifique a instituição e a conta da loja para controle financeiro e conciliação manual, sem depender do OptmaPay.</p>
+                    <a href="/admin/financial-accounts?tab=settings&new=bank" className="mt-3 inline-flex rounded-lg bg-sky-700 px-3 py-2 text-xs font-black text-white">Nova conta bancária</a>
+                    <p className="mt-2 text-[11px] opacity-75">Cadastro manual: não sincroniza saldo ou extrato bancário automaticamente.</p>
+                  </article>
+                  <article className="rounded-xl border border-sky-200 bg-white/90 p-4 dark:border-sky-900 dark:bg-gray-950/50">
+                    <p className="text-xs font-black uppercase text-sky-700 dark:text-sky-300">Conectividade bancária</p>
+                    <h3 className="mt-1 font-black">Banco real / Open Finance</h3>
+                    <p className="mt-1 text-xs">Uma conexão automática exige consentimento no banco e integração com uma instituição ou parceiro autorizado. Ainda não existe um conector Open Finance ativo nesta instalação.</p>
+                    <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">Não conectado · sem coleta de senhas bancárias</p>
+                  </article>
+                  <article className="rounded-xl border border-violet-200 bg-white/90 p-4 dark:border-violet-900 dark:bg-gray-950/50">
+                    <p className="text-xs font-black uppercase text-violet-700 dark:text-violet-300">Provedores de pagamento</p>
+                    <h3 className="mt-1 font-black">OptmaPay Sandbox</h3>
+                    <p className="mt-1 text-xs">Opção para testes com dinheiro fictício. Não substitui banco real e não é necessária para cadastrar contas financeiras.</p>
+                    {!optmaProvider
+                      ? workspace.permissions.manage
+                        ? <button type="button" disabled={working} onClick={() => void registerOptmaPayProvider()} className="mt-3 rounded-lg bg-violet-700 px-3 py-2 text-xs font-black text-white disabled:opacity-50">{working ? 'Preparando...' : 'Configurar provedor Sandbox'}</button>
+                        : <p className="mt-3 text-xs font-bold">Exige permissão payments.online.manage.</p>
+                      : <p className="mt-3 text-xs font-bold">Provedor {optmaProvider.enabled ? 'ativo' : 'cadastrado e desativado'} · configuração abaixo.</p>}
+                  </article>
+                </div>
+                <p className="mt-3 text-xs opacity-80">Para conciliar recebimentos, cadastre primeiro a conta financeira e configure depois a rota em <button type="button" onClick={() => setActiveTab('routes')} className="font-black underline">Rotas de recebimento</button>. A instituição escolhida não habilita cobrança online automaticamente.</p>
+              </section>
               {[optmaProvider, asaasProvider].filter(Boolean).map((provider) => provider && (
                 <div key={provider.id} className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 sm:p-6">
                   <div className="flex items-start justify-between gap-4">
