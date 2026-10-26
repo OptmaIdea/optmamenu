@@ -808,7 +808,7 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
                                         }
                                     }}
                                 >Revogar chave própria</button>
-                            )
+                            )}
                         </div>
 
                         <div className="flex flex-col justify-center items-start md:border-l border-orange-200 dark:border-orange-800 md:pl-6 border-dashed">
