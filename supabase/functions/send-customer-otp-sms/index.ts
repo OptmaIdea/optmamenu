@@ -204,7 +204,7 @@ Deno.serve(async (req: Request) => {
   let senderLabel = "OptmaMenu";
   const { data: storeData, error: storeError } = await service
     .from("stores")
-    .select("name, slug, config, sms_gateway_token")
+    .select("name, slug, config")
     .eq("id", storeId)
     .maybeSingle();
 
@@ -226,8 +226,15 @@ Deno.serve(async (req: Request) => {
     || (messageSettings.sms === undefined && storeConfig.use_sms_gateway === true);
 
   if (storeGatewayEnabled) {
-    const storeKey = String(storeData.sms_gateway_token || "").trim();
-    if (!/^osg_live_[A-Za-z0-9_-]{24,}$/.test(storeKey)) {
+    // The public stores row must NEVER be used as a credential source.
+    // Service-only RPC reads the non-exposed private schema. Never fall
+    // back to global credentials for an opted-in store (tenant isolation).
+    const { data: storeKey, error: credentialError } = await service.rpc(
+      "get_store_sms_gateway_token_service_safe",
+      { p_store_id: storeId },
+    );
+    if (credentialError || typeof storeKey !== "string" || !/^osg_live_[A-Za-z0-9_-]{24,}$/.test(storeKey)) {
+      console.warn("customer_otp_gateway_credential_unavailable", { storeId });
       return reply({ ok: false, error: "sms_gateway_not_configured" }, 503, origin);
     }
     gatewayApiKey = storeKey;
