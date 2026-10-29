@@ -442,6 +442,12 @@ export default function OnlinePaymentsPage() {
       icon={<CreditCard className="text-[#19A999]" size={28} />}
       onRefresh={() => void load()}
     >
+      <div className="rounded-2xl border border-teal-300 bg-teal-50 p-4 dark:border-teal-900 dark:bg-teal-950/20">
+        <h2 className="font-black text-teal-950 dark:text-teal-100">Como permitir ao cliente pagar antecipadamente?</h2>
+        <p className="mt-1 text-sm text-teal-900 dark:text-teal-200">Configure as formas aceitas e selecione a conta de recebimento interna. Não depende do OptmaPay: é possível usar PIX manual com comprovante, que exige confirmação humana.</p>
+        <Link to="/admin/payment-methods#pagamento-antecipado" className="mt-3 inline-flex items-center gap-2 rounded-xl bg-teal-700 px-4 py-2 text-sm font-black text-white">Configurar pagamento antecipado <ExternalLink size={14}/></Link>
+      </div>
+
       <div className="rounded-2xl border border-amber-300/70 bg-amber-50 px-4 py-3 text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100 sm:px-5 sm:py-4">
         <div className="flex items-start gap-3">
           <FlaskConical className="mt-0.5 shrink-0" size={20} />
