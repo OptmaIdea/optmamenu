@@ -433,3 +433,29 @@ jobs:
             -v "$PWD:/repo:ro" -w /repo postgres:17 \
             psql -h 127.0.0.1 -U postgres -d optmamenu_s09 -v ON_ERROR_STOP=1 \
             -f supabase/tests/s09_admin_anon_acl_pg17.sql
+
+  s10-public-table-default-grants:
+    name: S10 public defaults and explicit opt-in PostgreSQL 17
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: optmamenu_s10
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d optmamenu_s10"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test existing grants preserved, new objects denied, and RLS opt-in
+        run: |
+          docker run --rm --network host -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_s10 -v ON_ERROR_STOP=1 \
+            -f supabase/tests/s10_public_defaults_pg17.sql
