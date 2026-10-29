@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 const read = path => fs.readFileSync(new URL(path, import.meta.url),'utf8');
-const rpc=read('../migrations/20261029123000_store_checkout_prepayment_config_safe.sql');
-const proof=read('../migrations/20261029125000_public_order_proof_pix_instructions.sql');
-const acl=read('../migrations/20261029124000_public_table_structural_grants_hardening.sql');
+const rpc=read('../migrations/20261029074029_p11_store_checkout_prepayment_and_accounts_20261029.sql');
+const proof=read('../migrations/20261029074043_p11_public_order_proof_manual_pix_instructions_20261029.sql');
+const acl=read('../migrations/20261029074001_p11_existing_public_tables_no_structural_api_grants_20261029.sql');
 test('P11: user and tenant authorization evaluated before financial mutations',()=>{
   assert.match(rpc,/auth\.uid\(\) IS NOT NULL/);
   assert.match(rpc,/app_is_store_owner\(p_store_id\)/);
