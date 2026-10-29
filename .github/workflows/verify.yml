@@ -1,0 +1,464 @@
+name: Verify
+
+on:
+  push:
+    branches:
+      - agent/quotation-round-purchase-drafts
+      - agent/homologacao-geral-20260820
+  pull_request:
+    branches:
+      - agent/homologacao-geral-20260820
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: P03 enforce grants on future public tables
+        run: |
+          node --test scripts/security/audit-future-table-grants.test.mjs
+          node scripts/security/audit-future-table-grants.mjs
+
+      - name: P11 checkout prepayment SQL security contract
+        run: node --test supabase/tests/p11_prepayment_sql_contract.test.mjs
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint purchase receipt scope
+        run: >-
+          npx eslint
+          src/pages/private/admin/products/inventory/PurchaseDocumentsPage.tsx
+          src/pages/private/admin/products/inventory/components/PurchaseReceiptModal.tsx
+          src/pages/private/admin/products/inventory/utils/purchaseReceiptUtils.ts
+          src/pages/private/admin/products/inventory/utils/purchaseReceiptUtils.test.ts
+
+      - name: Test disabled Asaas legacy endpoints
+        run: node --test supabase/tests/p01_asaas_retirement.test.mjs
+
+      - name: Security contract — payment internal RPC only via service_role
+        run: node --test supabase/tests/p01_internal_payment_rpc_callers.test.mjs
+
+      - name: Tests
+        run: npm run test
+
+      - name: Build
+        run: npm run build
+
+  retired-asaas-db:
+    name: P01 retired Asaas PostgreSQL 17
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: optmamenu_legacy_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d optmamenu_legacy_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Test SQL migration with synthetic Asaas and OptmaPay
+        run: |
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_legacy_test \
+            -v ON_ERROR_STOP=1 -f supabase/tests/p01_retired_asaas_provider_pg17.sql
+
+  p00-postgres-acl:
+    name: P00 PostgreSQL 17 permissions
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: optmamenu_acl_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d optmamenu_acl_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Real PostgreSQL role-grant regression (synthetic data only)
+        run: |
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo \
+            postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_acl_test \
+            -v ON_ERROR_STOP=1 -f supabase/tests/p00_internal_payment_rpc_grants.sql
+      - name: Simulate the October 30 future-table grant behavior
+        run: |
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo \
+            postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_acl_test \
+            -v ON_ERROR_STOP=1 -f supabase/tests/p01_future_table_grants.sql
+
+  p02-customer-isolation:
+    name: P02 customer-session isolation PostgreSQL 17
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: optmamenu_p02_isolation
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d optmamenu_p02_isolation"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Validate current customer and owner RLS expressions with synthetic sessions
+        run: |
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_p02_isolation \
+            -v ON_ERROR_STOP=1 -f supabase/tests/p02_customer_isolation_rls_pg17.sql
+
+  p04-calendar-security:
+    name: P04 financial calendar search_path PostgreSQL 17
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: optmamenu_p04_calendar
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d optmamenu_p04_calendar"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Test calendar outputs and permissions before/after hardening
+        run: |
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_p04_calendar \
+            -v ON_ERROR_STOP=1 -f supabase/tests/p04_financial_calendar_search_path_pg17.sql
+
+  p04-signed-jwt-rls:
+    name: P04 signed JWT HTTP customer/store isolation
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: optmamenu_p04_jwt
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d optmamenu_p04_jwt"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node.js 22 for signed-JWT HTTP assertions
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Bootstrap production-derived RLS and synthetic sessions
+        run: |
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_p04_jwt \
+            -v ON_ERROR_STOP=1 -f supabase/tests/p02_customer_isolation_rls_pg17.sql
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_p04_jwt \
+            -v ON_ERROR_STOP=1 -f supabase/tests/p04_postgrest_jwt_fixture.sql
+      - name: Issue ephemeral signing key
+        run: echo "P04_JWT_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+      - name: Launch pinned local PostgREST
+        run: |
+          docker run -d --name optmamenu-p04-jwt --network host \
+            -e PGRST_DB_URI='postgres://authenticator:p04-only-local-postgrest@127.0.0.1:5432/optmamenu_p04_jwt' \
+            -e PGRST_DB_SCHEMAS='public' -e PGRST_DB_ANON_ROLE='anon' \
+            -e PGRST_JWT_SECRET="$P04_JWT_SECRET" -e PGRST_SERVER_PORT=3030 \
+            postgrest/postgrest:v14.13
+          for i in $(seq 1 40); do
+            if curl -fsS -o /dev/null http://127.0.0.1:3030/; then exit 0; fi
+            sleep 1
+          done
+          docker logs optmamenu-p04-jwt
+          exit 1
+      - name: Verify signed JWT HTTP and customer RLS
+        run: node --test supabase/tests/p04_signed_jwt_postgrest.test.mjs
+      - name: Remove ephemeral HTTP service
+        if: always()
+        run: docker rm -f optmamenu-p04-jwt || true
+
+  p05-inventory-acl:
+    name: P05 inventory RPC grant regression PostgreSQL 17
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: optmamenu_p05_acl
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d optmamenu_p05_acl"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Validate legacy stock grants, deny anonymous, preserve invoker and service
+        run: |
+          docker run --rm --network host \
+            -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_p05_acl \
+            -v ON_ERROR_STOP=1 -f supabase/tests/p05_inventory_sync_acl_pg17.sql
+
+  p06-internal-stock-gateway:
+    name: P06 private inventory helper and signed JWT HTTP
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: optmamenu_p06
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d optmamenu_p06"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build original schema and relocate privileged helper on PostgreSQL 17
+        run: |
+          docker run --rm --network host -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_p06 -v ON_ERROR_STOP=1 \
+            -f supabase/tests/p05_inventory_sync_acl_pg17.sql
+          docker run --rm --network host -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_p06 -v ON_ERROR_STOP=1 \
+            -f supabase/tests/p06_private_stock_sync_pg17.sql
+          docker run --rm --network host -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_p06 -v ON_ERROR_STOP=1 \
+            -f supabase/tests/p06_postgrest_fixture.sql
+      - name: Issue ephemeral local JWT secret
+        run: echo "P06_JWT_SECRET=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+      - name: Start PostgREST with public schema only
+        run: |
+          docker run -d --name optmamenu-p06-rest --network host \
+            -e PGRST_DB_URI='postgres://authenticator:p06-lab-postgrest-only@127.0.0.1:5432/optmamenu_p06' \
+            -e PGRST_DB_SCHEMAS='public' -e PGRST_DB_ANON_ROLE='anon' \
+            -e PGRST_JWT_SECRET="$P06_JWT_SECRET" -e PGRST_SERVER_PORT=3031 \
+            postgrest/postgrest:v14.13
+          for i in $(seq 1 40); do
+            if curl -fsS -o /dev/null http://127.0.0.1:3031/; then exit 0; fi
+            sleep 1
+          done
+          docker logs optmamenu-p06-rest
+          exit 1
+      - name: Test signed JWT, hidden RPC, cross-store and read-only cases
+        run: node --test supabase/tests/p06_stock_gateway_postgrest.test.mjs
+      - name: Cleanup ephemeral gateway
+        if: always()
+        run: docker rm -f optmamenu-p06-rest || true
+
+
+  p06-real-stock-movement:
+    name: P06 full real stock movement function PostgreSQL 17
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: optmamenu_p06_full
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d optmamenu_p06_full"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Reproduce original inventory schema on PostgreSQL 17
+        run: |
+          docker run --rm --network host -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_p06_full -v ON_ERROR_STOP=1 \
+            -f supabase/tests/p05_inventory_sync_acl_pg17.sql
+          docker run --rm --network host -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_p06_full -v ON_ERROR_STOP=1 \
+            -f supabase/tests/p06_private_stock_sync_pg17.sql
+      - name: Execute real inventory movement function on synthetic stores
+        run: |
+          docker run --rm --network host -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_p06_full -v ON_ERROR_STOP=1 \
+            -f supabase/tests/p06_full_stock_movement_pg17.sql
+
+  p07-stock-location-permissions:
+    name: P07 stock location write permission matrix PostgreSQL 17
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: optmamenu_p07
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d optmamenu_p07"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Test permissions on real policy expressions and synthetic stores
+        run: |
+          docker run --rm --network host -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_p07 -v ON_ERROR_STOP=1 \
+            -f supabase/tests/p07_inventory_location_balances_pg17.sql
+
+  s08-sms-credentials-private:
+    name: S08 SMS vault grants and tenant-scoped cutover PostgreSQL 17
+    runs-on: ubuntu-latest
+    timeout-minutes: 13
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: optmamenu_s08
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d optmamenu_s08"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Execute vault / owner permission / cleanup regression
+        run: |
+          docker run --rm --network host -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_s08 -v ON_ERROR_STOP=1 \
+            -f supabase/tests/s08_sms_gateway_vault_pg17.sql
+      - name: Verify OTP and frontend do not read public tokens
+        run: node --test supabase/tests/s08_sms_gateway_static.test.mjs
+
+  s09-anon-admin-rpc-privileges:
+    name: S09 admin RPC anon grants PostgreSQL 17
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: optmamenu_s09
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d optmamenu_s09"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preserve public checkout and revoke 16 admin RPC grants
+        run: |
+          docker run --rm --network host -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_s09 -v ON_ERROR_STOP=1 \
+            -f supabase/tests/s09_admin_anon_acl_pg17.sql
+
+  s10-public-table-default-grants:
+    name: S10 public defaults and explicit opt-in PostgreSQL 17
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: optmamenu_s10
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d optmamenu_s10"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test existing grants preserved, new objects denied, and RLS opt-in
+        run: |
+          docker run --rm --network host -e PGPASSWORD=postgres \
+            -v "$PWD:/repo:ro" -w /repo postgres:17 \
+            psql -h 127.0.0.1 -U postgres -d optmamenu_s10 -v ON_ERROR_STOP=1 \
+            -f supabase/tests/s10_public_defaults_pg17.sql

@@ -83,6 +83,14 @@ export interface ConfirmPendingPaymentInput {
     metadata?: Record<string, unknown>;
 }
 
+export interface AdjustFinancialAccountBalanceInput {
+    store_id: string;
+    account_id: string;
+    effective_at: string;
+    target_balance: number;
+    notes?: string | null;
+}
+
 export interface CashbookSummary {
     start_date: string;
     end_date: string;
@@ -395,6 +403,31 @@ export const CashbookService = {
         if (error) throw error;
 
         return data as CashbookEntry | null;
+    },
+
+    async adjustFinancialAccountBalance(input: AdjustFinancialAccountBalanceInput) {
+        const { data, error } = await supabase.rpc('adjust_financial_account_balance_safe', {
+            p_store_id: input.store_id,
+            p_account_id: input.account_id,
+            p_effective_at: input.effective_at,
+            p_target_balance: input.target_balance,
+            p_notes: input.notes || null,
+        });
+
+        if (error) throw error;
+        if (!data?.ok) {
+            throw new Error(data?.error || 'Não foi possível ajustar o saldo acumulado da conta.');
+        }
+
+        return data as {
+            ok: boolean;
+            changed?: boolean;
+            previous_balance?: number;
+            target_balance?: number;
+            delta?: number;
+            account_id?: string;
+            account_name?: string;
+        };
     },
 
     async confirmPendingPayment(input: ConfirmPendingPaymentInput) {

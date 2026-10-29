@@ -12,8 +12,10 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import BackToTopButton from '@/components/common/navigation/BackToTopButton';
 import PendingOrdersFloatingAlert from '@/components/orders/PendingOrdersFloatingAlert';
 import { useInventoryAttentionCount } from '@/hooks/inventory/useInventoryAttentionCount';
+import { useAccountsPayableDueAlerts } from '@/hooks/financial/useAccountsPayableDueAlerts';
 import { usePermissions } from '@/hooks/usePermissions';
 import { hasEffectivePermission } from '@/utils/permissions';
+import { findNavigationContext, isNavigationContextActive } from '@/utils/adminNavigationContext';
 import { useRealtimeListener } from '@/hooks/useRealtimeListener';
 import { MyStoreInvitesBanner } from '@/components/invites/MyStoreInvitesBanner';
 import { useIdleSessionTimeout } from '@/hooks/useIdleSessionTimeout';
@@ -49,13 +51,13 @@ import {
     UserCircle,
     Clock,
     BookOpen,
+    CreditCard,
     MessageSquare,
     Truck,
     RadioTower,
     Activity,
     ArrowRightLeft,
     WalletCards,
-    Sparkles,
     FileStack,
     Megaphone,
     Store as StoreIcon,
@@ -66,6 +68,7 @@ import {
     ScrollText,
     BadgeDollarSign,
     FolderTree,
+    ReceiptText,
     MonitorSmartphone,
     TriangleAlert,
     Home,
@@ -126,11 +129,10 @@ const SETTINGS_TAB_VIEW_PERMISSIONS = [
     'settings.stock.view',
     'settings.delivery.view',
     'settings.payment.view',
-    'messages.view',
+    'settings.messages.view',
     'settings.legal.view',
     'settings.system.view',
     'settings.appearance.view',
-    'settings.appearance.manage',
 ];
 
 function formatLayoutRole(role: string): string {
@@ -179,6 +181,8 @@ export default function PrivateLayout() {
     const [storeId, setStoreId] = useState<string | null>(null);
     const { permissions, refreshing: refreshingPermissions } = usePermissions(storeId ?? null);
     const attentionCount = useInventoryAttentionCount();
+    const financialDueAlerts = useAccountsPayableDueAlerts(storeId);
+    const centralAttentionCount = attentionCount + financialDueAlerts.count;
     const [storeSlug, setStoreSlug] = useState<string | null>(null);
     const [isPublicStoreEnabled, setIsPublicStoreEnabled] = useState(false);
     const [loadingStore, setLoadingStore] = useState(true);
@@ -307,7 +311,7 @@ export default function PrivateLayout() {
         }
 
         if (item.path === '/admin/security') {
-            return canShowSecurityMenu();
+            return canShowSecurityMenu() && (!item.permission || hasPermission(item.permission));
         }
 
         const sectionAccessPermission = SECTION_ACCESS_PERMISSIONS[section];
@@ -350,10 +354,6 @@ export default function PrivateLayout() {
         return true;
     }, [isOnboardingPending, isOwner, hasPermission, hasRootPermission, can, canShowSecurityMenu, canShowSettingsMenu]);
 
-    const [isNewSession] = useState(() => {
-        const stored = sessionStorage.getItem('optmamenu.session.start');
-        return !stored;
-    });
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [sessionStartTime] = useState<Date>(() => {
         const stored = sessionStorage.getItem('optmamenu.session.start');
@@ -381,7 +381,6 @@ export default function PrivateLayout() {
             { path: '/admin/customers', icon: Users, label: 'Clientes', permission: 'customers.view' },
             { path: '/admin/commercial-dashboard', icon: BarChart3, label: 'Dashboard comercial', permission: 'commercial.dashboard.view' },
             { path: '/admin/loyalty', icon: Heart, label: 'Fidelidade', permission: 'loyalty.view' },
-            { path: '/admin/loyalty/advanced', icon: Sparkles, label: 'Fidelidade avançada', permission: 'loyalty.view' },
             { path: '/admin/messages-admin', icon: MessageSquare, label: 'Mensagens', permission: 'messages.view' },
             { path: '/admin/orders', icon: ShoppingBag, label: 'Pedidos', permission: 'orders.view' },
             { path: '/admin/marketing', icon: Megaphone, label: 'Promoções', permission: 'marketing.view' },
@@ -393,10 +392,13 @@ export default function PrivateLayout() {
             { path: '/admin/cashbook', icon: WalletCards, label: 'Livro diário', permission: 'cashbook.view' },
             { path: '/admin/account-plan', icon: FolderTree, label: 'Plano de contas', permission: 'financial.account_plan.view' },
             { path: '/admin/financial-accounts', icon: Building, label: 'Contas financeiras', permission: 'financial.accounts.view' },
+            { path: '/admin/online-payments', icon: CreditCard, label: 'Pagamentos online', permission: 'payments.online.view' },
+            { path: '/admin/accounts-payable', icon: ReceiptText, label: 'Contas a pagar', permission: 'accounts_payable.view' },
         ],
         products: [
             { path: '/admin/categories', icon: Layers, label: 'Categorias', permission: 'categories.view' },
             { path: '/admin/stock/purchase-documents', icon: History, label: 'Compras', permission: 'purchases.view' },
+            { path: '/admin/stock/purchase-insights', icon: BarChart3, label: 'Análise de compras', permission: 'purchases.view' },
             { path: '/admin/stock/quotations', icon: FileText, label: 'Cotação', permission: 'quotes.view' },
             { path: '/admin/inventory', icon: FileText, label: 'Estoque', permission: 'stock.view' },
             { path: '/admin/stock/divergences', icon: TriangleAlert, label: 'Divergências', permission: 'stock.view' },
@@ -423,11 +425,11 @@ export default function PrivateLayout() {
             },
         ],
         security: [
-            {
-                path: '/admin/security',
-                icon: Shield,
-                label: 'Senhas e Acesso',
-            },
+            { path: '/admin/security', icon: Shield, label: 'Central de segurança' },
+            { path: '/admin/security', queryString: 'tab=roles', icon: Shield, label: 'Permissões por papel', permission: 'security.roles.view' },
+            { path: '/admin/security', queryString: 'tab=custom_roles', icon: Users, label: 'Funções personalizadas', permission: 'security.custom_roles.view' },
+            { path: '/admin/security', queryString: 'tab=user_permissions', icon: UserCircle, label: 'Permissões por usuário', permission: 'security.user_permissions.view' },
+            { path: '/admin/security', queryString: 'tab=logs', icon: ScrollText, label: 'Histórico de atividades', permission: 'security.logs.view' },
         ],
         support: [
             { path: '/admin/docs', icon: BookOpen, label: 'Documentação', permission: 'support.view' },
@@ -922,12 +924,6 @@ export default function PrivateLayout() {
     };
 
     useEffect(() => {
-        if (isNewSession && pathname !== '/admin') {
-            navigate('/admin', { replace: true });
-        }
-    }, [isNewSession, pathname, navigate]);
-
-    useEffect(() => {
         const timer = setInterval(() => {
             setCurrentTime(new Date());
         }, 1000);
@@ -993,65 +989,26 @@ export default function PrivateLayout() {
         };
     }, [popoverTimeoutId]);
 
-    // Resolve o grupo e item ativo
-    const currentItem = useMemo(() => {
-        if (pathname === '/admin') {
-            return { group: 'home', item: { path: '/admin', icon: Home, label: 'Início' } };
-        }
-        const search = location.search || '';
-        // 1. Tenta correspondência exata de caminho e query string
-        for (const [group, items] of Object.entries(navigationItems)) {
-            const matchedItem = items.find(item => {
-                if (pathname !== item.path) return false;
-                if (item.queryString) {
-                    if (item.path === '/admin/settings' && item.queryString === 'tab=store') {
-                        return search.includes('tab=store') || !search.includes('tab=');
-                    }
-                    return search.includes(item.queryString);
-                }
-                return true;
-            });
-            if (matchedItem) {
-                return { group, item: matchedItem };
-            }
-        }
-        // 2. Se não achar exato com query string, tenta correspondência simples de caminho
-        for (const [group, items] of Object.entries(navigationItems)) {
-            const matchedItem = items.find(item => pathname === item.path);
-            if (matchedItem) {
-                return { group, item: matchedItem };
-            }
-        }
-        // 3. Se não achar exato, tenta por prefixo de subpasta (excluindo /admin que é raiz)
-        for (const [group, items] of Object.entries(navigationItems)) {
-            const matchedItem = items.find(item => {
-                if (item.path === '/admin') return false;
-                return pathname.startsWith(item.path + '/');
-            });
-            if (matchedItem) {
-                return { group, item: matchedItem };
-            }
-        }
-        return null;
-    }, [navigationItems, pathname, location.search]);
+    // Resolve a rota incluindo a aba: atalhos contextuais não podem ser
+    // confundidos com a entrada genérica da mesma página.
+    const currentItem = useMemo(
+        () => findNavigationContext(navigationItems, pathname, location.search),
+        [navigationItems, pathname, location.search]
+    );
 
-    // Helper para verificar se um item de menu está ativo no contexto atual
+    useEffect(() => {
+        const label = currentItem?.item?.label || 'Início';
+        document.title = `OptmaMenu | ${label}`;
+
+        return () => {
+            document.title = 'OptmaMenu';
+        };
+    }, [currentItem?.item?.label]);
+
     const isMenuItemActive = useCallback(
-        (item: MenuItem, currentSearch: string) => {
-            const pathMatches =
-                pathname === item.path ||
-                (item.path !== '/admin' && item.path !== '/admin/products' && pathname.startsWith(`${item.path}/`));
-            if (!pathMatches) return false;
-            if (item.queryString) {
-                const search = currentSearch || '';
-                if (item.path === '/admin/settings' && item.queryString === 'tab=store') {
-                    return search.includes('tab=store') || !search.includes('tab=');
-                }
-                return search.includes(item.queryString);
-            }
-            return true;
-        },
-        [pathname]
+        (item: MenuItem, currentSearch: string) =>
+            isNavigationContextActive(navigationItems, item, pathname, currentSearch),
+        [navigationItems, pathname]
     );
 
     // Resolve as rotas irmãs para o Acesso Rápido (exclui o atual)
@@ -1550,16 +1507,17 @@ export default function PrivateLayout() {
                             {/* Alerts Icon */}
                             <button
                                 type="button"
-                                title={attentionCount > 0 ? `${attentionCount} alertas de estoque pendentes` : "Sem novos alertas"}
-                                className={`inline-flex h-11 w-11 items-center justify-center rounded-lg transition relative shrink-0 ${attentionCount > 0
+                                onClick={() => navigate("/admin/alerts")}
+                                title={centralAttentionCount > 0 ? `${financialDueAlerts.count} avisos financeiros e ${attentionCount} alertas de estoque` : "Abrir central de avisos"}
+                                className={`inline-flex h-11 w-11 items-center justify-center rounded-lg transition relative shrink-0 ${centralAttentionCount > 0
                                     ? 'text-brand-light bg-brand-light/10 hover:bg-brand-light/20'
                                     : 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'
                                     }`}
                             >
-                                <Bell size={19} className={attentionCount > 0 ? 'animate-pulse' : ''} />
-                                {attentionCount > 0 && (
+                                <Bell size={19} className={centralAttentionCount > 0 ? 'animate-pulse' : ''} />
+                                {centralAttentionCount > 0 && (
                                     <span className="absolute -top-0.5 -right-0.5 bg-brand-light text-gray-900 text-[10px] font-black rounded-full h-4 min-w-4 px-1 flex items-center justify-center border border-white dark:border-gray-800">
-                                        {attentionCount}
+                                        {centralAttentionCount}
                                     </span>
                                 )}
                             </button>
@@ -1772,7 +1730,7 @@ export default function PrivateLayout() {
                 <div id="main-scroll-container" className="flex-1 min-w-0 overflow-y-auto custom-scrollbar flex flex-col bg-[#F8F6F2] dark:bg-gray-950">
                     <main className="flex-1 min-w-0 p-4 md:p-8">
                         <MyStoreInvitesBanner />
-                        <Outlet />
+                        <Outlet context={{ storeId }} />
                     </main>
                 </div>
             </div>

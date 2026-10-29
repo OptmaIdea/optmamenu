@@ -1,9 +1,11 @@
-﻿import { useMemo, useState, useEffect, Fragment } from 'react';
+import { useMemo, useState, useEffect, Fragment } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { useInventoryByLocation } from './hooks/useInventoryByLocation';
 import { useInventoryTransit } from './hooks/useInventoryTransit';
+import { useInventoryDeliveryInRoute } from './hooks/useInventoryDeliveryInRoute';
+import { InventoryCompactOverview } from './components/InventoryCompactOverview';
 import { mergeInventoryRowsWithTransit } from './utils/mergeInventoryTransit';
 import { downloadCsv } from '@/utils/export/csv';
 import { formatNumberPtBr } from '@/utils/export/formatters';
@@ -99,8 +101,12 @@ export default function InventoryByLocationPage() {
   const navigate = useNavigate();
   const { rows: rawRows, loading, storeId } = useInventoryByLocation();
   const { rows: transitRows } = useInventoryTransit(storeId);
+  const { byProduct: deliveryByProduct, byLocation: deliveryByLocation, loading: deliveryLoading, error: deliveryError } = useInventoryDeliveryInRoute(storeId);
   const { permissions } = usePermissions(storeId ?? null);
   const canCreateTransfers = hasEffectivePermission(permissions, 'transfers.create');
+  const canCreateQuotes =
+    hasEffectivePermission(permissions, 'quotes.manage') ||
+    hasEffectivePermission(permissions, 'quotes.create');
 
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
 
@@ -117,7 +123,17 @@ export default function InventoryByLocationPage() {
   const [selectedLocation, setSelectedLocation] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [selectedAction, setSelectedAction] = useState('all');
-  const [groupBy, setGroupBy] = useState<'none' | 'product' | 'location'>('none');
+  const [groupBy, setGroupBy] = useState<'none' | 'product' | 'location'>('product');
+  const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(new Set());
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  const toggleGroup = (key: string) => setExpandedGroupIds((current) => {
+    const next = new Set(current);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    return next;
+  });
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
   const [showInactives, setShowInactives] = useState(false);
 
@@ -199,14 +215,14 @@ export default function InventoryByLocationPage() {
   const groupedRows = useMemo(() => {
     if (groupBy === 'none') return null;
 
-    const groups = new Map<string, { label: string; rows: any[] }>();
+    const groups = new Map<string, { key: string; label: string; rows: any[] }>();
 
     sortedRows.forEach((row) => {
       const key = groupBy === 'product' ? row.product_id : row.location_id;
       const label = groupBy === 'product' ? row.product_name : row.location_name;
 
       if (!groups.has(key)) {
-        groups.set(key, { label, rows: [] });
+        groups.set(key, { key, label, rows: [] });
       }
       groups.get(key)!.rows.push(row);
     });
@@ -274,15 +290,17 @@ export default function InventoryByLocationPage() {
     selectedLocation !== 'all' ||
     selectedStatus !== 'all' ||
     selectedAction !== 'all' ||
-    groupBy !== 'none' ||
-    sortConfig !== null;
+    groupBy !== 'product' ||
+    sortConfig !== null ||
+    showInactives;
 
   const clearFilters = () => {
     setSearch('');
     setSelectedLocation('all');
     setSelectedStatus('all');
     setSelectedAction('all');
-    setGroupBy('none');
+    setGroupBy('product');
+    setExpandedGroupIds(new Set());
     setSortConfig(null);
     setShowInactives(false);
   };
@@ -398,13 +416,41 @@ export default function InventoryByLocationPage() {
     navigate(`/admin/transfers?${params.toString()}`);
   };
 
+  const getSuggestedPurchaseQty = (row: any) => {
+    const localMinimum = Number(row.provisional_location_min_stock ?? row.min_stock ?? 0);
+    const globalAvailable = Number(row.global_available ?? row.available ?? 0);
+    const localAvailable = Number(row.available ?? 0);
+    const target = Math.max(localMinimum, 1);
+    const shortage = target - Math.max(globalAvailable, localAvailable);
+
+    return Math.max(1, Math.ceil(shortage > 0 ? shortage : target));
+  };
+
+  const handleCreateQuotationFromRow = (row: any) => {
+    if (!canCreateQuotes) {
+      return;
+    }
+
+    const suggestedQty = getSuggestedPurchaseQty(row);
+    const params = new URLSearchParams({
+      product_id: row.product_id,
+      product_name: row.product_name,
+      location_id: row.location_id,
+      location_name: row.location_name,
+      suggested_qty: String(suggestedQty),
+      source: 'inventory_replenishment',
+    });
+
+    navigate(`/admin/stock/quotations?${params.toString()}`);
+  };
+
   if (loading) return <LoadingSpinner />;
 
   if (!loading && !hasAnyData) {
     return (
       <PageContainer
         title="Estoque"
-        subtitle="Visão multiestoque com saldo físico, reservado e disponível por local."
+        subtitle="Estoque agrupado por produto, entregas em rota, transferências e saldo disponível por local."
         category="Produtos"
         icon={<FileText size={28} className="text-[#19A999]" />}
         flat
@@ -433,106 +479,36 @@ export default function InventoryByLocationPage() {
 
       <PageContainer
         title="Estoque"
-        subtitle="Visão multiestoque com saldo físico, reservado e disponível por local."
+        subtitle="Estoque agrupado por produto, entregas em rota, transferências e saldo disponível por local."
         category="Produtos"
         icon={<FileText size={28} className="text-[#19A999]" />}
         flat
       >
 
-      {/* Cards gerenciais */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-8 gap-4">
-        <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700">
-          <div className="text-sm text-gray-500">Posições</div>
-          <div className="text-2xl font-bold">{filteredRows.length}</div>
+      {/* Filtros compactos e recolhíveis, inclusive quando há critérios ativos. */}
+      <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((open) => !open)}
+            aria-expanded={filtersOpen}
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-800 dark:border-gray-600 dark:text-gray-100"
+          >
+            {filtersOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            Filtros {hasFilters ? '• aplicados' : ''}
+          </button>
+          {hasFilters && (
+            <button type="button" onClick={clearFilters} className="min-h-10 rounded-xl border border-red-200 px-3 text-xs font-bold text-red-700 dark:border-red-900 dark:text-red-300">
+              Limpar filtros
+            </button>
+          )}
+          <span className="ml-auto text-xs font-medium text-gray-500 dark:text-gray-400">
+            {filteredRows.length} de {rows.length} posições
+          </span>
         </div>
-
-        <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700">
-          <div className="text-sm text-gray-500">Locais</div>
-          <div className="text-2xl font-bold">{filteredLocationsCount}</div>
-        </div>
-
-        <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700">
-          <div className="text-sm text-gray-500 flex items-center gap-1">
-            Comprar
-            <InfoTooltip text="Produtos cujo estoque global está zerado ou crítico. A ação correta tende a ser compra/reposição." />
-          </div>
-          <div className="mt-2 flex items-center gap-2">
-            <ShoppingCart size={18} className="text-red-500" />
-            <span className="text-2xl font-bold text-red-600 dark:text-red-400">
-              {filteredSummary.recommendedBuy}
-            </span>
-          </div>
-        </div>
-
-        <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700">
-          <div className="text-sm text-gray-500 flex items-center gap-1">
-            Transferir
-            <InfoTooltip text="Produtos com saldo global, mas com ruptura ou criticidade em algum local. A ação sugerida é redistribuição." />
-          </div>
-          <div className="mt-2 flex items-center gap-2">
-            <ArrowRightLeft size={18} className="text-blue-500" />
-            <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-              {filteredSummary.recommendedTransfer}
-            </span>
-          </div>
-        </div>
-
-        <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700">
-          <div className="text-sm text-gray-500 flex items-center gap-1">
-            Locais críticos
-            <InfoTooltip text="Quantidade de posições por local sem estoque ou abaixo do mínimo provisório." />
-          </div>
-          <div className="mt-2 flex items-center gap-2">
-            <AlertTriangle size={18} className="text-amber-500" />
-            <span className="text-2xl font-bold text-amber-600 dark:text-amber-400">
-              {filteredSummary.locationStockout + filteredSummary.locationCritical}
-            </span>
-          </div>
-        </div>
-
-        <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700">
-          <div className="text-sm text-gray-500 flex items-center gap-1">
-            Disponível
-            <InfoTooltip text="Soma do disponível das posições filtradas." />
-          </div>
-          <div className="mt-2 flex items-center gap-2">
-            <Archive size={18} className="text-emerald-500" />
-            <span className="text-2xl font-bold">
-              {formatNumberPtBr(filteredSummary.available)}
-            </span>
-          </div>
-        </div>
-
-        <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700">
-          <div className="text-sm text-gray-500 flex items-center gap-1">
-            Trânsito entrada
-            <InfoTooltip text="Quantidade total a caminho desta localização, ainda não recebida." />
-          </div>
-          <div className="mt-2 flex items-center gap-2">
-            <Truck size={18} className="text-sky-500" />
-            <span className="text-2xl font-bold text-sky-600 dark:text-sky-400">
-              {formatNumberPtBr(totalInTransitIn)}
-            </span>
-          </div>
-        </div>
-
-        <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700">
-          <div className="text-sm text-gray-500 flex items-center gap-1">
-            Trânsito saída
-            <InfoTooltip text="Quantidade total enviada desta localização, ainda não recebida no destino." />
-          </div>
-          <div className="mt-2 flex items-center gap-2">
-            <Truck size={18} className="text-amber-500" />
-            <span className="text-2xl font-bold text-amber-600 dark:text-amber-400">
-              {formatNumberPtBr(totalInTransitOut)}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Filtros */}
-      <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700 space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
+        {filtersOpen && (
+          <div className="mt-3 space-y-3 border-t border-gray-100 pt-3 dark:border-gray-700">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-6">
           <input
             type="text"
             placeholder="Buscar por produto ou local"
@@ -543,7 +519,13 @@ export default function InventoryByLocationPage() {
 
           <select
             value={selectedLocation}
-            onChange={(e) => setSelectedLocation(e.target.value)}
+            onChange={(e) => {
+              const nextLocation = e.target.value;
+              setSelectedLocation(nextLocation);
+              setGroupBy('product');
+              setExpandedGroupIds(new Set());
+              setFiltersOpen(false);
+            }}
             className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2 text-sm outline-none"
           >
             <option value="all">Todos os locais</option>
@@ -556,7 +538,7 @@ export default function InventoryByLocationPage() {
 
           <select
             value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
+            onChange={(e) => { setSelectedStatus(e.target.value); setFiltersOpen(false); }}
             className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2 text-sm outline-none"
           >
             <option value="all">Todos os status</option>
@@ -569,7 +551,7 @@ export default function InventoryByLocationPage() {
 
           <select
             value={selectedAction}
-            onChange={(e) => setSelectedAction(e.target.value)}
+            onChange={(e) => { setSelectedAction(e.target.value); setFiltersOpen(false); }}
             className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2 text-sm outline-none"
           >
             <option value="all">Todas as ações</option>
@@ -580,30 +562,7 @@ export default function InventoryByLocationPage() {
             <option value="ok">OK</option>
           </select>
 
-          <select
-            value={groupBy}
-            onChange={(e) => setGroupBy(e.target.value as any)}
-            className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2 text-sm outline-none"
-          >
-            <option value="none">Sem agrupamento</option>
-            <option value="product">Agrupar por Produto</option>
-            <option value="location">Agrupar por Local</option>
-          </select>
 
-          <select
-            value={sortConfig?.key || 'none'}
-            onChange={(e) => {
-              if (e.target.value === 'none') setSortConfig(null);
-              else handleSort(e.target.value);
-            }}
-            className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2 text-sm outline-none"
-          >
-            <option value="none">Ordenar por...</option>
-            <option value="product_name">Produto (A-Z)</option>
-            <option value="location_name">Local (A-Z)</option>
-            <option value="available">Estoque Disponível</option>
-            <option value="on_hand">Estoque Físico</option>
-          </select>
         </div>
 
         <div className="flex items-center gap-4 pt-1">
@@ -633,22 +592,204 @@ export default function InventoryByLocationPage() {
           )}
         </div>
 
-        {hasFilters && (
-          <p className="text-xs text-gray-400">
-            {filteredRows.length} de {rows.length} posição{rows.length !== 1 ? 'ões' : ''} exibida{filteredRows.length !== 1 ? 's' : ''}
-          </p>
+          </div>
         )}
       </div>
 
-      {/* Tabela */}
+
+      <InventoryCompactOverview
+        rows={filteredRows}
+        selectedLocation={selectedLocation}
+        deliveryByProduct={deliveryByProduct}
+        deliveryByLocation={deliveryByLocation}
+        deliveryLoading={deliveryLoading}
+        deliveryError={deliveryError}
+      />
+
+      <button type="button" onClick={() => setAdvancedOpen((open) => !open)} aria-expanded={advancedOpen}
+        className="mt-3 mb-3 flex min-h-11 w-full items-center justify-between rounded-xl border border-gray-200 bg-white px-4 text-sm font-bold text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+        <span>{advancedOpen ? 'Recolher análise gerencial e operações' : 'Mostrar análise gerencial e operações detalhadas'}</span>
+        {advancedOpen ? <ChevronUp size={17} /> : <ChevronDown size={17} />}
+      </button>
+
+      {advancedOpen && (
+        <div className="space-y-4">
+                {/* Cards gerenciais */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8">
+        <div className="rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700">
+          <div className="text-sm text-gray-500">Posições</div>
+          <div className="text-xl font-bold">{filteredRows.length}</div>
+        </div>
+
+        <div className="rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700">
+          <div className="text-sm text-gray-500">Locais</div>
+          <div className="text-xl font-bold">{filteredLocationsCount}</div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setSelectedAction((current) => (current === 'buy' ? 'all' : 'buy'))}
+          className="text-left rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700 transition hover:border-red-300 dark:hover:border-red-700"
+          title="Filtrar itens sugeridos para compra"
+        >
+          <div className="text-sm text-gray-500 flex items-center gap-1">
+            Comprar
+            <InfoTooltip text="Produtos cujo estoque global está zerado ou crítico. A ação correta tende a ser compra/reposição." />
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <ShoppingCart size={18} className="text-red-500" />
+            <span className="text-xl font-bold text-red-600 dark:text-red-400">
+              {filteredSummary.recommendedBuy}
+            </span>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setSelectedAction((current) => (current === 'transfer' ? 'all' : 'transfer'))}
+          className="text-left rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700 transition hover:border-blue-300 dark:hover:border-blue-700"
+          title="Filtrar itens sugeridos para transferência"
+        >
+          <div className="text-sm text-gray-500 flex items-center gap-1">
+            Transferir
+            <InfoTooltip text="Produtos com saldo global, mas com ruptura ou criticidade em algum local. A ação sugerida é redistribuição." />
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <ArrowRightLeft size={18} className="text-blue-500" />
+            <span className="text-xl font-bold text-blue-600 dark:text-blue-400">
+              {filteredSummary.recommendedTransfer}
+            </span>
+          </div>
+        </button>
+
+        <div className="rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700">
+          <div className="text-sm text-gray-500 flex items-center gap-1">
+            Locais críticos
+            <InfoTooltip text="Quantidade de posições por local sem estoque ou abaixo do mínimo provisório." />
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <AlertTriangle size={18} className="text-amber-500" />
+            <span className="text-xl font-bold text-amber-600 dark:text-amber-400">
+              {filteredSummary.locationStockout + filteredSummary.locationCritical}
+            </span>
+          </div>
+        </div>
+
+        <div className="rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700">
+          <div className="text-sm text-gray-500 flex items-center gap-1">
+            Disponível
+            <InfoTooltip text="Soma do disponível das posições filtradas." />
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <Archive size={18} className="text-emerald-500" />
+            <span className="text-xl font-bold">
+              {formatNumberPtBr(filteredSummary.available)}
+            </span>
+          </div>
+        </div>
+
+        <div className="rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700">
+          <div className="text-sm text-gray-500 flex items-center gap-1">
+            Trânsito entrada
+            <InfoTooltip text="Quantidade total a caminho desta localização, ainda não recebida." />
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <Truck size={18} className="text-sky-500" />
+            <span className="text-xl font-bold text-sky-600 dark:text-sky-400">
+              {formatNumberPtBr(totalInTransitIn)}
+            </span>
+          </div>
+        </div>
+
+        <div className="rounded-2xl bg-white dark:bg-gray-800 p-3 shadow-sm border border-gray-100 dark:border-gray-700">
+          <div className="text-sm text-gray-500 flex items-center gap-1">
+            Trânsito saída
+            <InfoTooltip text="Quantidade total enviada desta localização, ainda não recebida no destino." />
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <Truck size={18} className="text-amber-500" />
+            <span className="text-xl font-bold text-amber-600 dark:text-amber-400">
+              {formatNumberPtBr(totalInTransitOut)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+
+                {/* Tabela */}
       <div className="space-y-4">
         <div className="flex items-center">
           <h2 className="font-semibold text-gray-900 dark:text-white">
-            Posição por local
+            {groupBy === 'product' ? 'Produtos — toque para ver os locais' : groupBy === 'location' ? 'Estoque agrupado por local' : 'Posição por local'}
           </h2>
         </div>
 
-        <div className="overflow-x-auto rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+        <p className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs font-medium text-sky-900 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-200">
+          O disponível é o saldo físico menos as reservas, conforme o estoque registrado. Remessas já enviadas saíram do físico na origem; por isso não são descontadas novamente. A entrada em trânsito só fica disponível após o recebimento. Pedidos em rota de entrega não são transferências entre estoques.
+        </p>
+        {/* Em celulares e tablets retrato, itens viram resumos expansíveis em vez de tabela larga. */}
+        <div className="space-y-2 lg:hidden">
+          {(groupBy === 'none'
+            ? sortedRows.map((row) => ({ key: `${row.product_id}:${row.location_id}`, label: `${row.product_name} · ${row.location_name}`, rows: [row] }))
+            : groupedRows || []
+          ).map((group) => {
+            const opened = expandedGroupIds.has(group.key);
+            const total = (key: string) => group.rows.reduce((sum, row) => sum + Number(row[key] ?? 0), 0);
+            return (
+              <article key={group.key} className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group.key)}
+                  aria-expanded={opened}
+                  className="flex w-full items-start justify-between gap-3 p-3 text-left"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words text-sm font-black text-gray-900 dark:text-gray-100">{group.label}</p>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      Físico {formatNumberPtBr(total('on_hand'))} · Reservado {formatNumberPtBr(total('reserved'))}
+                    </p>
+                    <p className="mt-1 font-black text-emerald-700 dark:text-emerald-300">
+                      Disponível: {formatNumberPtBr(total('available'))}
+                    </p>
+                    {(total('in_transit_in') > 0 || total('in_transit_out') > 0) && (
+                      <p className="mt-1 text-xs font-semibold text-sky-700 dark:text-sky-300">
+                        {total('in_transit_in') > 0 ? `A receber: ${formatNumberPtBr(total('in_transit_in'))}` : ''}
+                        {total('in_transit_out') > 0 ? ` · Enviado: ${formatNumberPtBr(total('in_transit_out'))}` : ''}
+                      </p>
+                    )}
+                  </div>
+                  {opened ? <ChevronUp size={19} className="mt-1 shrink-0 text-gray-500" /> : <ChevronDown size={19} className="mt-1 shrink-0 text-gray-500" />}
+                </button>
+                {opened && (
+                  <div className="space-y-3 border-t border-gray-200 bg-gray-50/40 p-3 dark:border-gray-700 dark:bg-gray-900/30">
+                    {group.rows.map((row) => (
+                      <div key={`${row.location_id}:${row.product_id}:${row.variant_id || 'base'}`} className="rounded-lg border border-gray-200 bg-white p-3 text-sm dark:border-gray-700 dark:bg-gray-800">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <strong className="text-gray-900 dark:text-gray-100">{groupBy === 'location' ? row.product_name : row.location_name}</strong>
+                          <span className={`rounded-full px-2 py-1 text-xs font-bold ${statusClassMap[row.location_status] || statusClassMap[row.stock_status] || 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-200'}`}>
+                            {statusLabelMap[row.location_status] || statusLabelMap[row.stock_status] || row.stock_status}
+                          </span>
+                        </div>
+                        <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                          <div><span className="block text-gray-500">Físico</span><strong>{formatNumberPtBr(row.on_hand)}</strong></div>
+                          <div><span className="block text-gray-500">Reservado</span><strong>{formatNumberPtBr(row.reserved)}</strong></div>
+                          <div><span className="block text-gray-500">Disponível</span><strong>{formatNumberPtBr(row.available)}</strong></div>
+                          <div><span className="block text-gray-500">A receber</span><strong>{formatNumberPtBr(row.in_transit_in ?? 0)}</strong></div>
+                          <div><span className="block text-gray-500">Enviado</span><strong>{formatNumberPtBr(row.in_transit_out ?? 0)}</strong></div>
+                          <div><span className="block text-gray-500">Mín. local</span><strong>{formatNumberPtBr(row.provisional_location_min_stock ?? row.min_stock ?? 0)}</strong></div>
+                        </div>
+                        <Link to={`/admin/products/${row.product_id}/lifecycle`} className="mt-3 inline-flex min-h-9 items-center text-xs font-black text-emerald-700 underline dark:text-emerald-300">
+                          Ver Vida do Produto
+                        </Link>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </article>
+            );
+          })}
+        </div>
+        <div className="hidden overflow-x-auto rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800 lg:block">
           <table className="min-w-[1300px] w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-900/40">
               <tr>
@@ -713,7 +854,7 @@ export default function InventoryByLocationPage() {
                 <th className="text-left px-4 py-3">Status local</th>
                 <th className="text-left px-4 py-3">Ação</th>
                 <th className="text-left px-4 py-3">Global</th>
-                <th className="text-left px-4 py-3">Origem</th>
+                <th className="text-left px-4 py-3">Origem / Reposição</th>
               </tr>
             </thead>
             <tbody>
@@ -836,25 +977,57 @@ export default function InventoryByLocationPage() {
                       </td>
 
                       <td className="px-4 py-3">
-                        {row.recommended_action === 'transfer' && bestSource && canCreateTransfers ? (
-                          <div className="text-xs space-y-1">
-                            <div className="font-medium text-blue-600 dark:text-blue-300">
-                              {bestSource.location_name}
-                            </div>
-                            <div className="text-gray-400">
-                              Disp.: {formatNumberPtBr(bestSource.available ?? 0)}
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleCreateTransferFromRow(row)}
-                              className="mt-1 inline-flex items-center rounded-lg bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50"
-                            >
-                              Criar transferência
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-gray-400">—</span>
-                        )}
+                        {(() => {
+                          const action = getTransitAwareAction(row);
+
+                          if (action === 'transfer' && bestSource && canCreateTransfers) {
+                            return (
+                              <div className="text-xs space-y-1">
+                                <div className="font-medium text-blue-600 dark:text-blue-300">
+                                  {bestSource.location_name}
+                                </div>
+                                <div className="text-gray-400">
+                                  Disp.: {formatNumberPtBr(bestSource.available ?? 0)}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCreateTransferFromRow(row)}
+                                  className="mt-1 inline-flex items-center rounded-lg bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50"
+                                >
+                                  Criar transferência
+                                </button>
+                              </div>
+                            );
+                          }
+
+                          if (action === 'buy' && canCreateQuotes) {
+                            const suggestedQty = getSuggestedPurchaseQty(row);
+
+                            return (
+                              <div className="text-xs space-y-1">
+                                <div className="font-medium text-red-600 dark:text-red-300">
+                                  Repor por compra
+                                </div>
+                                <div className="text-gray-400">
+                                  Sug.: {formatNumberPtBr(suggestedQty)} un.
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCreateQuotationFromRow(row)}
+                                  className="mt-1 inline-flex items-center rounded-lg bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/50"
+                                >
+                                  Criar cotação
+                                </button>
+                              </div>
+                            );
+                          }
+
+                          if (action === 'buy') {
+                            return <span className="text-xs text-gray-400">Cotação indisponível</span>;
+                          }
+
+                          return <span className="text-xs text-gray-400">—</span>;
+                        })()}
                       </td>
                     </tr>
                   );
@@ -864,19 +1037,40 @@ export default function InventoryByLocationPage() {
                   return sortedRows.map(renderRow);
                 }
 
-                return groupedRows?.map((group) => (
-                  <Fragment key={group.label}>
-                    <tr className="bg-gray-50/50 dark:bg-gray-900/20">
-                      <td colSpan={12} className="px-4 py-2 font-bold text-[#19A999] border-y border-gray-100 dark:border-gray-700">
-                        {groupBy === 'product' ? 'Produto: ' : 'Local: '}{group.label}
-                        <span className="ml-2 font-normal text-xs text-gray-400">
-                          ({group.rows.length} posiç{group.rows.length === 1 ? 'ão' : 'ões'})
-                        </span>
-                      </td>
-                    </tr>
-                    {group.rows.map(renderRow)}
-                  </Fragment>
-                ));
+                return groupedRows?.map((group) => {
+                  const opened = expandedGroupIds.has(group.key);
+                  const total = (field: string) => group.rows.reduce((acc, row) => acc + Number(row[field] ?? 0), 0);
+                  return (
+                    <Fragment key={group.key}>
+                      <tr className="border-t border-gray-200 bg-gray-50/70 dark:border-gray-700 dark:bg-gray-900/40">
+                        <td colSpan={12} className="p-0">
+                          <button
+                            type="button"
+                            onClick={() => toggleGroup(group.key)}
+                            aria-expanded={opened}
+                            className="flex min-h-14 w-full flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-gray-800"
+                          >
+                            <span className="inline-flex min-w-44 flex-1 items-center gap-2 font-bold text-gray-900 dark:text-gray-100">
+                              {opened ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                              {groupBy === 'product' ? group.label : `Local: ${group.label}`}
+                            </span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">{group.rows.length} posição(ões)</span>
+                            <span className="text-xs font-semibold">Físico: {formatNumberPtBr(total('on_hand'))}</span>
+                            <span className="text-xs font-semibold">Reservado: {formatNumberPtBr(total('reserved'))}</span>
+                            <span className="text-xs font-black text-emerald-700 dark:text-emerald-300">Disponível: {formatNumberPtBr(total('available'))}</span>
+                            {total('in_transit_in') > 0 && (
+                              <span className="text-xs font-bold text-sky-700 dark:text-sky-300">A receber: +{formatNumberPtBr(total('in_transit_in'))}</span>
+                            )}
+                            {total('in_transit_out') > 0 && (
+                              <span className="text-xs font-bold text-amber-700 dark:text-amber-300">Enviado: {formatNumberPtBr(total('in_transit_out'))}</span>
+                            )}
+                          </button>
+                        </td>
+                      </tr>
+                      {opened && group.rows.map(renderRow)}
+                    </Fragment>
+                  );
+                });
               })()}
 
               {!hasAnyData && (
@@ -897,6 +1091,9 @@ export default function InventoryByLocationPage() {
           </table>
         </div>
       </div>
+
+        </div>
+      )}
     </PageContainer>
   </>
 );

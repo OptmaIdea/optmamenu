@@ -13,6 +13,8 @@ export interface OrderItem {
 export interface Order {
     id: string;
     created_at: string;
+    status_changed_at?: string | null;
+    updated_at?: string | null;
     customer_name?: string;
     customer_phone?: string;
     total: number;
