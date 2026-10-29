@@ -266,6 +266,8 @@ export interface PublicPaymentProofState {
     payment_method_name?: string | null;
     requires_proof?: boolean;
     order_total?: number;
+    pix_key?: string | null;
+    pix_recipient?: string | null;
     proofs: PublicPaymentProofSummary[];
 }
 
