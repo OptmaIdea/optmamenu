@@ -7,7 +7,9 @@ CREATE OR REPLACE FUNCTION public.configure_store_checkout_prepayment_safe(
   p_store_id uuid,
   p_method_code text,
   p_enabled boolean,
-  p_destination_account_id uuid DEFAULT NULL
+  p_destination_account_id uuid DEFAULT NULL,
+  p_pix_key text DEFAULT NULL,
+  p_pix_recipient text DEFAULT NULL
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -21,6 +23,8 @@ DECLARE
   v_feature text;
   v_allowed boolean;
   v_route text;
+  v_pix_key text;
+  v_pix_recipient text;
 BEGIN
   v_allowed :=
     auth.uid() IS NOT NULL
@@ -57,6 +61,14 @@ BEGIN
       RETURN jsonb_build_object('ok',false,'error','invalid_destination_account');
     END IF;
     IF p_method_code='pix_manual_qr' THEN
+      v_pix_key := coalesce(nullif(btrim(p_pix_key),''),
+        nullif(btrim(v_method.metadata->'checkout'->>'pix_key'),''));
+      v_pix_recipient := coalesce(nullif(btrim(p_pix_recipient),''),
+        nullif(btrim(v_method.metadata->'checkout'->>'pix_recipient'),''));
+      IF v_pix_key IS NULL OR length(v_pix_key)>140 OR
+         v_pix_recipient IS NULL OR length(v_pix_recipient)>120 THEN
+        RETURN jsonb_build_object('ok',false,'error','manual_pix_instructions_required');
+      END IF;
       IF v_method.requires_proof IS DISTINCT FROM true
          OR coalesce(v_method.metadata->'checkout'->>'confirmation_mode','') <> 'manual_proof' THEN
         RETURN jsonb_build_object('ok',false,'error','manual_proof_not_configured');
@@ -87,10 +99,16 @@ BEGIN
   UPDATE public.store_payment_methods
   SET active=CASE WHEN p_enabled THEN true ELSE active END,
       public_enabled=CASE WHEN p_enabled THEN true ELSE public_enabled END,
-      metadata=jsonb_set(
-        coalesce(metadata,'{}'::jsonb),
-        '{checkout,pay_now}',to_jsonb(p_enabled),true
-      )
+      metadata=CASE WHEN p_method_code='pix_manual_qr' AND p_enabled
+        THEN jsonb_set(
+            jsonb_set(
+              jsonb_set(coalesce(metadata,'{}'::jsonb),
+                '{checkout,pay_now}',to_jsonb(p_enabled),true),
+              '{checkout,pix_key}',to_jsonb(v_pix_key),true),
+            '{checkout,pix_recipient}',to_jsonb(v_pix_recipient),true)
+        ELSE jsonb_set(coalesce(metadata,'{}'::jsonb),
+          '{checkout,pay_now}',to_jsonb(p_enabled),true)
+      END
   WHERE id=v_method.id;
 
   -- Atomic configuration for pickup and delivery; no changes to existing orders.
@@ -126,7 +144,7 @@ BEGIN
 END;
 $fn$;
 
-REVOKE ALL ON FUNCTION public.configure_store_checkout_prepayment_safe(uuid,text,boolean,uuid) FROM PUBLIC,anon;
+REVOKE ALL ON FUNCTION public.configure_store_checkout_prepayment_safe(uuid,text,boolean,uuid,text,text) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.configure_store_checkout_prepayment_safe(uuid,text,boolean,uuid)
   TO authenticated,service_role;
 COMMIT;
