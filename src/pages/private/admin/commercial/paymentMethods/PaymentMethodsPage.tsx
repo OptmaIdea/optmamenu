@@ -63,7 +63,7 @@ const VARIANT_BASES: Array<{ code: Exclude<BasePaymentMethodCode, 'pending'>; la
 ];
 
 const ADVANCE_METHOD_CODES = ['pix_manual_qr', 'pix', 'credit_card', 'debit_card'] as const;
-type AdvanceDraft = { enabled: boolean; accountId: string };
+type AdvanceDraft = { enabled: boolean; accountId: string; pixKey: string; pixRecipient: string };
 function isCheckoutAdvance(method: StorePaymentMethod): boolean {
     const checkout = method.metadata?.checkout;
     return Boolean(checkout && typeof checkout === 'object'
@@ -141,6 +141,8 @@ export default function PaymentMethodsPage({ withoutHeader = false, disabled = f
                     .map((method) => [method.code, {
                         enabled: isCheckoutAdvance(method),
                         accountId: routeAccounts[method.code] || method.preferred_financial_account_id || '',
+                        pixKey: String(((method.metadata?.checkout as Record<string,unknown> | undefined)?.pix_key) || ''),
+                        pixRecipient: String(((method.metadata?.checkout as Record<string,unknown> | undefined)?.pix_recipient) || ''),
                     }]),
             ));
 
@@ -205,6 +207,8 @@ export default function PaymentMethodsPage({ withoutHeader = false, disabled = f
                 methodCode: method.code,
                 enabled: draft.enabled,
                 destinationAccountId: draft.enabled ? draft.accountId : null,
+                pixKey: method.code === 'pix_manual_qr' ? draft.pixKey.trim() : undefined,
+                pixRecipient: method.code === 'pix_manual_qr' ? draft.pixRecipient.trim() : undefined,
             });
             toast.success(draft.enabled
                 ? `${method.name} habilitado para antecipação, com conta de destino configurada.`
@@ -309,11 +313,16 @@ export default function PaymentMethodsPage({ withoutHeader = false, disabled = f
                 </div>
                 <div className="grid gap-3 lg:grid-cols-2">
                     {methods.filter((method) => ADVANCE_METHOD_CODES.some((code) => code === method.code)).map((method) => {
-                        const draft = advanceDrafts[method.code] || { enabled: isCheckoutAdvance(method), accountId: '' };
+                        const draft = advanceDrafts[method.code] || { enabled: isCheckoutAdvance(method), accountId: '', pixKey: '', pixRecipient: '' };
                         const mode = confirmationMode(method);
                         const currentEnabled = isCheckoutAdvance(method);
+                        const checkout = (method.metadata?.checkout && typeof method.metadata.checkout === 'object')
+                            ? method.metadata.checkout as Record<string,unknown> : {};
                         const isChanged = currentEnabled !== draft.enabled
-                            || (draft.enabled && draft.accountId !== (savedAdvanceRoutes[method.code] || ''));
+                            || (draft.enabled && draft.accountId !== (savedAdvanceRoutes[method.code] || ''))
+                            || (method.code === 'pix_manual_qr' && draft.enabled
+                                && (draft.pixKey !== String(checkout.pix_key || '')
+                                    || draft.pixRecipient !== String(checkout.pix_recipient || '')));
                         const manual = mode === 'manual_proof';
                         return (
                             <article key={method.code} className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
@@ -343,8 +352,29 @@ export default function PaymentMethodsPage({ withoutHeader = false, disabled = f
                                             <option key={account.id} value={account.id}>{account.name}</option>)}
                                     </select>
                                 </label>
+                                {method.code === 'pix_manual_qr' && (
+                                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                                        <label className="block space-y-1">
+                                            <span className="text-xs font-black uppercase text-slate-500">Chave Pix para o cliente pagar</span>
+                                            <input value={draft.pixKey} maxLength={140} disabled={disabled || advanceSaving !== null}
+                                                onChange={(event) => setAdvanceDraft(method.code, { pixKey: event.target.value })}
+                                                placeholder="Chave Pix da conta recebedora"
+                                                className="w-full rounded-lg border px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950" />
+                                        </label>
+                                        <label className="block space-y-1">
+                                            <span className="text-xs font-black uppercase text-slate-500">Beneficiário exibido ao cliente</span>
+                                            <input value={draft.pixRecipient} maxLength={120} disabled={disabled || advanceSaving !== null}
+                                                onChange={(event) => setAdvanceDraft(method.code, { pixRecipient: event.target.value })}
+                                                placeholder="Nome do recebedor"
+                                                className="w-full rounded-lg border px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950" />
+                                        </label>
+                                        <p className="sm:col-span-2 text-xs text-amber-700 dark:text-amber-300">A chave e o beneficiário serão exibidos ao cliente com um pedido Pix manual. Não insira senha bancária, token ou chave secreta de API.</p>
+                                    </div>
+                                )}
                                 <button type="button" disabled={disabled || advanceSaving !== null || !isChanged
-                                    || (draft.enabled && !draft.accountId)}
+                                    || (draft.enabled && !draft.accountId)
+                                    || (method.code === 'pix_manual_qr' && draft.enabled
+                                        && (!draft.pixKey.trim() || !draft.pixRecipient.trim()))}
                                     onClick={() => void saveCheckoutAdvance(method)}
                                     className="mt-3 inline-flex items-center gap-2 rounded-xl bg-teal-700 px-4 py-2 text-sm font-black text-white disabled:opacity-40">
                                     {advanceSaving === method.code ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
