@@ -146,6 +146,6 @@ END;
 $fn$;
 
 REVOKE ALL ON FUNCTION public.configure_store_checkout_prepayment_safe(uuid,text,boolean,uuid,text,text) FROM PUBLIC,anon;
-GRANT EXECUTE ON FUNCTION public.configure_store_checkout_prepayment_safe(uuid,text,boolean,uuid)
+GRANT EXECUTE ON FUNCTION public.configure_store_checkout_prepayment_safe(uuid,text,boolean,uuid,text,text)
   TO authenticated,service_role;
 COMMIT;
