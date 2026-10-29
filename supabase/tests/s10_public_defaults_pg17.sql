@@ -27,7 +27,7 @@ BEGIN
 END $baseline$;
 
 \echo 'S10 execute exactly the proposed production migration'
-\ir ../migrations/20261029000100_public_future_tables_private_by_default.sql
+\ir ../migrations/20261029071549_public_future_tables_private_by_default_s10_20261029.sql
 
 CREATE TABLE public.s10_new_private (
   id int primary key,

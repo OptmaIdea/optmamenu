@@ -77,3 +77,15 @@ O Security Advisor poderá continuar mostrando 28 `rls_enabled_no_policy` (27 pu
 ## Conclusão operacional
 
 Quando a migration estiver aplicada, `pg_default_acl` comprovar ausência de grants de futuros TABLES/SEQUENCES, o CI verde, HEAD do GitHub e Vercel READY para o mesmo commit, **encerrar formalmente a frente de adequação de tabelas public**. Prioridade subsequente: finalizar Clientes com testes humanos de mensagens sem regressão em pedidos e pagamentos.
+
+## Execução comprovada no projeto ativo (29/10/2026)
+
+- Migration aplicada: **20261029071549_public_future_tables_private_by_default_s10_20261029**.
+- Consulta a `pg_default_acl`: **somente postgres** figura como grantee de TABLES (`r`) e SEQUENCES (`S`) novos criados pelo `postgres` no schema `public`. `anon`, `authenticated` e `service_role` não receberam qualquer privilégio padrão nesses dois tipos.
+- Verificação comparativa antes/depois: **129 tabelas, 129 com RLS, 27 sem policy, 67 com SELECT anon, 87 com SELECT authenticated e 65 com UPDATE authenticated**; todas as métricas se mantiveram idênticas.
+- **34 views**: 33 `security_invoker=true`; uma sem SELECT disponível para anon/authenticated.
+- CI preliminar do SHA `c331e0fac70d1b04ddc4bdf68bc0d140429af6ac`: **SUCCESS nos 13 jobs**, incluindo prova S10 PostgreSQL 17.
+- A linha de `pg_default_acl` de `supabase_admin` permanece gerenciada pela plataforma. Nenhuma tabela/sequence/view do aplicativo no schema `public` é de propriedade desse papel.
+- As funções (`f`) permanecem com seus defaults legados nesta entrega; **não confundir conclusão da adequação de tabelas com uma certificação geral de todas as RPCs**.
+
+A política de tabelas `public` está definida e aplicada; novas migrations devem seguir o contrato de autorização explícita P03. A publicação da documentação no GitHub não altera o comportamento do Supabase, já validado diretamente.
