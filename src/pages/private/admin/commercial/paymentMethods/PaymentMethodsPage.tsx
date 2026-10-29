@@ -62,6 +62,21 @@ const VARIANT_BASES: Array<{ code: Exclude<BasePaymentMethodCode, 'pending'>; la
     { code: 'other', label: 'Outro' },
 ];
 
+const ADVANCE_METHOD_CODES = ['pix_manual_qr', 'pix', 'credit_card', 'debit_card'] as const;
+type AdvanceDraft = { enabled: boolean; accountId: string; pixKey: string; pixRecipient: string };
+function isCheckoutAdvance(method: StorePaymentMethod): boolean {
+    const checkout = method.metadata?.checkout;
+    return Boolean(checkout && typeof checkout === 'object'
+        && (checkout as Record<string, unknown>).pay_now === true
+        && method.active && method.public_enabled);
+}
+function confirmationMode(method: StorePaymentMethod): string {
+    const checkout = method.metadata?.checkout;
+    return checkout && typeof checkout === 'object'
+        ? String((checkout as Record<string, unknown>).confirmation_mode || '')
+        : '';
+}
+
 const EMPTY_VARIANT = {
     id: null as string | null,
     name: '',
@@ -91,6 +106,9 @@ export default function PaymentMethodsPage({ withoutHeader = false, disabled = f
     const [variantOpen, setVariantOpen] = useState(false);
     const [variantSaving, setVariantSaving] = useState(false);
     const [variant, setVariant] = useState(EMPTY_VARIANT);
+    const [advanceDrafts, setAdvanceDrafts] = useState<Record<string, AdvanceDraft>>({});
+    const [savedAdvanceRoutes, setSavedAdvanceRoutes] = useState<Record<string,string>>({});
+    const [advanceSaving, setAdvanceSaving] = useState<string | null>(null);
 
     const publicMethodsCount = useMemo(
         () => methods.filter((method) => method.active && method.public_enabled).length,
@@ -112,8 +130,21 @@ export default function PaymentMethodsPage({ withoutHeader = false, disabled = f
         try {
             setLoading(true);
             setError(null);
-            const data = await PaymentMethodsService.listByStore(storeId);
+            const [data, routeAccounts] = await Promise.all([
+                PaymentMethodsService.listByStore(storeId),
+                PaymentMethodsService.listCheckoutPrepaymentDestinations(storeId),
+            ]);
             setMethods(data);
+            setSavedAdvanceRoutes(routeAccounts);
+            setAdvanceDrafts(Object.fromEntries(
+                data.filter((method) => ADVANCE_METHOD_CODES.some((code) => code === method.code))
+                    .map((method) => [method.code, {
+                        enabled: isCheckoutAdvance(method),
+                        accountId: routeAccounts[method.code] || method.preferred_financial_account_id || '',
+                        pixKey: String(((method.metadata?.checkout as Record<string,unknown> | undefined)?.pix_key) || ''),
+                        pixRecipient: String(((method.metadata?.checkout as Record<string,unknown> | undefined)?.pix_recipient) || ''),
+                    }]),
+            ));
 
             try {
                 const financial = await FinancialAccountsService.getBalances(storeId);
@@ -151,6 +182,42 @@ export default function PaymentMethodsPage({ withoutHeader = false, disabled = f
             toast.error(err?.message || 'Erro ao atualizar forma de pagamento.');
         } finally {
             setSavingId(null);
+        }
+    }
+
+    function setAdvanceDraft(code: string, patch: Partial<AdvanceDraft>) {
+        setAdvanceDrafts((current) => ({
+            ...current,
+            [code]: { ...current[code], ...patch },
+        }));
+    }
+
+    async function saveCheckoutAdvance(method: StorePaymentMethod) {
+        if (!storeId || disabled) return;
+        const draft = advanceDrafts[method.code];
+        if (!draft) return;
+        if (draft.enabled && !draft.accountId) {
+            toast.warning('Selecione a conta financeira que receberá o pagamento antecipado.');
+            return;
+        }
+        setAdvanceSaving(method.code);
+        try {
+            await PaymentMethodsService.configureCheckoutPrepayment({
+                storeId,
+                methodCode: method.code,
+                enabled: draft.enabled,
+                destinationAccountId: draft.enabled ? draft.accountId : null,
+                pixKey: method.code === 'pix_manual_qr' ? draft.pixKey.trim() : undefined,
+                pixRecipient: method.code === 'pix_manual_qr' ? draft.pixRecipient.trim() : undefined,
+            });
+            toast.success(draft.enabled
+                ? `${method.name} habilitado para antecipação, com conta de destino configurada.`
+                : `${method.name} removido das opções de pagamento antecipado.`);
+            await loadMethods();
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Não foi possível alterar pagamento antecipado.');
+        } finally {
+            setAdvanceSaving(null);
         }
     }
 
@@ -238,6 +305,90 @@ export default function PaymentMethodsPage({ withoutHeader = false, disabled = f
                 <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 dark:border-blue-900/40 dark:bg-blue-900/20"><p className="text-xs font-semibold uppercase text-blue-700 dark:text-blue-300">Entram no caixa</p><p className="mt-2 text-2xl font-black text-blue-900 dark:text-blue-100">{cashbookMethodsCount}</p></div>
                 <div className="rounded-2xl border border-violet-100 bg-violet-50 p-4 dark:border-violet-900/40 dark:bg-violet-900/20"><p className="text-xs font-semibold uppercase text-violet-700 dark:text-violet-300">Específicas</p><p className="mt-2 text-2xl font-black text-violet-900 dark:text-violet-100">{customMethodsCount}</p></div>
             </div>
+
+            <section id="pagamento-antecipado" className="space-y-4 rounded-2xl border border-teal-200 bg-teal-50/40 p-4 dark:border-teal-900 dark:bg-teal-950/10 sm:p-5">
+                <div>
+                    <h2 className="text-lg font-black text-slate-900 dark:text-white">Pagamento antecipado no checkout do cliente</h2>
+                    <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">Escolha a forma de pagamento e a conta de recebimento desta loja. O OptmaPay é opcional: PIX manual com comprovante funciona sem integração automática, mas depende da conferência do pagamento.</p>
+                </div>
+                <div className="grid gap-3 lg:grid-cols-2">
+                    {methods.filter((method) => ADVANCE_METHOD_CODES.some((code) => code === method.code)).map((method) => {
+                        const draft = advanceDrafts[method.code] || { enabled: isCheckoutAdvance(method), accountId: '', pixKey: '', pixRecipient: '' };
+                        const mode = confirmationMode(method);
+                        const currentEnabled = isCheckoutAdvance(method);
+                        const checkout = (method.metadata?.checkout && typeof method.metadata.checkout === 'object')
+                            ? method.metadata.checkout as Record<string,unknown> : {};
+                        const isChanged = currentEnabled !== draft.enabled
+                            || (draft.enabled && draft.accountId !== (savedAdvanceRoutes[method.code] || ''))
+                            || (method.code === 'pix_manual_qr' && draft.enabled
+                                && (draft.pixKey !== String(checkout.pix_key || '')
+                                    || draft.pixRecipient !== String(checkout.pix_recipient || '')));
+                        const manual = mode === 'manual_proof';
+                        return (
+                            <article key={method.code} className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <h3 className="font-black text-slate-900 dark:text-white">{method.name}</h3>
+                                    <span className={`rounded-lg px-2 py-1 text-xs font-black ${currentEnabled ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}`}>
+                                        {currentEnabled ? 'Disponível antecipadamente' : 'Não disponível antecipadamente'}
+                                    </span>
+                                </div>
+                                <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                                    {manual
+                                        ? 'PIX manual com envio de comprovante: requer conferência antes de marcar como pago. Não exige OptmaPay.'
+                                        : 'Confirmação automática exige provedor real ou Sandbox efetivamente configurado para este método. O Sandbox não recebe dinheiro real.'}
+                                </p>
+                                <label className="mt-3 flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-200">
+                                    <input type="checkbox" checked={draft.enabled} disabled={disabled || advanceSaving !== null}
+                                        onChange={(event) => setAdvanceDraft(method.code, { enabled: event.target.checked })} />
+                                    Permitir pagar antecipadamente
+                                </label>
+                                <label className="mt-3 block space-y-1">
+                                    <span className="text-xs font-black uppercase text-slate-500">Conta financeira de destino</span>
+                                    <select value={draft.accountId} disabled={disabled || advanceSaving !== null}
+                                        onChange={(event) => setAdvanceDraft(method.code, { accountId: event.target.value })}
+                                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950 dark:text-white">
+                                        <option value="">Selecione a conta</option>
+                                        {financialAccounts.filter((account) => account.active).map((account) =>
+                                            <option key={account.id} value={account.id}>{account.name}</option>)}
+                                    </select>
+                                </label>
+                                {method.code === 'pix_manual_qr' && (
+                                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                                        <label className="block space-y-1">
+                                            <span className="text-xs font-black uppercase text-slate-500">Chave Pix para o cliente pagar</span>
+                                            <input value={draft.pixKey} maxLength={140} disabled={disabled || advanceSaving !== null}
+                                                onChange={(event) => setAdvanceDraft(method.code, { pixKey: event.target.value })}
+                                                placeholder="Chave Pix da conta recebedora"
+                                                className="w-full rounded-lg border px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950" />
+                                        </label>
+                                        <label className="block space-y-1">
+                                            <span className="text-xs font-black uppercase text-slate-500">Beneficiário exibido ao cliente</span>
+                                            <input value={draft.pixRecipient} maxLength={120} disabled={disabled || advanceSaving !== null}
+                                                onChange={(event) => setAdvanceDraft(method.code, { pixRecipient: event.target.value })}
+                                                placeholder="Nome do recebedor"
+                                                className="w-full rounded-lg border px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950" />
+                                        </label>
+                                        <p className="sm:col-span-2 text-xs text-amber-700 dark:text-amber-300">A chave e o beneficiário serão exibidos ao cliente com um pedido Pix manual. Não insira senha bancária, token ou chave secreta de API.</p>
+                                    </div>
+                                )}
+                                <button type="button" disabled={disabled || advanceSaving !== null || !isChanged
+                                    || (draft.enabled && !draft.accountId)
+                                    || (method.code === 'pix_manual_qr' && draft.enabled
+                                        && (!draft.pixKey.trim() || !draft.pixRecipient.trim()))}
+                                    onClick={() => void saveCheckoutAdvance(method)}
+                                    className="mt-3 inline-flex items-center gap-2 rounded-xl bg-teal-700 px-4 py-2 text-sm font-black text-white disabled:opacity-40">
+                                    {advanceSaving === method.code ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                                    Salvar método e conta
+                                </button>
+                            </article>
+                        );
+                    })}
+                </div>
+                <div className="flex flex-wrap gap-2 text-xs font-bold">
+                    <Link to="/admin/online-payments?tab=routes" className="rounded-xl border border-teal-300 px-3 py-2 dark:border-teal-800">Conferir rotas de recebimento <ArrowRight size={12} className="inline" /></Link>
+                    <Link to="/admin/financial-accounts?tab=settings" className="rounded-xl border border-teal-300 px-3 py-2 dark:border-teal-800">Cadastrar ou editar contas financeiras <ArrowRight size={12} className="inline" /></Link>
+                </div>
+            </section>
 
             <div className="flex flex-col gap-3 rounded-2xl border border-teal-100 bg-teal-50/60 p-4 text-sm text-teal-900 dark:border-teal-900/40 dark:bg-teal-950/20 dark:text-teal-100 lg:flex-row lg:items-center lg:justify-between">
                 <div>
