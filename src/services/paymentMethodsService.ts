@@ -113,12 +113,16 @@ export const PaymentMethodsService = {
         methodCode: string;
         enabled: boolean;
         destinationAccountId: string | null;
+        pixKey?: string;
+        pixRecipient?: string;
     }): Promise<void> {
         const { data, error } = await supabase.rpc('configure_store_checkout_prepayment_safe', {
             p_store_id: input.storeId,
             p_method_code: input.methodCode,
             p_enabled: input.enabled,
             p_destination_account_id: input.destinationAccountId,
+            p_pix_key: input.pixKey || null,
+            p_pix_recipient: input.pixRecipient || null,
         });
         if (error) throw error;
         if (!data?.ok) {
@@ -128,6 +132,7 @@ export const PaymentMethodsService = {
                 payment_method_not_found: 'Forma de pagamento não encontrada para esta loja.',
                 invalid_destination_account: 'Selecione uma conta de recebimento ativa desta loja.',
                 manual_proof_not_configured: 'PIX manual exige envio e conferência de comprovante antes de confirmar o pagamento.',
+                manual_pix_instructions_required: 'Cadastre a chave Pix recebedora e o nome do beneficiário antes de habilitar este método.',
                 provider_capability_unavailable: 'Este tipo de cobrança online não está liberado pela integração da loja. Para receber antecipadamente sem provedor, utilize PIX manual com comprovante.',
             };
             throw new Error(descriptions[data?.error] || data?.message || data?.error || 'Não foi possível configurar o checkout.');
