@@ -32,6 +32,7 @@ BEGIN
       public.app_is_store_owner(p_store_id)
       OR public.user_has_store_permission_v2(p_store_id, 'payments.online.manage')
       OR public.user_has_store_permission_v2(p_store_id, 'payment_methods.manage')
+      OR public.user_has_store_permission_v2(p_store_id, 'settings.payment.manage')
     );
   IF NOT coalesce(v_allowed,false) THEN
     RETURN jsonb_build_object('ok',false,'error','access_denied');
