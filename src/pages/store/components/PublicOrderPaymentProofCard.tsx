@@ -110,6 +110,22 @@ export default function PublicOrderPaymentProofCard({ token }: { token: string }
         </div>
       )}
 
+      {!paymentConfirmed && state.eligible && state.pix_key && state.pix_recipient && (
+        <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950">
+          <p className="font-black">Como pagar por Pix manual</p>
+          <p className="mt-1">Confira o beneficiário no aplicativo do banco antes de pagar. O envio do comprovante não confirma automaticamente o pagamento.</p>
+          <p className="mt-3 text-xs font-black uppercase">Beneficiário</p>
+          <p className="font-bold">{state.pix_recipient}</p>
+          <p className="mt-2 text-xs font-black uppercase">Chave Pix</p>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <code className="min-w-0 flex-1 break-all rounded-xl border border-sky-200 bg-white p-3 text-xs">{state.pix_key}</code>
+            <button type="button" onClick={() => void navigator.clipboard.writeText(state.pix_key || '')}
+              className="rounded-xl bg-sky-700 px-4 py-3 text-xs font-black text-white">Copiar chave</button>
+          </div>
+          <p className="mt-3 text-xs">Valor: <strong>{currency.format(Number(state.order_total || 0))}</strong>. Pague somente ao beneficiário informado pela loja.</p>
+        </div>
+      )}
+
       {!paymentConfirmed && !waitingReview && state.eligible && (
         <div className="mt-5 space-y-3">
           <label className="block rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-700">
