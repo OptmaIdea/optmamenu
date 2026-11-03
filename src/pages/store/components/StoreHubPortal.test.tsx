@@ -6,9 +6,9 @@ import { PublicStorefrontService } from '@/services/publicStorefrontService';
 
 vi.mock('@/services/publicStorefrontService', () => ({
     PublicStorefrontService: {
-        getPublicLoyaltyProgramBySlug: vi.fn(async () => ({
+        getPublicLoyaltyProgramBySlug: vi.fn(async (slug: string) => ({
             ok: true,
-            program: { name: 'Gelipontos', points_per_currency: 0 },
+            program: { name: slug === 'gelinharessjn' ? 'Gelipontos' : 'Outro programa', points_per_currency: 0 },
             rewards: [{ id: 'reward-1', title: 'Picolé de prêmio', points_cost: 100 }],
         })),
     },
@@ -28,5 +28,19 @@ describe('fidelidade na área institucional', () => {
         expect(await screen.findByText('Gelipontos')).toBeTruthy();
         expect(screen.getByText('Picolé de prêmio')).toBeTruthy();
         expect(PublicStorefrontService.getPublicLoyaltyProgramBySlug).toHaveBeenCalledWith('gelinharessjn');
+        });
+    it('não mostra fidelidade da loja anterior após troca de slug', async () => {
+        const { rerender } = render(
+            <StoreHubPortal open onClose={vi.fn()} store={{ id: 'a', slug: 'gelinharessjn', name: 'Gelinhares' }} />,
+        );
+        expect(await screen.findByText('Gelipontos')).toBeTruthy();
+
+        rerender(
+            <StoreHubPortal open onClose={vi.fn()} store={{ id: 'b', slug: 'outra-loja', name: 'Outra loja' }} />,
+        );
+
+        expect(screen.queryByText('Gelipontos')).toBeNull();
+        expect(await screen.findByText('Outro programa')).toBeTruthy();
     });
+
 });
