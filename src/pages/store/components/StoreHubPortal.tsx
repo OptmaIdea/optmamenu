@@ -42,6 +42,7 @@ export function StoreHubPortal({ open, onClose, store, isAuthenticated = false, 
     const scrollAreaRef = useRef<HTMLDivElement | null>(null);
     const contactSectionRef = useRef<HTMLElement | null>(null);
     const [loyaltyInfo, setLoyaltyInfo] = useState<PublicLoyaltyResponse | null>(null);
+    const [loyaltyInfoSlug, setLoyaltyInfoSlug] = useState<string | null>(null);
     const [loyaltyLoading, setLoyaltyLoading] = useState(false);
     const [showLoyaltyRules, setShowLoyaltyRules] = useState(false);
 
@@ -75,6 +76,7 @@ export function StoreHubPortal({ open, onClose, store, isAuthenticated = false, 
     useEffect(() => {
         if (!open || !store) {
             setLoyaltyInfo(null);
+            setLoyaltyInfoSlug(null);
             setShowLoyaltyRules(false);
             return;
         }
@@ -83,10 +85,16 @@ export function StoreHubPortal({ open, onClose, store, isAuthenticated = false, 
         setLoyaltyLoading(true);
         void PublicStorefrontService.getPublicLoyaltyProgramBySlug(store.slug)
             .then((result) => {
-                if (active) setLoyaltyInfo(result);
+                if (active) {
+                    setLoyaltyInfo(result);
+                    setLoyaltyInfoSlug(store.slug);
+                }
             })
             .catch(() => {
-                if (active) setLoyaltyInfo(null);
+                if (active) {
+                    setLoyaltyInfo(null);
+                    setLoyaltyInfoSlug(null);
+                }
             })
             .finally(() => {
                 if (active) setLoyaltyLoading(false);
@@ -111,8 +119,9 @@ export function StoreHubPortal({ open, onClose, store, isAuthenticated = false, 
     const websiteUrl = normalizeExternalUrl(config.social_links?.website);
     const instagramUrl = normalizeExternalUrl(config.social_links?.instagram);
     const facebookUrl = normalizeExternalUrl(config.social_links?.facebook);
-    const loyaltyProgram = loyaltyInfo?.program || null;
-    const loyaltyRewards = loyaltyInfo?.rewards || [];
+    // Nunca mostrar o programa carregado para uma loja anterior durante a troca de slug.
+    const loyaltyProgram = loyaltyInfoSlug === store.slug ? loyaltyInfo?.program || null : null;
+    const loyaltyRewards = loyaltyInfoSlug === store.slug ? loyaltyInfo?.rewards || [] : [];
 
     return (
         <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/45 backdrop-blur-sm sm:items-center sm:p-4">
