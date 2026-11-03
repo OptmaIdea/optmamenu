@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
     Award,
     CalendarClock,
@@ -35,9 +35,12 @@ interface StoreHubPortalProps {
     onClose: () => void;
     store: PublicStorefrontStore | null;
     isAuthenticated?: boolean;
+    initialSection?: 'overview' | 'contact';
 }
 
-export function StoreHubPortal({ open, onClose, store, isAuthenticated = false }: StoreHubPortalProps) {
+export function StoreHubPortal({ open, onClose, store, isAuthenticated = false, initialSection = 'overview' }: StoreHubPortalProps) {
+    const scrollAreaRef = useRef<HTMLDivElement | null>(null);
+    const contactSectionRef = useRef<HTMLElement | null>(null);
     const [loyaltyInfo, setLoyaltyInfo] = useState<PublicLoyaltyResponse | null>(null);
     const [loyaltyLoading, setLoyaltyLoading] = useState(false);
     const [showLoyaltyRules, setShowLoyaltyRules] = useState(false);
@@ -58,6 +61,16 @@ export function StoreHubPortal({ open, onClose, store, isAuthenticated = false }
             document.removeEventListener('keydown', onKeyDown);
         };
     }, [open, onClose]);
+
+    useEffect(() => {
+        if (!open) return;
+        if (initialSection === 'contact') {
+            contactSectionRef.current?.scrollIntoView({ block: 'start' });
+            contactSectionRef.current?.focus({ preventScroll: true });
+        } else if (scrollAreaRef.current) {
+            scrollAreaRef.current.scrollTop = 0;
+        }
+    }, [open, initialSection, store?.slug]);
 
     useEffect(() => {
         if (!open || !store || !store.visual_config?.loyalty_active) {
@@ -143,7 +156,7 @@ export function StoreHubPortal({ open, onClose, store, isAuthenticated = false }
                     </div>
                 </header>
 
-                <div className="max-h-[calc(92vh-8rem)] overflow-y-auto px-4 py-5 sm:px-7">
+                <div ref={scrollAreaRef} className="max-h-[calc(92vh-8rem)] overflow-y-auto px-4 py-5 sm:px-7">
                     {(config.about_text || config.about_image_url) && (
                         <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
                             {config.about_image_url && (
@@ -333,7 +346,7 @@ export function StoreHubPortal({ open, onClose, store, isAuthenticated = false }
                         </section>
                     )}
 
-                    <section className="mt-4 rounded-3xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+                    <section ref={contactSectionRef} tabIndex={-1} className="mt-4 rounded-3xl border border-slate-200 bg-white p-5 outline-none dark:border-slate-800 dark:bg-slate-900">
                         <div className="flex items-center gap-2">
                             <MessageCircle className="h-5 w-5 text-emerald-600" />
                             <h3 className="font-black text-slate-900 dark:text-white">Fale com a loja</h3>
