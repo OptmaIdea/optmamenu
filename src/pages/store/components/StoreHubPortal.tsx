@@ -73,7 +73,7 @@ export function StoreHubPortal({ open, onClose, store, isAuthenticated = false, 
     }, [open, initialSection, store?.slug]);
 
     useEffect(() => {
-        if (!open || !store || !store.visual_config?.loyalty_active) {
+        if (!open || !store) {
             setLoyaltyInfo(null);
             setShowLoyaltyRules(false);
             return;
@@ -95,7 +95,7 @@ export function StoreHubPortal({ open, onClose, store, isAuthenticated = false, 
         return () => {
             active = false;
         };
-    }, [open, store?.slug, store?.visual_config?.loyalty_active]);
+    }, [open, store?.slug]);
 
     if (!open || !store) return null;
 
@@ -173,7 +173,7 @@ export function StoreHubPortal({ open, onClose, store, isAuthenticated = false, 
                         </section>
                     )}
 
-                    {config.loyalty_active && (
+                    {(loyaltyLoading || Boolean(loyaltyProgram)) && (
                         <section className="mt-4 overflow-hidden rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-white dark:border-amber-900/50 dark:from-amber-950/20 dark:via-slate-950 dark:to-slate-950">
                             <div className="p-5 sm:p-6">
                                 <div className="flex items-start gap-4">
