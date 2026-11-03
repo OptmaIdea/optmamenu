@@ -28,7 +28,8 @@ describe('fidelidade na área institucional', () => {
         expect(await screen.findByText('Gelipontos')).toBeTruthy();
         expect(screen.getByText('Picolé de prêmio')).toBeTruthy();
         expect(PublicStorefrontService.getPublicLoyaltyProgramBySlug).toHaveBeenCalledWith('gelinharessjn');
-        });
+    });
+
     it('não mostra fidelidade da loja anterior após troca de slug', async () => {
         const { rerender } = render(
             <StoreHubPortal open onClose={vi.fn()} store={{ id: 'a', slug: 'gelinharessjn', name: 'Gelinhares' }} />,
@@ -42,5 +43,4 @@ describe('fidelidade na área institucional', () => {
         expect(screen.queryByText('Gelipontos')).toBeNull();
         expect(await screen.findByText('Outro programa')).toBeTruthy();
     });
-
 });
