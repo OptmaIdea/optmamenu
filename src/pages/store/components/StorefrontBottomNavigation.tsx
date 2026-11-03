@@ -142,10 +142,6 @@ export function StorefrontBottomNavigation({
                         <Home className="h-5 w-5" />
                         <span>Início</span>
                     </button>
-                    <button type="button" onClick={onOpenStore} className={`${navButton} ${muted}`} aria-label={`Abrir área da ${storeName}`}>
-                        <Store className="h-5 w-5" />
-                        <span>Loja</span>
-                    </button>
                     <Link to={checkoutPath} className={`${navButton} ${muted}`} aria-label={`Abrir ${cartLabel.toLowerCase()}`}>
                         <span className="relative">
                             <ShoppingCart className="h-5 w-5" />
@@ -157,6 +153,10 @@ export function StorefrontBottomNavigation({
                         </span>
                         <span>{cartLabel}</span>
                     </Link>
+                    <button type="button" onClick={onOpenStore} className={`${navButton} ${muted}`} aria-label={`Abrir área da ${storeName}`}>
+                        <Store className="h-5 w-5" />
+                        <span className="w-full truncate px-1" title={storeName}>{storeName || 'Loja'}</span>
+                    </button>
                     <button type="button" onClick={() => openAccount('profile')} className={`${navButton} ${muted}`} aria-label={isAuthenticated ? 'Perfil' : 'Entrar'}>
                         <UserRound className="h-5 w-5" />
                         <span>{isAuthenticated ? 'Perfil' : 'Entrar'}</span>
