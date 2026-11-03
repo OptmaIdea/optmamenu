@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
     Award,
     CalendarClock,
@@ -35,10 +35,14 @@ interface StoreHubPortalProps {
     onClose: () => void;
     store: PublicStorefrontStore | null;
     isAuthenticated?: boolean;
+    initialSection?: 'overview' | 'contact';
 }
 
-export function StoreHubPortal({ open, onClose, store, isAuthenticated = false }: StoreHubPortalProps) {
+export function StoreHubPortal({ open, onClose, store, isAuthenticated = false, initialSection = 'overview' }: StoreHubPortalProps) {
+    const scrollAreaRef = useRef<HTMLDivElement | null>(null);
+    const contactSectionRef = useRef<HTMLElement | null>(null);
     const [loyaltyInfo, setLoyaltyInfo] = useState<PublicLoyaltyResponse | null>(null);
+    const [loyaltyInfoSlug, setLoyaltyInfoSlug] = useState<string | null>(null);
     const [loyaltyLoading, setLoyaltyLoading] = useState(false);
     const [showLoyaltyRules, setShowLoyaltyRules] = useState(false);
 
@@ -60,8 +64,19 @@ export function StoreHubPortal({ open, onClose, store, isAuthenticated = false }
     }, [open, onClose]);
 
     useEffect(() => {
-        if (!open || !store || !store.visual_config?.loyalty_active) {
+        if (!open) return;
+        if (initialSection === 'contact') {
+            contactSectionRef.current?.scrollIntoView({ block: 'start' });
+            contactSectionRef.current?.focus({ preventScroll: true });
+        } else if (scrollAreaRef.current) {
+            scrollAreaRef.current.scrollTop = 0;
+        }
+    }, [open, initialSection, store?.slug]);
+
+    useEffect(() => {
+        if (!open || !store) {
             setLoyaltyInfo(null);
+            setLoyaltyInfoSlug(null);
             setShowLoyaltyRules(false);
             return;
         }
@@ -70,10 +85,16 @@ export function StoreHubPortal({ open, onClose, store, isAuthenticated = false }
         setLoyaltyLoading(true);
         void PublicStorefrontService.getPublicLoyaltyProgramBySlug(store.slug)
             .then((result) => {
-                if (active) setLoyaltyInfo(result);
+                if (active) {
+                    setLoyaltyInfo(result);
+                    setLoyaltyInfoSlug(store.slug);
+                }
             })
             .catch(() => {
-                if (active) setLoyaltyInfo(null);
+                if (active) {
+                    setLoyaltyInfo(null);
+                    setLoyaltyInfoSlug(null);
+                }
             })
             .finally(() => {
                 if (active) setLoyaltyLoading(false);
@@ -82,7 +103,7 @@ export function StoreHubPortal({ open, onClose, store, isAuthenticated = false }
         return () => {
             active = false;
         };
-    }, [open, store?.slug, store?.visual_config?.loyalty_active]);
+    }, [open, store?.slug]);
 
     if (!open || !store) return null;
 
@@ -98,8 +119,9 @@ export function StoreHubPortal({ open, onClose, store, isAuthenticated = false }
     const websiteUrl = normalizeExternalUrl(config.social_links?.website);
     const instagramUrl = normalizeExternalUrl(config.social_links?.instagram);
     const facebookUrl = normalizeExternalUrl(config.social_links?.facebook);
-    const loyaltyProgram = loyaltyInfo?.program || null;
-    const loyaltyRewards = loyaltyInfo?.rewards || [];
+    // Nunca mostrar o programa carregado para uma loja anterior durante a troca de slug.
+    const loyaltyProgram = loyaltyInfoSlug === store.slug ? loyaltyInfo?.program || null : null;
+    const loyaltyRewards = loyaltyInfoSlug === store.slug ? loyaltyInfo?.rewards || [] : [];
 
     return (
         <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/45 backdrop-blur-sm sm:items-center sm:p-4">
@@ -143,7 +165,7 @@ export function StoreHubPortal({ open, onClose, store, isAuthenticated = false }
                     </div>
                 </header>
 
-                <div className="max-h-[calc(92vh-8rem)] overflow-y-auto px-4 py-5 sm:px-7">
+                <div ref={scrollAreaRef} className="max-h-[calc(92vh-8rem)] overflow-y-auto px-4 py-5 sm:px-7">
                     {(config.about_text || config.about_image_url) && (
                         <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
                             {config.about_image_url && (
@@ -160,7 +182,7 @@ export function StoreHubPortal({ open, onClose, store, isAuthenticated = false }
                         </section>
                     )}
 
-                    {config.loyalty_active && (
+                    {(loyaltyLoading || Boolean(loyaltyProgram)) && (
                         <section className="mt-4 overflow-hidden rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50 via-white to-white dark:border-amber-900/50 dark:from-amber-950/20 dark:via-slate-950 dark:to-slate-950">
                             <div className="p-5 sm:p-6">
                                 <div className="flex items-start gap-4">
@@ -333,7 +355,7 @@ export function StoreHubPortal({ open, onClose, store, isAuthenticated = false }
                         </section>
                     )}
 
-                    <section className="mt-4 rounded-3xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+                    <section ref={contactSectionRef} tabIndex={-1} className="mt-4 rounded-3xl border border-slate-200 bg-white p-5 outline-none dark:border-slate-800 dark:bg-slate-900">
                         <div className="flex items-center gap-2">
                             <MessageCircle className="h-5 w-5 text-emerald-600" />
                             <h3 className="font-black text-slate-900 dark:text-white">Fale com a loja</h3>
