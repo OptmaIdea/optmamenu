@@ -197,10 +197,11 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
 
                 setLoadedPublicStore({ requestedSlug: storeSlug, store: storefront.store || null });
 
-                if (!hasMatchingStoreId(context?.storeId, storefront.store?.id)) return;
+                const matchedCartStoreId = context?.storeId;
+                if (!matchedCartStoreId || !hasMatchingStoreId(matchedCartStoreId, storefront.store?.id)) return;
 
                 configureCustomerCartRetention(
-                    context.storeId,
+                    matchedCartStoreId,
                     storefront.store?.visual_config?.customer_cart_retention_hours,
                 );
 
@@ -210,7 +211,7 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
                         category_id: product.category_id || category.id,
                     })),
                 );
-                syncCustomerCartCatalog(context.storeId, products);
+                syncCustomerCartCatalog(matchedCartStoreId, products);
             })
             .catch((error) => {
                 console.error('Não foi possível aplicar a política do carrinho público:', error);
