@@ -36,6 +36,7 @@ interface StockMovementRpcItem {
     previous_stock: number;
     new_stock: number;
     created_at: string;
+    affects_physical?: boolean;
     transfer_id?: string | null;
     location_id?: string | null;
     from_location_id?: string | null;
@@ -244,6 +245,7 @@ const matchesMovementFilters = (item: StockMovementRpcItem, filters: StockMoveme
             item.supplier_name,
             item.purchase_document_number,
             item.source,
+            item.metadata ? JSON.stringify(item.metadata) : null,
         ]
             .filter(Boolean)
             .join(' ')
@@ -579,6 +581,7 @@ export const useStockMovement = () => {
                     previous_stock: item.previous_stock,
                     new_stock: item.new_stock,
                     created_at: item.created_at,
+                    affects_physical: item.affects_physical ?? true,
                     transfer_id: item.transfer_id ?? null,
 
                     location_id: item.location_id ?? null,

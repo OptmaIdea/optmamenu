@@ -127,8 +127,12 @@ const PrintableStockMovements = forwardRef<HTMLDivElement, PrintableStockMovemen
                                     <td style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 'bold' }}>
                                         {formatQuantity(movement.quantity, movement.type)}
                                     </td>
-                                    <td style={{ padding: '6px 4px', textAlign: 'right' }}>{movement.previous_stock}</td>
-                                    <td style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 'bold' }}>{movement.new_stock}</td>
+                                    <td style={{ padding: '6px 4px', textAlign: 'right' }}>
+                                        {movement.affects_physical === false ? '—' : movement.previous_stock}
+                                    </td>
+                                    <td style={{ padding: '6px 4px', textAlign: 'right', fontWeight: 'bold' }}>
+                                        {movement.affects_physical === false ? '—' : movement.new_stock}
+                                    </td>
                                     <td style={{ padding: '6px 4px' }}>{movement.reason || '—'}</td>
                                 </tr>
                             );

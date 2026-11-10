@@ -319,16 +319,12 @@ export const useUsersStore = create<UsersState>((set, get) => ({
         try {
             const storeId = await getCurrentOperationalStoreId();
 
-            const role = USER_ROLE_TO_STORE_ROLE[data.role];
-
-            if (!role || role === 'owner') {
-                throw new Error('Papel inválido para novo membro.');
-            }
-
+            // A gestão de convites não autoriza atribuir privilégios.
+            // A função pode ser alterada depois, exclusivamente em Segurança.
             await createStoreMemberInvite({
                 storeId,
                 email: data.email,
-                role: role as Exclude<StoreMemberRole, 'owner'>,
+                role: 'staff',
                 inviteAlias: data.full_name,
                 expiresInDays: 3,
             });

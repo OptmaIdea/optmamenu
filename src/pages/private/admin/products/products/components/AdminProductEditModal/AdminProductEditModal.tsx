@@ -462,8 +462,9 @@ export default function AdminProductEditModal({
     const hasMultipleImages = mediaItems.length > 1;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col md:flex-row overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-2 sm:p-4">
+            <div role="dialog" aria-modal="true" aria-label={isEditing ? `Editar produto ${product?.name ?? ''}` : 'Novo produto'}
+                className="flex max-h-[calc(100dvh-1rem)] w-full max-w-5xl flex-col overflow-y-auto overscroll-contain rounded-2xl bg-white shadow-xl dark:bg-gray-800 md:max-h-[90dvh] md:flex-row md:overflow-hidden">
                 {/* LADO ESQUERDO – IMAGENS */}
                 <ImageSection
                     mediaItems={mediaItems}

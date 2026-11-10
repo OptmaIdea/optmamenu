@@ -1,5 +1,8 @@
 // src/pages/private/admin/dashboard/Alerts.tsx
-import { useMemo } from 'react';
+import { useMemo, useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
+import { usePermissions } from '@/hooks/usePermissions';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, Package, TrendingUp, AlertCircle } from 'lucide-react';
 
@@ -7,6 +10,7 @@ import PageContainer from '@/components/common/PageContainer';
 import StatsCard from '@/components/common/StatsCard';
 import { useCurrentStore } from '@/hooks/store/useCurrentStore';
 import { useStockAlerts } from '@/hooks/stock/useStockAlerts';
+import { useAccountsPayableDueAlerts } from '@/hooks/financial/useAccountsPayableDueAlerts';
 
 function StockList({
   title,
@@ -53,6 +57,98 @@ function StockList({
 
 export default function Alerts() {
   const { store, storeId, loading: storeLoading } = useCurrentStore();
+  const financialAlerts = useAccountsPayableDueAlerts(storeId || undefined);
+  const { hasPermission } = usePermissions(storeId || null);
+  const [holidays, setHolidays] = useState<Array<{ id: string | null; date: string; name: string; automatic?: boolean; category?: string; exception_status?: string | null; exception_reason?: string | null }>>([]);
+  const [holidayYear, setHolidayYear] = useState(new Date().getFullYear());
+  const [holidayDate, setHolidayDate] = useState('');
+  const [holidayName, setHolidayName] = useState('');
+  const [exceptionDate, setExceptionDate] = useState('');
+  const [exceptionStatus, setExceptionStatus] = useState<'open' | 'closed' | 'optional' | 'special_hours'>('open');
+  const [exceptionReason, setExceptionReason] = useState('');
+  const [savingHoliday, setSavingHoliday] = useState(false);
+  const canManageHolidays = hasPermission('accounts_payable.manage');
+
+  useEffect(() => {
+    if (!storeId) { setHolidays([]); return; }
+    let mounted = true;
+    const load = async () => {
+      const { data, error } = await supabase.rpc('list_store_financial_holidays_safe', {
+        p_store_id: storeId, p_year: holidayYear,
+      });
+      if (mounted && !error && data?.ok) setHolidays(data.items || []);
+    };
+    void load();
+    return () => { mounted = false; };
+  }, [storeId, holidayYear]);
+
+  const saveHoliday = async () => {
+    if (!storeId || !holidayDate || holidayName.trim().length < 2) return toast.warning('Informe data e descrição do feriado.');
+    setSavingHoliday(true);
+    try {
+      const { data, error } = await supabase.rpc('save_store_financial_holiday_safe', {
+        p_store_id: storeId, p_date: holidayDate, p_name: holidayName.trim(),
+      });
+      if (error || !data?.ok) throw error || new Error(data?.error || 'Erro ao salvar feriado.');
+      setHolidayYear(Number(holidayDate.slice(0,4)));
+      const { data: list } = await supabase.rpc('list_store_financial_holidays_safe', {
+        p_store_id: storeId, p_year: Number(holidayDate.slice(0,4)),
+      });
+      if (list?.ok) setHolidays(list.items || []);
+      setHolidayName('');
+      setHolidayDate('');
+      toast.success('Feriado cadastrado para esta unidade.');
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Erro ao salvar feriado.'); }
+    finally { setSavingHoliday(false); }
+  };
+
+  const reloadHolidays = async (year: number) => {
+    if (!storeId) return;
+    const { data, error } = await supabase.rpc('list_store_financial_holidays_safe', {
+      p_store_id: storeId, p_year: year,
+    });
+    if (error || !data?.ok) throw error || new Error(data?.error || 'Erro ao atualizar calendário.');
+    setHolidays(data.items || []);
+  };
+  const saveException = async () => {
+    if (!storeId || !exceptionDate || exceptionReason.trim().length < 8) {
+      toast.warning('Informe data e motivo com pelo menos oito caracteres.');
+      return;
+    }
+    setSavingHoliday(true);
+    try {
+      const { data, error } = await supabase.rpc('save_store_financial_calendar_exception_safe', {
+        p_store_id: storeId, p_date: exceptionDate, p_status: exceptionStatus, p_reason: exceptionReason.trim(),
+      });
+      if (error || !data?.ok) throw error || new Error(data?.error || 'Falha ao configurar exceção.');
+      const year = Number(exceptionDate.slice(0, 4));
+      setHolidayYear(year);
+      await reloadHolidays(year);
+      setExceptionDate('');
+      setExceptionReason('');
+      toast.success('Exceção da unidade registrada. O vencimento contratual não foi alterado.');
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Erro ao salvar exceção.'); }
+    finally { setSavingHoliday(false); }
+  };
+  const removeException = async (date: string) => {
+    if (!storeId) return;
+    const { data, error } = await supabase.rpc('delete_store_financial_calendar_exception_safe', {
+      p_store_id: storeId, p_date: date,
+    });
+    if (error || !data?.ok) return toast.error(error?.message || data?.error || 'Erro ao remover exceção.');
+    await reloadHolidays(holidayYear);
+    toast.success('Exceção removida. Vale novamente a regra automática.');
+  };
+
+  const removeHoliday = async (date: string) => {
+    if (!storeId) return;
+    const { data, error } = await supabase.rpc('delete_store_financial_holiday_safe', {
+      p_store_id: storeId, p_date: date,
+    });
+    if (error || !data?.ok) return toast.error(error?.message || data?.error || 'Erro ao remover feriado.');
+    setHolidays((current) => current.filter((item) => item.date !== date));
+    toast.success('Feriado removido.');
+  };
   const { loading, error, summary, lists } = useStockAlerts(storeId || undefined, {
     autoRefreshMs: 5 * 60 * 1000,
     limitPerList: 12,
@@ -68,7 +164,7 @@ export default function Alerts() {
   return (
     <PageContainer
       title={title}
-      subtitle={store?.name ? `Alertas de estoque para a loja ${store.name}` : "Acompanhe alertas de estoque crítico, baixo e excessos"}
+      subtitle={store?.name ? `Avisos financeiros e de estoque — ${store.name}` : "Acompanhe vencimentos e alertas de estoque"}
       category="Dashboard"
       icon={<AlertCircle size={28} className="text-[#19A999]" />}
       action={
@@ -88,6 +184,49 @@ export default function Alerts() {
           {error}
         </div>
       )}
+
+      <section className="mb-6 rounded-2xl border border-amber-200 bg-white p-4 dark:border-amber-900/50 dark:bg-gray-900" aria-label="Vencimentos de contas a pagar">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div><h2 className="font-black text-gray-900 dark:text-white">Contas a pagar · vencidas e próximos 5 dias</h2>
+          <p className="text-xs text-gray-500">Contagem em dias corridos. O calendário indica dias não úteis, sem alterar automaticamente o vencimento contratual.</p></div>
+          <Link to="/admin/accounts-payable" className="text-sm font-bold text-teal-700 hover:underline dark:text-teal-300">Ver todas as contas</Link>
+        </div>
+        {financialAlerts.error && <p className="mb-2 text-xs text-amber-700">Avisos indisponíveis: {financialAlerts.error}</p>}
+        {financialAlerts.loading ? <p className="text-sm text-gray-500">Consultando vencimentos...</p> : financialAlerts.items.length === 0 ? <p className="text-sm text-gray-500">Nenhuma parcela vencida ou com vencimento nos próximos cinco dias.</p> : (
+          <div className="space-y-2">{financialAlerts.items.map((item) => (
+            <Link key={item.installment_id} to={`/admin/accounts-payable?payable=${encodeURIComponent(item.payable_id)}`} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 p-3 hover:border-teal-400 dark:border-gray-700">
+              <div className="min-w-0"><p className="font-bold text-gray-900 dark:text-white">{item.description || item.payable_code} · parcela {item.installment_number}</p>
+                <p className="text-xs text-gray-500">{item.payable_code} · vencimento {item.due_date.split('-').reverse().join('/')}</p>{item.is_non_business_due_date && <p className="mt-1 text-xs font-bold text-amber-700 dark:text-amber-300">Vencimento em dia não útil · próximo dia útil {item.next_business_date?.split('-').reverse().join('/')}. Confira a regra contratual.</p>}</div>
+              <div className="text-right"><p className={`text-sm font-black ${item.days_until_due < 0 ? 'text-red-600' : item.days_until_due === 0 ? 'text-orange-600' : 'text-amber-600'}`}>{item.days_until_due < 0 ? `${Math.abs(item.days_until_due)} dia(s) em atraso` : item.days_until_due === 0 ? 'Vence hoje' : `Vence em ${item.days_until_due} dia(s)`}</p>
+              <p className="text-xs font-bold text-gray-600 dark:text-gray-300">{Number(item.open_amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p></div>
+            </Link>
+          ))}</div>
+        )}
+      </section>
+
+      <section className="mb-6 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div><h2 className="font-black dark:text-white">Calendário financeiro de feriados</h2><p className="text-xs text-gray-500">Feriados nacionais e bancários recorrentes são gerados automaticamente; cadastre abaixo apenas feriados estaduais e municipais. Datas de expediente especial não alteram o vencimento contratual.</p></div>
+          <label className="text-xs font-bold text-gray-500">Ano <input aria-label="Ano do calendário financeiro" type="number" min="1900" max="2199" step="1" value={holidayYear} onChange={(e) => { const year = Number(e.target.value); if (Number.isInteger(year) && year >= 1900 && year <= 2199) setHolidayYear(year); }} className="ml-2 w-24 rounded-lg border px-2 py-1 dark:bg-gray-950" /></label>
+        </div>
+        {canManageHolidays && <div className="mb-3 grid gap-2 sm:grid-cols-[160px_1fr_auto]"><input type="date" value={holidayDate} onChange={(e) => setHolidayDate(e.target.value)} className="rounded-xl border px-3 py-2 dark:bg-gray-950"/><input placeholder="Nome do feriado" value={holidayName} onChange={(e) => setHolidayName(e.target.value)} className="rounded-xl border px-3 py-2 dark:bg-gray-950"/><button type="button" onClick={() => void saveHoliday()} disabled={savingHoliday} className="rounded-xl bg-teal-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Adicionar</button></div>}
+        {holidays.length===0 ? <p className="text-sm text-gray-500">Nenhum feriado disponível para {holidayYear}.</p> : <div className="grid gap-2 sm:grid-cols-2">{holidays.map(h => <div key={h.id} className="flex items-center justify-between gap-3 rounded-xl border p-3 text-sm dark:border-gray-700"><span>{h.date.split('-').reverse().join('/')} · {h.name}{h.automatic ? ' (automático)' : h.category === 'excecao' ? ' (exceção)' : ' (local)'}{h.exception_status && <span className="ml-2 font-bold text-amber-600">[{({open:'Com atendimento',closed:'Sem atendimento',optional:'Ponto facultativo',special_hours:'Expediente especial'} as Record<string,string>)[h.exception_status] || h.exception_status}]</span>}{h.exception_reason && <span className="ml-2 text-xs opacity-70">Motivo: {h.exception_reason}</span>}</span>{canManageHolidays && h.exception_status && <button type="button" onClick={() => void removeException(h.date)} className="text-xs font-bold text-amber-600">Restaurar regra</button>}{canManageHolidays && !h.automatic && h.category === 'local' && <button type="button" onClick={() => void removeHoliday(h.date)} className="text-xs font-bold text-rose-600">Remover</button>}</div>)}</div>}
+        {canManageHolidays && <div className="mt-4 space-y-2 border-t pt-3 dark:border-gray-700">
+          <p className="text-sm font-black dark:text-white">Exceção ao calendário — somente esta unidade</p>
+          <p className="text-xs text-gray-500">Use após verificar a norma ou comunicado bancário. 'Ponto facultativo' e 'expediente especial' são informativos e não bloqueiam automaticamente a data. 'Com atendimento' substitui o feriado automático somente nesta unidade e não altera fins de semana.</p>
+          <div className="grid gap-2 sm:grid-cols-[150px_1fr]">
+            <input type="date" aria-label="Data da exceção" value={exceptionDate} onChange={e=>setExceptionDate(e.target.value)} className="rounded-xl border px-3 py-2 dark:bg-gray-950" />
+            <select aria-label="Tipo de exceção bancária" value={exceptionStatus} onChange={e=>setExceptionStatus(e.target.value as typeof exceptionStatus)} className="rounded-xl border px-3 py-2 dark:bg-gray-950">
+              <option value="open">Com atendimento bancário</option>
+              <option value="closed">Sem atendimento bancário</option>
+              <option value="optional">Ponto facultativo (informativo)</option>
+              <option value="special_hours">Expediente especial (informativo)</option>
+            </select>
+            <input value={exceptionReason} onChange={e=>setExceptionReason(e.target.value)} placeholder="Fundamento da exceção (norma, comunicado, motivo)" className="rounded-xl border px-3 py-2 dark:bg-gray-950 sm:col-span-2" />
+          </div>
+          <button type="button" onClick={() => void saveException()} disabled={savingHoliday} className="rounded-xl bg-amber-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-50">Salvar exceção da unidade</button>
+        </div>}
+      </section>
 
       {/* Cards (sem badges) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">

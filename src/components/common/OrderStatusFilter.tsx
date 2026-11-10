@@ -20,6 +20,7 @@ export default function OrderStatusFilter({ value, onChange }: OrderStatusFilter
         <option value="reserved">Novos</option>
         <option value="confirmed">Em Preparo</option>
         <option value="ready">Prontos</option>
+        <option value="out_for_delivery">Em rota de entrega</option>
         <option value="completed">Finalizados</option>
         <option value="cancelled">Cancelados</option>
         <option value="expired_auto">Expirados automaticamente</option>

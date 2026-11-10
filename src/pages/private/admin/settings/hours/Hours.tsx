@@ -31,8 +31,8 @@ export default function Hours({ withoutHeader = false }: { withoutHeader?: boole
 
 
     useEffect(() => {
-        fetchData();
-    }, []);
+        void fetchData();
+    }, [currentStoreId]);
 
     const fetchData = async () => {
         try {
@@ -40,13 +40,12 @@ export default function Hours({ withoutHeader = false }: { withoutHeader?: boole
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            // Get store via RPC - first get user's store ID
-            const { data: storeData, error: storeError } = await supabase.rpc(
-                'get_user_store_by_id',
-                { p_user_id: user.id }
-            );
+            // Multi-store: configure the selected store, not always the user's primary store.
+            if (!currentStoreId) return;
+            const { data: storeData, error: storeError } = await supabase
+                .from('stores').select('id,config').eq('id', currentStoreId).maybeSingle();
             if (storeError) throw storeError;
-            const store = Array.isArray(storeData) ? storeData[0] : storeData;
+            const store = storeData;
 
             if (store) {
                 setStoreId(store.id);
@@ -440,6 +439,36 @@ export default function Hours({ withoutHeader = false }: { withoutHeader?: boole
                             </div>
                         </div>
 
+                        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-slate-900">
+                            <h3 className="font-black text-gray-900 dark:text-white">Pedidos online fora do horário</h3>
+                            <p className="mt-2 text-sm leading-6 text-gray-700 dark:text-slate-200">
+                                A regra é aplicada no checkout pelo Supabase, inclusive se o cliente tentar enviar o pedido diretamente pela API.
+                                A grade semanal e as datas especiais determinam quando a loja está aberta.
+                            </p>
+                            <div className="mt-4 space-y-3">
+                                <label className="flex cursor-pointer gap-3 rounded-xl border border-gray-300 bg-white p-3 text-sm text-gray-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white">
+                                    <input type="radio" name="outside-hours-policy" className="mt-1 accent-emerald-600" disabled={!canManage}
+                                        checked={storeConfig?.online_orders_outside_hours !== 'block'}
+                                        onChange={() => setStoreConfig({ ...storeConfig, online_orders_outside_hours: 'accept' })}/>
+                                    <span><strong>Receber pedidos mesmo com a loja fechada</strong><br/>
+                                        Os pedidos podem ser registrados, mas a reserva e o prazo de pagamento continuam correndo normalmente.
+                                        Se expirarem antes da próxima abertura, o pedido será cancelado. Não é agendamento automático.</span>
+                                </label>
+                                <label className="flex cursor-pointer gap-3 rounded-xl border border-gray-300 bg-white p-3 text-sm text-gray-900 dark:border-slate-600 dark:bg-slate-800 dark:text-white">
+                                    <input type="radio" name="outside-hours-policy" className="mt-1 accent-emerald-600" disabled={!canManage}
+                                        checked={storeConfig?.online_orders_outside_hours === 'block'}
+                                        onChange={() => setStoreConfig({ ...storeConfig, online_orders_outside_hours: 'block' })}/>
+                                    <span><strong>Receber pedidos apenas durante o funcionamento</strong><br/>
+                                        Fora do horário, em feriados fechados e durante a margem de encerramento, o catálogo fica acessível para consulta,
+                                        mas o servidor recusa novos pedidos online.</span>
+                                </label>
+                            </div>
+                            <p className="mt-3 text-xs text-gray-600 dark:text-slate-300">
+                                A opção inicial preserva o comportamento anterior. O bloqueio só começa após você selecionar a segunda opção e salvar.
+                                Fuso horário operacional: Brasília (America/Sao_Paulo).
+                            </p>
+                        </div>
+
                         {/* Tolerâncias */}
                         <div>
                             <h3 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-4 border-b border-gray-100 dark:border-gray-700 pb-2">
@@ -519,7 +548,9 @@ export default function Hours({ withoutHeader = false }: { withoutHeader?: boole
             <div className="mt-8 bg-blue-50 dark:bg-blue-900/10 p-4 rounded-xl border border-blue-100 dark:border-blue-900/30 flex gap-3 text-sm text-blue-700 dark:text-blue-300">
                 <Info className="shrink-0" size={20} />
                 <p>
-                    <strong>Como funciona:</strong> O sistema verifica primeiro se há uma "Exceção" (Feriado) para a data de hoje. Se houver, usa o horário da exceção. Se não houver, usa o horário da "Grade Semanal".
+                    <strong>Como funciona:</strong> o sistema usa a exceção da data (feriados ou horários especiais) e,
+                    na ausência dela, a grade semanal. Jornadas que ultrapassam a meia-noite também são consideradas.
+                    A opção de receber pedidos fora do horário é independente da exibição do catálogo.
                 </p>
             </div>
         </>

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import type {
     StoreMemberOccurrenceSeverity,
@@ -48,6 +49,7 @@ interface UserDetailModalProps {
     onClose: () => void;
     user: UserAdmin | null;
     canManageUsers?: boolean;
+    canManageSecurityAccess?: boolean;
     canViewSensitiveUserData?: boolean;
     canManageSensitiveUserData?: boolean;
     onSaveProfileDetails?: (input: {
@@ -151,14 +153,6 @@ const OCCURRENCE_TYPE_OPTIONS = ([
         severity: 'medium',
         sensitive: false,
         requiresDescription: false,
-    },
-    {
-        value: 'role_change',
-        label: 'Alteração de função',
-        severity: 'medium',
-        sensitive: true,
-        requiresDescription: true,
-        help: 'Registra alteração de papel no sistema e/ou função personalizada.',
     },
     {
         value: 'absence',
@@ -439,13 +433,11 @@ export function UserDetailModal({
     onClose,
     user,
     canManageUsers = false,
+    canManageSecurityAccess = false,
     canViewSensitiveUserData = false,
     canManageSensitiveUserData = false,
     onSaveProfileDetails,
-    onRequestRoleChange,
-    onRequestCustomRoleChange,
     onOccurrenceSaved,
-    customRoles = [],
     onAvatarUpdated,
 }: UserDetailModalProps) {
     const [activeTab, setActiveTab] = useState<ModalTab>('overview');
@@ -546,7 +538,6 @@ export function UserDetailModal({
         });
     }, [fullHistoryItems, historySortOrder]);
 
-    const isProtectedOwner = user?.role === 'owner';
     const memberStore = user?.stores?.[0] ?? null;
 
     const [internalForm, setInternalForm] = useState<InternalFormState>(() =>
@@ -1306,14 +1297,8 @@ export function UserDetailModal({
             return;
         }
 
-        const metadata =
-            occurrenceType === 'role_change' || occurrenceType === 'admission'
-                ? {
-                    new_role: occurrenceForm.newRole || user.role,
-                    new_custom_role_id: occurrenceForm.newCustomRoleId || null,
-                    clear_individual_overrides: occurrenceForm.clearIndividualOverrides,
-                }
-                : {};
+        // Ocorrências em Usuários não podem carregar alterações de privilégios.
+        const metadata = {};
 
         try {
             const result = await createStoreMemberOccurrenceV2({
@@ -1906,66 +1891,22 @@ export function UserDetailModal({
                                         Papel no sistema define o acesso base. Função personalizada aplica ajustes específicos de permissão compatíveis com esse papel.
                                     </div>
 
-                                    {canManageUsers && (
-                                        <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
-                                            <h4 className="mb-4 font-bold text-gray-900 dark:text-white">
-                                                Configurações de Acesso
-                                            </h4>
-
-                                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                                <label className="block">
-                                                    <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
-                                                        Papel no sistema
-                                                    </span>
-                                                    <select
-                                                        value={user.role}
-                                                        disabled={isProtectedOwner || !onRequestRoleChange}
-                                                        onChange={(event) => {
-                                                            const nextRole = event.target.value;
-                                                            if (user.role !== nextRole) {
-                                                                onRequestRoleChange?.(user, nextRole);
-                                                            }
-                                                        }}
-                                                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-                                                    >
-                                                        <option value="admin">Administrador</option>
-                                                        <option value="cashier">Caixa</option>
-                                                        <option value="staff">Equipe</option>
-                                                        <option value="manager">Gerente</option>
-                                                        <option value="stock_operator">Operador de estoque</option>
-                                                        <option value="sales">Vendas</option>
-                                                        <option value="viewer">Visualizador</option>
-                                                    </select>
-                                                </label>
-
-                                                <label className="block">
-                                                    <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
-                                                        Função personalizada
-                                                    </span>
-                                                    <select
-                                                        value={user.custom_role_id ?? ''}
-                                                        disabled={isProtectedOwner || !onRequestCustomRoleChange}
-                                                        onChange={(event) => {
-                                                            const nextCustomRoleId = event.target.value || null;
-                                                            if ((user.custom_role_id ?? null) !== nextCustomRoleId) {
-                                                                onRequestCustomRoleChange?.(user, nextCustomRoleId);
-                                                            }
-                                                        }}
-                                                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-                                                    >
-                                                        <option value="">Sem função personalizada</option>
-                                                        {customRoles
-                                                            .filter((role) => role.active && role.base_role === user.role)
-                                                            .map((role) => (
-                                                                <option key={role.id} value={role.id}>
-                                                                    {role.name}
-                                                                </option>
-                                                            ))}
-                                                    </select>
-                                                </label>
-                                            </div>
-                                        </div>
-                                    )}
+                                    <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+                                        <h4 className="font-bold text-gray-900 dark:text-white">Permissões e função</h4>
+                                        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                                            Papel atual: <strong>{formatRoleLabel(user.role)}</strong>.
+                                            {user.custom_role_name ? ` Função personalizada: ${user.custom_role_name}.` : ' Sem função personalizada.'}
+                                        </p>
+                                        {canManageSecurityAccess ? (
+                                            <Link to="/admin/security?tab=user_permissions" onClick={onClose} className="mt-3 inline-flex rounded-lg border border-teal-300 px-3 py-2 text-sm font-bold text-teal-800 hover:bg-teal-50 dark:text-teal-300">
+                                                Gerenciar permissões na Central de Segurança
+                                            </Link>
+                                        ) : (
+                                            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                                Alterações de papel e permissões são restritas à Central de Segurança.
+                                            </p>
+                                        )}
+                                    </div>
 
                                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                         <InfoCard
@@ -2533,82 +2474,6 @@ export function UserDetailModal({
                                                     }))
                                                 }
                                             />
-
-                                            {(occurrenceForm.occurrenceType === 'role_change' ||
-                                                occurrenceForm.occurrenceType === 'admission') && (
-                                                    <div className="space-y-3">
-                                                        <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-                                                            {occurrenceForm.occurrenceType === 'admission'
-                                                                ? 'Defina o papel e a função personalizada que o colaborador terá ao iniciar/retornar.'
-                                                                : 'Defina o novo papel e/ou função personalizada do colaborador.'}
-                                                        </p>
-
-                                                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                                            <SelectField
-                                                                label="Novo papel no sistema"
-                                                                value={occurrenceForm.newRole || user.role}
-                                                                options={[
-                                                                    ['admin', 'Administrador'],
-                                                                    ['manager', 'Gerente'],
-                                                                    ['stock_operator', 'Operador de estoque'],
-                                                                    ['cashier', 'Caixa'],
-                                                                    ['sales', 'Vendas'],
-                                                                    ['staff', 'Equipe'],
-                                                                    ['viewer', 'Visualizador'],
-                                                                ]}
-                                                                onChange={(value) =>
-                                                                    setOccurrenceForm((current) => ({
-                                                                        ...current,
-                                                                        newRole: value,
-                                                                        newCustomRoleId: '',
-                                                                    }))
-                                                                }
-                                                            />
-
-                                                            <SelectField
-                                                                label="Função personalizada"
-                                                                value={occurrenceForm.newCustomRoleId}
-                                                                options={[
-                                                                    ['', 'Sem função personalizada'],
-                                                                    ...customRoles
-                                                                        .filter(
-                                                                            (role) =>
-                                                                                role.active &&
-                                                                                role.base_role ===
-                                                                                (occurrenceForm.newRole || user.role)
-                                                                        )
-                                                                        .map((role) => [
-                                                                            role.id,
-                                                                            `${role.name} — base: ${formatRoleLabel(role.base_role)}`,
-                                                                        ] as [string, string]),
-                                                                ]}
-                                                                onChange={(value) =>
-                                                                    setOccurrenceForm((current) => ({
-                                                                        ...current,
-                                                                        newCustomRoleId: value,
-                                                                    }))
-                                                                }
-                                                            />
-
-                                                            <label className="flex items-start gap-2 rounded-xl border border-gray-200 p-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300 md:col-span-2">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={occurrenceForm.clearIndividualOverrides}
-                                                                    onChange={(event) =>
-                                                                        setOccurrenceForm((current) => ({
-                                                                            ...current,
-                                                                            clearIndividualOverrides: event.target.checked,
-                                                                        }))
-                                                                    }
-                                                                    className="mt-1"
-                                                                />
-                                                                <span>
-                                                                    Limpar permissões individuais ao aplicar esta alteração.
-                                                                </span>
-                                                            </label>
-                                                        </div>
-                                                    </div>
-                                                )}
 
                                             <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
                                                 <input

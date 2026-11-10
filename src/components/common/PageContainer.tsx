@@ -1,6 +1,7 @@
 // src/components/common/PageContainer.tsx
 import type { ReactNode } from 'react';
-import { Clock, RefreshCw } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
+import { BadgeDollarSign, Clock, RefreshCw, ShoppingCart } from 'lucide-react';
 
 interface PageContainerProps {
   title: string;
@@ -29,6 +30,39 @@ export default function PageContainer({
   flat = false,
   icon
 }: PageContainerProps) {
+  const { pathname } = useLocation();
+  const showBulkQuotationShortcut = [
+    '/admin/stock/quotations',
+    '/admin/stock/purchase-documents',
+    '/admin/cashbook/purchases',
+  ].includes(pathname);
+  const showAccountsPayableShortcut = [
+    '/admin/stock/purchase-documents',
+    '/admin/cashbook/purchases',
+    '/admin/cashbook',
+    '/admin/financial-accounts',
+  ].includes(pathname);
+
+  const bulkQuotationShortcut = showBulkQuotationShortcut ? (
+    <Link
+      to="/admin/stock/quotations/batch"
+      className="flex items-center gap-2 px-4 py-2 bg-[#19A999] rounded-xl text-white hover:bg-[#14887B] transition-all font-candara text-sm font-bold shadow-sm"
+    >
+      <ShoppingCart size={16} />
+      <span className="hidden sm:inline">Cotação em lote</span>
+    </Link>
+  ) : null;
+
+  const accountsPayableShortcut = showAccountsPayableShortcut ? (
+    <Link
+      to="/admin/accounts-payable"
+      className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border border-[#19A999]/30 rounded-xl text-[#14887B] dark:text-[#37d0bb] hover:bg-[#19A999]/5 dark:hover:bg-[#19A999]/10 transition-all font-candara text-sm font-bold shadow-sm"
+    >
+      <BadgeDollarSign size={16} />
+      <span className="hidden sm:inline">Contas a pagar</span>
+    </Link>
+  ) : null;
+
   return (
     <div className={`w-full max-w-7xl mx-auto animate-fadeIn ${className}`}>
       {/* Header */}
@@ -62,6 +96,8 @@ export default function PageContainer({
               </div>
 
               <div className="flex items-center gap-3">
+                {accountsPayableShortcut}
+                {bulkQuotationShortcut}
                 {onRefresh && (
                   <button
                     onClick={onRefresh}
@@ -114,6 +150,8 @@ export default function PageContainer({
               </div>
 
               <div className="flex items-center gap-3">
+                {accountsPayableShortcut}
+                {bulkQuotationShortcut}
                 {onRefresh && (
                   <button
                     onClick={onRefresh}

@@ -6,11 +6,15 @@ import { getActiveStoreId } from '@/utils/activeStore';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import PageContainer from '@/components/common/PageContainer';
 import { useProductLifecycle } from './hooks/useProductLifecycle';
+import { useProductOperationalOccurrences } from './hooks/useProductOperationalOccurrences';
+import { getPhysicalDiscrepancyQuantity } from './services/productOperationalOccurrencesService';
 import { useProductStockMovements } from './hooks/useProductStockMovements';
 import { useProductInventoryAudit } from './hooks/useProductInventoryAudit';
 import { useProductLocationInventory } from './hooks/useProductLocationInventory';
 import { useProductStockManagement } from './hooks/useProductStockManagement';
 import { ProductStockManagementCards } from './components/ProductStockManagementCards';
+import { ProductMovementHistory } from './components/ProductMovementHistory';
+import { getReservationReleaseEvent } from './utils/reservationLifecycleEvents';
 import { useProductSupplierLifecycle } from './hooks/useProductSupplierLifecycle';
 import { ProductSupplierCostPanel } from './components/ProductSupplierCostPanel';
 import { useProductTransitSummary } from './hooks/useProductTransitSummary';
@@ -23,7 +27,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import EmptyState from '@/components/common/empty-state/EmptyState';
 import InfoTooltip from '@/components/common/tooltip/InfoTooltip';
 import { ProductPricingHistoryTab } from './pricing-history/ProductPricingHistoryTab';
-import { getShortDocumentReference, getDocumentReferenceTitle, humanizeTextReferences } from '@/utils/documentReference';
+
 import {
   ArrowLeft,
   History,
@@ -45,7 +49,6 @@ import {
   getMovementOriginLabel,
   getMovementReferenceLabel,
   getMovementStockPath,
-  getMovementToneClass,
   getTransferDivergenceReasonLabel,
   isPurchaseDocumentCancelMovement,
   getTransferDivergenceResolutionLabel,
@@ -59,7 +62,10 @@ type MovementOperationFilter =
   | 'purchase_cancel'
   | 'transfer'
   | 'transfer_divergence'
+  | 'purchase_issue'
+  | 'physical_issue'
   | 'adjustment'
+  | 'reservation'
   | 'entry'
   | 'exit';
 
@@ -71,7 +77,10 @@ const movementOperationFilterOptions: Array<{ value: MovementOperationFilter; la
   { value: 'purchase_cancel', label: 'Compras canceladas' },
   { value: 'transfer', label: 'Transferências' },
   { value: 'transfer_divergence', label: 'Divergências de transferência' },
+  { value: 'purchase_issue', label: 'Ressalvas de compras' },
+  { value: 'physical_issue', label: 'Divergências físicas' },
   { value: 'adjustment', label: 'Ajustes e baixas' },
+  { value: 'reservation', label: 'Reservas' },
   { value: 'entry', label: 'Entradas' },
   { value: 'exit', label: 'Saídas' },
 ];
@@ -157,6 +166,7 @@ export default function ProductLifecyclePage() {
     useState<MovementOperationFilter>('all');
   const [movementLocationFilter, setMovementLocationFilter] = useState('all');
   const [movementSort, setMovementSort] = useState<MovementSortOption>('newest');
+  const [movementFiltersOpen, setMovementFiltersOpen] = useState(false);
 
   const {
     row,
@@ -164,6 +174,8 @@ export default function ProductLifecyclePage() {
     loading: loadingLifecycle,
   } = useProductLifecycle(id);
   const { rows: movementRows, loading: loadingMovements } = useProductStockMovements(id);
+  const { purchaseIssues, physicalDiscrepancies, loading: loadingIssues, error: issuesError } =
+    useProductOperationalOccurrences(storeId, id, activeTab === 'movements');
   const { rows: auditRows, loading: loadingAudit } = useProductInventoryAudit(id);
   const { rows: locationRows, loading: loadingLocations } = useProductLocationInventory(id);
   const {
@@ -256,9 +268,11 @@ export default function ProductLifecyclePage() {
         .filter((value): value is string => Boolean(value && value.trim().length > 0))
         .forEach((value) => locations.set(value, value));
     });
-
+    physicalDiscrepancies.forEach((item) => {
+      if (item.location_name) locations.set(item.location_name, item.location_name);
+    });
     return Array.from(locations.values()).sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [movementRows, transferDivergences]);
+  }, [movementRows, transferDivergences, physicalDiscrepancies]);
 
   const filteredMovementRows = useMemo(() => {
     const normalizedSearch = movementSearch.trim().toLowerCase();
@@ -271,7 +285,8 @@ export default function ProductLifecyclePage() {
       if (movementOperationFilter === 'purchase_cancel') return isPurchaseDocumentCancelMovement(movement);
       if (movementOperationFilter === 'purchase') return source === 'purchase_document';
       if (movementOperationFilter === 'transfer') return source === 'stock_transfer';
-      if (movementOperationFilter === 'transfer_divergence') return false;
+      if (movementOperationFilter === 'transfer_divergence' || movementOperationFilter === 'purchase_issue' || movementOperationFilter === 'physical_issue') return false;
+      if (movementOperationFilter === 'reservation') return type === 'reservation';
       if (movementOperationFilter === 'entry') return type === 'entry';
       if (movementOperationFilter === 'exit') return type === 'exit';
 
@@ -380,6 +395,46 @@ export default function ProductLifecyclePage() {
     transferDivergences,
   ]);
 
+  const filteredPurchaseIssues = useMemo(() => {
+    if (!['all', 'purchase_issue'].includes(movementOperationFilter)) return [];
+    // A ressalva da compra não expõe local físico: não atribuir um local por suposição.
+    if (movementLocationFilter !== 'all') return [];
+    const term = movementSearch.trim().toLocaleLowerCase('pt-BR');
+    return purchaseIssues.filter((item) => !term || [
+      item.issue_code, item.document_code, item.invoice_number, item.supplier_name,
+      item.issue_type, item.issue_status, item.disposition, item.notes, item.resolution_notes,
+      item.issue_type === 'damage' ? 'avaria' : null,
+      item.issue_type === 'shortage' ? 'falta' : null,
+      item.issue_type === 'excess' ? 'excesso' : null,
+    ].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR').includes(term));
+  }, [purchaseIssues, movementOperationFilter, movementLocationFilter, movementSearch]);
+
+  const filteredPhysicalDiscrepancies = useMemo(() => {
+    if (!['all', 'physical_issue'].includes(movementOperationFilter)) return [];
+    const term = movementSearch.trim().toLocaleLowerCase('pt-BR');
+    return physicalDiscrepancies.filter((item) => {
+      if (movementLocationFilter !== 'all' && item.location_name !== movementLocationFilter) return false;
+      return !term || [
+        'divergência física', item.order_code, item.location_name,
+        item.occurrence_type, item.status, item.opening_notes, item.resolution_notes,
+        ...item.items.map((entry) => entry.product_name),
+      ].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR').includes(term);
+    });
+  }, [physicalDiscrepancies, movementOperationFilter, movementLocationFilter, movementSearch]);
+
+  const filteredReservationReleases = useMemo(() => {
+    if (!['all','reservation'].includes(movementOperationFilter)) return [];
+    const query = movementSearch.trim().toLocaleLowerCase('pt-BR');
+    return movementRows.flatMap(movement => {
+      const release = getReservationReleaseEvent(movement);
+      if (!release) return [];
+      if (movementLocationFilter !== 'all' && release.location !== movementLocationFilter) return [];
+      if (query && !['reserva liberada','liberação de reserva',release.reason,release.orderCode,release.location]
+        .filter(Boolean).join(' ').toLocaleLowerCase('pt-BR').includes(query)) return [];
+      return [release];
+    });
+  }, [movementRows, movementLocationFilter, movementOperationFilter, movementSearch]);
+
   const displayMovementItems = useMemo(() => {
     const items = [
       ...filteredMovementRows.map((movement) => ({
@@ -390,6 +445,14 @@ export default function ProductLifecyclePage() {
         rank: getMovementSortRank(movement),
         movement,
       })),
+      ...filteredReservationReleases.map(release => ({
+        kind: 'reservation_release' as const,
+        id: release.id,
+        date: release.date,
+        quantity: release.quantity,
+        rank: 21,
+        release,
+      })),
       ...filteredTransferDivergences.map((divergence) => ({
         kind: 'divergence' as const,
         id: divergence.id,
@@ -397,6 +460,22 @@ export default function ProductLifecyclePage() {
         quantity: Math.abs(Number(divergence.divergence_qty ?? 0)),
         rank: 20,
         divergence,
+      })),
+      ...filteredPurchaseIssues.map((issue) => ({
+        kind: 'purchase_issue' as const,
+        id: issue.issue_id,
+        date: issue.opened_at,
+        quantity: Math.abs(Number(issue.quantity ?? 0)),
+        rank: 20,
+        issue,
+      })),
+      ...filteredPhysicalDiscrepancies.map((occurrence) => ({
+        kind: 'physical_issue' as const,
+        id: occurrence.id,
+        date: occurrence.created_at,
+        quantity: getPhysicalDiscrepancyQuantity(occurrence),
+        rank: 20,
+        occurrence,
       })),
     ];
 
@@ -422,7 +501,7 @@ export default function ProductLifecyclePage() {
 
       return a.rank - b.rank;
     });
-  }, [filteredMovementRows, filteredTransferDivergences, movementSort]);
+  }, [filteredMovementRows, filteredReservationReleases, filteredTransferDivergences, filteredPurchaseIssues, filteredPhysicalDiscrepancies, movementSort]);
 
   const hasMovementFilters =
     movementSearch.trim().length > 0 ||
@@ -435,6 +514,7 @@ export default function ProductLifecyclePage() {
     setMovementOperationFilter('all');
     setMovementLocationFilter('all');
     setMovementSort('newest');
+    setMovementFiltersOpen(false);
   };
 
   const handleExportSummaryCsv = () => {
@@ -504,7 +584,7 @@ export default function ProductLifecyclePage() {
       filename: `vida_produto_movimentacoes_${row.product_name}_${new Date().toISOString().slice(0, 10)}.csv`,
       headers: ['Vida do produto - movimentações e divergências'],
       rows: [
-        ['Movimentações físicas'],
+        ['Movimentações de estoque e reservas'],
         [
           'Data/Hora',
           'Produto',
@@ -617,6 +697,9 @@ export default function ProductLifecyclePage() {
       )}
 
       <PageContainer title="Vida do produto" subtitle={`Histórico e análise operacional de ${productName}`}>
+        <Link to="/admin/products/lifecycle" className="mb-3 inline-flex min-h-10 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200">
+          <ArrowLeft size={15} aria-hidden="true" /> Consultar a Vida de outro produto
+        </Link>
         {/* ── CARD HEADER DO PRODUTO DESTACADO ── */}
         <div className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800 mb-6">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -900,7 +983,7 @@ export default function ProductLifecyclePage() {
         {/* ── ABA 3: MOVIMENTAÇÕES & HISTÓRICO ── */}
         {activeTab === 'movements' && (
           <div className="space-y-4">
-            {movementRows.length === 0 && transferDivergences.length === 0 ? (
+            {movementRows.length === 0 && transferDivergences.length === 0 && purchaseIssues.length === 0 && physicalDiscrepancies.length === 0 && !loadingIssues && !issuesError ? (
               <EmptyState
                 icon={<History className="h-5 w-5" />}
                 title="Nenhuma movimentação encontrada para este produto"
@@ -908,32 +991,45 @@ export default function ProductLifecyclePage() {
               />
             ) : (
               <div className="space-y-4">
-                <div className="flex flex-col gap-3 rounded-3xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-                  <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+                <div className="flex flex-col gap-3 rounded-2xl border border-gray-100 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:rounded-3xl sm:p-5">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <h2 className="font-black text-sm uppercase tracking-wider text-gray-900 dark:text-white">Movimentações Físicas</h2>
+                      <h2 className="text-sm font-black uppercase tracking-wider text-gray-900 dark:text-white">Movimentações e ocorrências</h2>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {displayMovementItems.length} de {movementRows.length + transferDivergences.length} eventos exibidos
+                        {displayMovementItems.length} de {movementRows.length + movementRows.filter((m) => getReservationReleaseEvent(m) !== null).length + transferDivergences.length + purchaseIssues.length + physicalDiscrepancies.length} eventos exibidos
                       </p>
                     </div>
 
-                    {hasMovementFilters && (
+                    <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
-                        onClick={clearMovementFilters}
-                        className="self-start rounded-xl border border-gray-200 px-3 py-1.5 text-xs font-bold text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700 md:self-auto"
+                        onClick={() => setMovementFiltersOpen((open) => !open)}
+                        aria-expanded={movementFiltersOpen}
+                        aria-controls="product-movement-filters"
+                        className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200 md:hidden"
                       >
-                        Limpar filtros
+                        {movementFiltersOpen ? 'Recolher filtros ↑' : 'Filtros ↓'}
+                        {hasMovementFilters && <span className="rounded-full bg-emerald-200 px-2 py-0.5 text-[10px] text-emerald-900 dark:bg-emerald-800 dark:text-emerald-100">Aplicados</span>}
                       </button>
-                    )}
+                      {hasMovementFilters && (
+                        <button
+                          type="button"
+                          onClick={clearMovementFilters}
+                          className="min-h-10 rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
+                        >
+                          Limpar filtros
+                        </button>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <div id="product-movement-filters" className={`${movementFiltersOpen ? 'grid' : 'hidden'} gap-3 md:grid md:grid-cols-2 xl:grid-cols-4`}>
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
                       Buscar
                       <input
                         value={movementSearch}
                         onChange={(event) => setMovementSearch(event.target.value)}
+                        onKeyDown={(event) => { if (event.key === 'Enter') setMovementFiltersOpen(false); }}
                         placeholder="Ref., local, motivo..."
                         className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-900 outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                       />
@@ -943,9 +1039,10 @@ export default function ProductLifecyclePage() {
                       Tipo
                       <select
                         value={movementOperationFilter}
-                        onChange={(event) =>
-                          setMovementOperationFilter(event.target.value as MovementOperationFilter)
-                        }
+                        onChange={(event) => {
+                          setMovementOperationFilter(event.target.value as MovementOperationFilter);
+                          setMovementFiltersOpen(false);
+                        }}
                         className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-900 outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                       >
                         {movementOperationFilterOptions.map((option) => (
@@ -960,7 +1057,10 @@ export default function ProductLifecyclePage() {
                       Local
                       <select
                         value={movementLocationFilter}
-                        onChange={(event) => setMovementLocationFilter(event.target.value)}
+                        onChange={(event) => {
+                          setMovementLocationFilter(event.target.value);
+                          setMovementFiltersOpen(false);
+                        }}
                         className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-900 outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                       >
                         <option value="all">Todos os locais</option>
@@ -976,7 +1076,10 @@ export default function ProductLifecyclePage() {
                       Ordenar
                       <select
                         value={movementSort}
-                        onChange={(event) => setMovementSort(event.target.value as MovementSortOption)}
+                        onChange={(event) => {
+                          setMovementSort(event.target.value as MovementSortOption);
+                          setMovementFiltersOpen(false);
+                        }}
                         className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-900 outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                       >
                         {movementSortOptions.map((option) => (
@@ -989,162 +1092,9 @@ export default function ProductLifecyclePage() {
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  {displayMovementItems.length === 0 && (movementRows.length > 0 || transferDivergences.length > 0) && (
-                    <EmptyState
-                      icon={<History className="h-5 w-5" />}
-                      title="Nenhuma movimentação encontrada com os filtros atuais"
-                      description="Ajuste os filtros, a busca ou a ordenação para voltar a visualizar os eventos físicos deste produto."
-                    />
-                  )}
-
-                  {displayMovementItems.map((item) => {
-                    if (item.kind === 'divergence') {
-                      const divergence = item.divergence;
-                      const rawCode = divergence.transfer_code || divergence.transfer_id || '';
-                      const shortRef = getShortDocumentReference(rawCode, { fallbackLabel: 'Transferência' });
-                      const titleAttr = getDocumentReferenceTitle(rawCode);
-
-                      return (
-                        <div
-                          key={`divergence-${divergence.id}`}
-                          className="rounded-3xl border border-amber-200 bg-amber-50/90 p-5 text-amber-900 shadow-sm"
-                        >
-                          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                            <div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-sm font-black">
-                                  Divergência na transferência
-                                </span>
-                                <span className="rounded-full bg-white/80 px-2.5 py-0.5 text-xs font-bold">
-                                  Divergência
-                                </span>
-                                <span className="rounded-full bg-white/80 px-2.5 py-0.5 text-xs font-bold text-amber-700">
-                                  {Number(divergence.divergence_qty ?? 0)} un.
-                                </span>
-                              </div>
-
-                              <p className="mt-2 text-sm font-medium leading-relaxed">
-                                {Number(divergence.divergence_qty ?? 0)} un. não chegaram ao destino conforme o enviado.
-                              </p>
-                            </div>
-
-                            <div className="text-left text-xs md:text-right">
-                              <div className="font-black text-amber-950" title={titleAttr}>
-                                Ref.: {shortRef}
-                              </div>
-                              <div className="mt-1 font-medium opacity-80">
-                                Ocorrência: {formatDateTimePtBr(getTransferDivergenceDate(divergence))}
-                              </div>
-                              <div className="mt-1 font-medium opacity-80">
-                                {divergence.source_location_name ?? 'Origem'} → {divergence.destination_location_name ?? 'Destino'}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="mt-3 grid gap-2 text-xs md:grid-cols-4">
-                            <div className="rounded-xl bg-white/70 p-2.5">
-                              <div className="font-bold opacity-70 uppercase text-[10px]">Local afetado</div>
-                              <div className="font-semibold mt-0.5">{divergence.source_location_name ?? 'Origem não identificada'}</div>
-                            </div>
-
-                            <div className="rounded-xl bg-white/70 p-2.5">
-                              <div className="font-bold opacity-70 uppercase text-[10px]">Resolução</div>
-                              <div className="font-semibold mt-0.5">{getTransferDivergenceResolutionLabel(divergence.divergence_resolution)}</div>
-                            </div>
-
-                            <div className="rounded-xl bg-white/70 p-2.5">
-                              <div className="font-bold opacity-70 uppercase text-[10px]">Motivo</div>
-                              <div className="font-semibold mt-0.5">{getTransferDivergenceReasonLabel(divergence.divergence_reason)}</div>
-                            </div>
-
-                            <div className="rounded-xl bg-white/70 p-2.5">
-                              <div className="font-bold opacity-70 uppercase text-[10px]">Impacto</div>
-                              <div className="font-semibold mt-0.5">
-                                Perda: {Number(divergence.loss_qty ?? 0)} · Retorno: {Number(divergence.returned_to_origin_qty ?? 0)} · Falta aceita: {Number(divergence.accepted_shortage_qty ?? 0)}
-                              </div>
-                            </div>
-                          </div>
-
-                          {divergence.divergence_notes && (
-                            <p className="mt-3 text-xs opacity-80 font-medium">
-                              Observação: {humanizeTextReferences(divergence.divergence_notes)}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    }
-
-                    const movement = item.movement;
-                    const shortRef = getMovementReferenceLabel(movement);
-                    const rawRef = movement.transfer_code || movement.purchase_document_number || (movement.metadata?.order_code as string) || movement.source_id || '';
-                    const titleAttr = getDocumentReferenceTitle(rawRef);
-
-                    return (
-                      <div
-                        key={`movement-${movement.id}`}
-                        className={`rounded-3xl border p-5 shadow-xs transition-all ${getMovementToneClass(movement)}`}
-                      >
-                        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                          <div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-sm font-black">
-                                {getMovementOperationLabel(movement)}
-                              </span>
-
-                              <span className="rounded-full bg-white/80 dark:bg-gray-900/60 px-2.5 py-0.5 text-xs font-bold">
-                                {getMovementDirectionLabel(movement)}
-                              </span>
-
-                              <span className="rounded-full bg-white/80 dark:bg-gray-900/60 px-2.5 py-0.5 text-xs font-extrabold">
-                                {Math.abs(Number(movement.quantity ?? 0))} un.
-                              </span>
-                            </div>
-
-                            <p className="mt-2 text-sm font-medium leading-relaxed">
-                              {humanizeTextReferences(getMovementHumanDescription(movement))}
-                            </p>
-                          </div>
-
-                          <div className="text-left text-xs md:text-right">
-                            <div className="font-black">
-                              Saldo no local: {getMovementStockPath(movement)}
-                            </div>
-                            <div className="mt-1 font-medium opacity-80">
-                              Ocorrência: {formatDateTimePtBr(movement.created_at)}
-                            </div>
-                            <div className="mt-1 font-bold opacity-90" title={titleAttr}>
-                              Ref.: {shortRef}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="mt-3 grid gap-2 text-xs md:grid-cols-3">
-                          <div className="rounded-xl bg-white/60 dark:bg-gray-900/40 p-2.5">
-                            <div className="font-bold opacity-70 uppercase text-[10px]">Local afetado</div>
-                            <div className="font-semibold mt-0.5">{movement.location_name ?? '—'}</div>
-                          </div>
-
-                          <div className="rounded-xl bg-white/60 dark:bg-gray-900/40 p-2.5">
-                            <div className="font-bold opacity-70 uppercase text-[10px]">Origem</div>
-                            <div className="font-semibold mt-0.5">{getMovementOriginLabel(movement)}</div>
-                          </div>
-
-                          <div className="rounded-xl bg-white/60 dark:bg-gray-900/40 p-2.5">
-                            <div className="font-bold opacity-70 uppercase text-[10px]">Destino</div>
-                            <div className="font-semibold mt-0.5">{getMovementDestinationLabel(movement)}</div>
-                          </div>
-                        </div>
-
-                        {movement.reason && (
-                          <p className="mt-3 text-xs font-medium opacity-80">
-                            Motivo/observação: {humanizeTextReferences(movement.reason)}
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                {loadingIssues && <p role="status" className="text-xs font-semibold text-sky-700 dark:text-sky-300">Consultando ressalvas de compras e divergências físicas…</p>}
+                {issuesError && <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">{issuesError}</p>}
+                <ProductMovementHistory items={displayMovementItems} />
               </div>
             )}
           </div>

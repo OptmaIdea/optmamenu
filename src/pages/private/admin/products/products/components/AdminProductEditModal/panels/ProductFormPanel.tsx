@@ -103,7 +103,7 @@ export default function ProductFormPanel(props: ProductFormPanelProps) {
   } = props;
 
   return (
-    <div className="w-full md:w-3/5 flex flex-col max-h-full overflow-hidden">
+    <div className="flex w-full min-w-0 shrink-0 flex-col md:min-h-0 md:w-3/5 md:shrink md:overflow-hidden">
       {/* Cabeçalho (desktop) */}
       <div className="hidden md:flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-3">
@@ -124,7 +124,7 @@ export default function ProductFormPanel(props: ProductFormPanelProps) {
       </div>
 
       {/* Conteúdo rolável */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-6">
+      <div className="p-4 md:min-h-0 md:flex-1 md:overflow-y-auto md:p-6">
         {/* Ações principais (editar / excluir / ativar) */}
         {isEditing && (
           <div className="flex flex-wrap gap-2 justify-end mb-4">

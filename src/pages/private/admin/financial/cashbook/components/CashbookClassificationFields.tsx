@@ -171,13 +171,26 @@ export function buildManualCashbookClassification(input: {
     );
 
     const affectsCashDrawer = selectedAccountCode ? selectedAccountCode === 'cash_drawer' : null;
+    const nonResultPlanCodes = new Set([
+        'positive_adjustment',
+        'negative_adjustment',
+        'closing_replenishment',
+        'change_float_reinforcement',
+        'owner_contribution',
+        'loan_received',
+        'owner_withdrawal',
+        'loan_principal_payment',
+    ]);
+    const affectsFinancialResult = input.accountPlanCode
+        ? !nonResultPlanCodes.has(input.accountPlanCode)
+        : true;
 
     return {
         account_plan_code: input.accountPlanCode || null,
         source_financial_account_code: input.direction === 'out' ? selectedAccountCode : null,
         destination_financial_account_code: input.direction === 'in' ? selectedAccountCode : null,
         affects_cash_drawer: affectsCashDrawer,
-        affects_financial_result: true,
+        affects_financial_result: affectsFinancialResult,
         is_transfer: false,
     };
 }
