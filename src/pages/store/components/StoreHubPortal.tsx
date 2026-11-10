@@ -128,7 +128,8 @@ export function StoreHubPortal({ open, onClose, store, isAuthenticated = false, 
         { platform: 'facebook', label: 'Facebook', url: normalizeStoreSocialLink('facebook', config.social_links?.facebook) || '', icon: <Facebook className="h-4 w-4" aria-hidden="true" /> },
         { platform: 'website', label: 'Site', url: normalizeStoreSocialLink('website', config.social_links?.website) || '', icon: <ExternalLink className="h-4 w-4" aria-hidden="true" /> },
         { platform: 'google_reviews', label: 'Google Avaliações', url: normalizeStoreSocialLink('google_reviews', config.social_links?.google_reviews) || '', icon: <Star className="h-4 w-4" aria-hidden="true" /> },
-    ].filter(link => Boolean(link.url));
+    ];
+    const visibleSocialLinks = socialLinks.filter(link => Boolean(link.url));
     // Nunca mostrar o programa carregado para uma loja anterior durante a troca de slug.
     const loyaltyProgram = loyaltyInfoSlug === store.slug ? loyaltyInfo?.program || null : null;
     const loyaltyRewards = loyaltyInfoSlug === store.slug ? loyaltyInfo?.rewards || [] : [];
@@ -404,11 +405,11 @@ export function StoreHubPortal({ open, onClose, store, isAuthenticated = false, 
                         )}
                     </section>
 
-                    {socialLinks.length > 0 && (
+                    {visibleSocialLinks.length > 0 && (
                         <section className="mt-4 rounded-3xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900" aria-label="Redes sociais da loja">
                             <h3 className="font-black text-slate-900 dark:text-white">Acompanhe a loja</h3>
                             <div className="mt-3 flex flex-wrap gap-2">
-                                {socialLinks.map(link => (
+                                {visibleSocialLinks.map(link => (
                                     <a
                                         key={link.platform}
                                         href={link.url}
