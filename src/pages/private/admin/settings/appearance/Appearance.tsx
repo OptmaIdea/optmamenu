@@ -20,12 +20,15 @@ import {
     Mail,
     Instagram,
     Facebook,
+    Youtube,
+    Music2,
     LayoutTemplate,
     MessageCircle,
     Star
 } from 'lucide-react';
 import type { StoreConfig, StorefrontBannerMedia, StorefrontNoticeCard } from '@/types';
 import { ensureReadableStorefrontTextColor } from '@/services/publicStorefrontService';
+import { normalizeStoreSocialLink, type StoreSocialLinkPlatform } from '@/utils/storeSocialLinks';
 import StorePreview from '@/components/admin/StorePreview';
 import { GELINHARES_DEMO_MEDIA } from '@/pages/store/components/PublicStoreHero';
 import PageContainer from '@/components/common/PageContainer';
@@ -93,11 +96,28 @@ const ColorInput = ({ label, value, placeholder, disabled = false, onChange }: C
     );
 };
 
+
+const SOCIAL_NETWORK_FIELDS: Array<{
+    key: StoreSocialLinkPlatform;
+    label: string;
+    example: string;
+    help: string;
+}> = [
+    { key: 'twitter', label: 'X (antigo Twitter)', example: 'https://x.com/sualoja', help: 'Perfil da loja em x.com ou twitter.com' },
+    { key: 'youtube', label: 'YouTube', example: 'https://www.youtube.com/@sualoja', help: 'Canal ou perfil, não link de vídeo' },
+    { key: 'tiktok', label: 'TikTok', example: 'https://www.tiktok.com/@sualoja', help: 'Link do perfil da loja' },
+    { key: 'instagram', label: 'Instagram', example: 'https://www.instagram.com/sualoja', help: 'Link do perfil da loja' },
+    { key: 'facebook', label: 'Facebook', example: 'https://www.facebook.com/sualoja', help: 'Página ou perfil comercial' },
+    { key: 'website', label: 'Site', example: 'https://www.sualoja.com.br', help: 'Site oficial da loja (HTTPS)' },
+    { key: 'google_reviews', label: 'Google Avaliações', example: 'https://maps.app.goo.gl/seulink', help: 'Link de avaliação compartilhado pelo Google Maps' },
+];
+
 export default function Config({ withoutHeader = false, disabled = false }: { withoutHeader?: boolean; disabled?: boolean } = {}) {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [storeId, setStoreId] = useState<string | null>(null);
     const [storeSlug, setStoreSlug] = useState<string | null>(null);
+    const [publishedSocialLinks, setPublishedSocialLinks] = useState<StoreConfig['social_links']>({});
     const [uploadingAbout, setUploadingAbout] = useState(false);
     const [newMediaUrl, setNewMediaUrl] = useState('');
     const [newMediaType, setNewMediaType] = useState<'image' | 'video'>('image');
@@ -127,6 +147,7 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
             facebook: '',
             website: '',
             twitter: '',
+            youtube: '',
             tiktok: '',
             google_reviews: ''
         },
@@ -269,6 +290,7 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
 
             setStoreId(storeData.id);
             setStoreSlug(storeData.slug);
+            setPublishedSocialLinks(configRow?.config?.social_links || {});
 
             const { data: categoriesData, error: categoriesError } = await supabase
                 .from('categories')
@@ -318,6 +340,10 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
             toast.error('Você não tem permissão para executar esta alteração.');
             return;
         }
+        if (resolvedStoreId !== getActiveStoreId()) {
+            toast.error('A loja ativa mudou. Recarregue a página antes de salvar.');
+            return;
+        }
 
         setSaving(true);
         setMessage(null);
@@ -333,18 +359,42 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
             if ((config.banners || []).some(item => !/^https:\/\//i.test(item.url))) {
                 throw new Error('As mídias publicadas devem usar HTTPS.');
             }
-            const { error } = await supabase
+            // Não sobrescrever campos antigos que o lojista não editou.
+            const nextLinks = { ...config.social_links };
+            for (const field of SOCIAL_NETWORK_FIELDS) {
+                const raw = (nextLinks[field.key] || '').trim();
+                const previous = publishedSocialLinks?.[field.key] || '';
+                if (!raw) {
+                    nextLinks[field.key] = '';
+                    continue;
+                }
+                const normalized = normalizeStoreSocialLink(field.key, raw);
+                if (!normalized) {
+                    // URLs legadas inválidas de Site/Avaliações não devem bloquear
+                    // a edição de outros campos; não serão expostas no portal público.
+                    if ((field.key === 'website' || field.key === 'google_reviews') && raw === previous) continue;
+                    throw new Error('Confira o link de ' + field.label + '. Use HTTPS e o endereço oficial do perfil.');
+                }
+                if (raw !== previous) nextLinks[field.key] = normalized;
+            }
+            const nextConfig = { ...config, social_links: nextLinks };
+            const { data, error } = await supabase
                 .from('stores')
-                .update({ config })
-                .eq('id', resolvedStoreId);
+                .update({ config: nextConfig })
+                .eq('id', resolvedStoreId)
+                .select('id')
+                .maybeSingle();
 
             if (error) throw error;
+            if (!data) throw new Error('A alteração não foi autorizada para esta loja.');
+            setConfig(nextConfig);
+            setPublishedSocialLinks(nextLinks);
             setMessage({ type: 'success', text: 'Configurações salvas com sucesso!' });
             toast.success('Aparência da Loja salva com sucesso.');
         } catch (error: any) {
             console.error('Error saving config:', error);
             setMessage({ type: 'error', text: 'Erro ao salvar: ' + error.message });
-            toast.error('Erro ao salvar Aparência da Loja.');
+            toast.error(error instanceof Error ? error.message : 'Erro ao salvar Aparência da Loja.');
         } finally {
             setSaving(false);
         }
@@ -1007,77 +1057,70 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
                                 </div>
                             </section>
 
-                            <section className="bg-white dark:bg-gray-800 rounded-3xl p-8 shadow-sm border border-gray-100 dark:border-gray-700">
-                                <h2 className="text-lg font-bold text-gray-800 dark:text-white mb-6 flex items-center gap-2">
+                            <section className="bg-white dark:bg-gray-800 rounded-3xl p-4 sm:p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+                                <h2 className="text-lg font-bold text-gray-800 dark:text-white mb-2 flex items-center gap-2">
                                     <Globe className="text-indigo-500" size={20} /> Redes Sociais
                                 </h2>
-                                <div className="space-y-4">
-                                    <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 p-2 rounded-xl border border-gray-200 dark:border-gray-600">
-                                        <Instagram size={20} className="text-pink-600 ml-2" />
-                                        <input
-                                            type="text"
-                                            value={config.social_links?.instagram || ''}
-                                            onChange={(e) => setConfig({ ...config, social_links: { ...config.social_links, instagram: e.target.value } })}
-                                            placeholder="instagram.com/sualoja"
-                                            className="w-full bg-transparent p-2 outline-none text-gray-700 dark:text-gray-300"
-                                            disabled={disabled}
-                                        />
-                                    </div>
-                                    <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 p-2 rounded-xl border border-gray-200 dark:border-gray-600">
-                                        <Facebook size={20} className="text-blue-600 ml-2" />
-                                        <input
-                                            type="text"
-                                            value={config.social_links?.facebook || ''}
-                                            onChange={(e) => setConfig({ ...config, social_links: { ...config.social_links, facebook: e.target.value } })}
-                                            placeholder="facebook.com/sualoja"
-                                            className="w-full bg-transparent p-2 outline-none text-gray-700 dark:text-gray-300"
-                                            disabled={disabled}
-                                        />
-                                    </div>
-                                    <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 p-2 rounded-xl border border-gray-200 dark:border-gray-600">
-                                        <Globe size={20} className="text-gray-400 ml-2" />
-                                        <input
-                                            type="text"
-                                            value={config.social_links?.website || ''}
-                                            onChange={(e) => setConfig({ ...config, social_links: { ...config.social_links, website: e.target.value } })}
-                                            placeholder="www.seusite.com.br"
-                                            className="w-full bg-transparent p-2 outline-none text-gray-700 dark:text-gray-300"
-                                            disabled={disabled}
-                                        />
-                                    </div>
-                                    <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 p-2 rounded-xl border border-gray-200 dark:border-gray-600">
-                                        <div className="w-5 h-5 ml-2 flex items-center justify-center text-black dark:text-white font-bold text-xs">𝕏</div>
-                                        <input
-                                            type="text"
-                                            value={config.social_links?.twitter || ''}
-                                            onChange={(e) => setConfig({ ...config, social_links: { ...config.social_links, twitter: e.target.value } })}
-                                            placeholder="twitter.com/sualoja"
-                                            className="w-full bg-transparent p-2 outline-none text-gray-700 dark:text-gray-300"
-                                            disabled={disabled}
-                                        />
-                                    </div>
-                                    <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 p-2 rounded-xl border border-gray-200 dark:border-gray-600">
-                                        <div className="w-5 h-5 ml-2 flex items-center justify-center text-black dark:text-white font-bold text-xs">♪</div>
-                                        <input
-                                            type="text"
-                                            value={config.social_links?.tiktok || ''}
-                                            onChange={(e) => setConfig({ ...config, social_links: { ...config.social_links, tiktok: e.target.value } })}
-                                            placeholder="tiktok.com/@sualoja"
-                                            className="w-full bg-transparent p-2 outline-none text-gray-700 dark:text-gray-300"
-                                            disabled={disabled}
-                                        />
-                                    </div>
-                                    <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 p-2 rounded-xl border border-gray-200 dark:border-gray-600">
-                                        <Star size={20} className="text-yellow-500 ml-2" />
-                                        <input
-                                            type="text"
-                                            value={config.social_links?.google_reviews || ''}
-                                            onChange={(e) => setConfig({ ...config, social_links: { ...config.social_links, google_reviews: e.target.value } })}
-                                            placeholder="Link do Google Maps para Avaliação"
-                                            className="w-full bg-transparent p-2 outline-none text-gray-700 dark:text-gray-300"
-                                            disabled={disabled}
-                                        />
-                                    </div>
+                                <p className="mb-5 text-sm text-gray-600 dark:text-gray-300">
+                                    Informe apenas perfis oficiais da loja. Campos vazios ficam ocultos para o cliente. Salve para publicar.
+                                </p>
+                                <div className="grid gap-4 sm:grid-cols-2">
+                                    {SOCIAL_NETWORK_FIELDS.map((field) => {
+                                        const raw = config.social_links?.[field.key] || '';
+                                        const validUrl = normalizeStoreSocialLink(field.key, raw);
+                                        const publishedUrl = normalizeStoreSocialLink(field.key, publishedSocialLinks?.[field.key]);
+                                        const invalid = Boolean(raw.trim()) && !validUrl;
+                                        const published = Boolean(validUrl && validUrl === publishedUrl);
+                                        return (
+                                            <div key={field.key} className="min-w-0">
+                                                <label htmlFor={'social-' + field.key} className="mb-1.5 flex items-center gap-2 text-sm font-bold text-gray-800 dark:text-white">
+                                                    {field.key === 'instagram' ? <Instagram size={17} aria-hidden="true" /> :
+                                                        field.key === 'facebook' ? <Facebook size={17} aria-hidden="true" /> :
+                                                        field.key === 'youtube' ? <Youtube size={17} aria-hidden="true" /> :
+                                                        field.key === 'tiktok' ? <Music2 size={17} aria-hidden="true" /> :
+                                                        field.key === 'twitter' ? <span aria-hidden="true" className="text-base">𝕏</span> :
+                                                        field.key === 'google_reviews' ? <Star size={17} aria-hidden="true" /> :
+                                                        <Globe size={17} aria-hidden="true" />}
+                                                    {field.label}
+                                                </label>
+                                                <input
+                                                    id={'social-' + field.key}
+                                                    type="url"
+                                                    inputMode="url"
+                                                    autoComplete="url"
+                                                    spellCheck={false}
+                                                    value={raw}
+                                                    disabled={disabled}
+                                                    placeholder={field.example}
+                                                    aria-invalid={invalid}
+                                                    aria-describedby={'social-help-' + field.key}
+                                                    onChange={(event) => {
+                                                        const value = event.target.value;
+                                                        setConfig(prev => ({
+                                                            ...prev,
+                                                            social_links: { ...prev.social_links, [field.key]: value },
+                                                        }));
+                                                    }}
+                                                    onBlur={() => {
+                                                        if (disabled || !validUrl || raw === validUrl) return;
+                                                        setConfig(prev => ({
+                                                            ...prev,
+                                                            social_links: { ...prev.social_links, [field.key]: validUrl },
+                                                        }));
+                                                    }}
+                                                    className="min-h-11 w-full min-w-0 rounded-xl border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-300 disabled:opacity-60 dark:border-gray-600 dark:bg-gray-700/50 dark:text-white dark:focus:ring-indigo-700"
+                                                />
+                                                <div id={'social-help-' + field.key} className="mt-1 space-y-0.5 text-xs">
+                                                    <p className="text-gray-600 dark:text-gray-300">{field.help}</p>
+                                                    <p className={invalid ? 'font-semibold text-red-700 dark:text-red-300' : 'text-gray-500 dark:text-gray-400'} aria-live="polite">
+                                                        {invalid ? 'Link inválido: confira HTTPS e o domínio oficial.' :
+                                                            !raw.trim() ? 'Oculto na loja' :
+                                                                published ? 'Publicado na loja' : 'Pronto para publicar — salve as alterações'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </section>
                         </div>
