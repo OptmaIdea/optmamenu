@@ -53,6 +53,7 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
     const isStoreCatalogRoute = Boolean(getStoreSlugFromPath(location.pathname));
     const [publicStore, setPublicStore] = useState<PublicStorefrontStore | null>(null);
     const [storeHubOpen, setStoreHubOpen] = useState(false);
+    const [storeHubSection, setStoreHubSection] = useState<'overview' | 'contact'>('overview');
 
     useLayoutEffect(() => {
         const root = document.documentElement;
@@ -223,12 +224,21 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
     }, [context?.storeId, storeSlug]);
 
     useEffect(() => {
-        const openStoreHub = () => setStoreHubOpen(true);
+        const openStoreHub = () => {
+            setStoreHubSection('overview');
+            setStoreHubOpen(true);
+        };
         window.addEventListener('optmamenu:open-store-hub', openStoreHub);
         return () => window.removeEventListener('optmamenu:open-store-hub', openStoreHub);
     }, []);
 
     const openStoreContact = () => {
+        setStoreHubSection('contact');
+        setStoreHubOpen(true);
+    };
+
+    const openStoreInstitutional = () => {
+        setStoreHubSection('overview');
         setStoreHubOpen(true);
     };
 
@@ -263,7 +273,7 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
                         cartCount={cartCount}
                         cartTotal={cartTotal}
                         cartLabel={isTableContext ? 'Comanda' : 'Carrinho'}
-                        onOpenStore={() => setStoreHubOpen(true)}
+                        onOpenStore={openStoreInstitutional}
                         onOpenContact={openStoreContact}
                         onLogout={logoutCustomer}
                     />
@@ -272,6 +282,7 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
                         onClose={() => setStoreHubOpen(false)}
                         store={publicStore}
                         isAuthenticated={isAuthenticated}
+                        initialSection={storeHubSection}
                     />
                 </>
             )}
