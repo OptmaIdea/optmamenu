@@ -164,6 +164,7 @@ export interface StoreConfig {
         facebook?: string;
         tiktok?: string;
         twitter?: string;
+        youtube?: string;
         website?: string;
         google_reviews?: string;
     };

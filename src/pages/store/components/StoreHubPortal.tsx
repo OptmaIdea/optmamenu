@@ -1,12 +1,15 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
     Award,
     CalendarClock,
     ExternalLink,
     FileText,
     Gift,
-    Globe2,
     Instagram,
+    Facebook,
+    Youtube,
+    Music2,
+    Star,
     Mail,
     MapPin,
     MessageCircle,
@@ -22,6 +25,7 @@ import {
     type PublicStorefrontStore,
 } from '@/services/publicStorefrontService';
 import { buildWhatsappUrl, canOpenWhatsapp } from '@/utils/whatsapp';
+import { normalizeStoreSocialLink, type StoreSocialLinkPlatform } from '@/utils/storeSocialLinks';
 
 function normalizeExternalUrl(value?: string | null) {
     const trimmed = value?.trim();
@@ -116,9 +120,16 @@ export function StoreHubPortal({ open, onClose, store, isAuthenticated = false, 
         )
         : null;
     const mapUrl = normalizeExternalUrl(config.contact_map_link);
-    const websiteUrl = normalizeExternalUrl(config.social_links?.website);
-    const instagramUrl = normalizeExternalUrl(config.social_links?.instagram);
-    const facebookUrl = normalizeExternalUrl(config.social_links?.facebook);
+    const socialLinks: Array<{ platform: StoreSocialLinkPlatform; label: string; url: string; icon: ReactNode }> = [
+        { platform: 'twitter', label: 'X', url: normalizeStoreSocialLink('twitter', config.social_links?.twitter) || '', icon: <span aria-hidden="true" className="text-base font-black">𝕏</span> },
+        { platform: 'youtube', label: 'YouTube', url: normalizeStoreSocialLink('youtube', config.social_links?.youtube) || '', icon: <Youtube className="h-4 w-4" aria-hidden="true" /> },
+        { platform: 'tiktok', label: 'TikTok', url: normalizeStoreSocialLink('tiktok', config.social_links?.tiktok) || '', icon: <Music2 className="h-4 w-4" aria-hidden="true" /> },
+        { platform: 'instagram', label: 'Instagram', url: normalizeStoreSocialLink('instagram', config.social_links?.instagram) || '', icon: <Instagram className="h-4 w-4" aria-hidden="true" /> },
+        { platform: 'facebook', label: 'Facebook', url: normalizeStoreSocialLink('facebook', config.social_links?.facebook) || '', icon: <Facebook className="h-4 w-4" aria-hidden="true" /> },
+        { platform: 'website', label: 'Site', url: normalizeStoreSocialLink('website', config.social_links?.website) || '', icon: <ExternalLink className="h-4 w-4" aria-hidden="true" /> },
+        { platform: 'google_reviews', label: 'Google Avaliações', url: normalizeStoreSocialLink('google_reviews', config.social_links?.google_reviews) || '', icon: <Star className="h-4 w-4" aria-hidden="true" /> },
+    ];
+    const visibleSocialLinks = socialLinks.filter(link => Boolean(link.url));
     // Nunca mostrar o programa carregado para uma loja anterior durante a troca de slug.
     const loyaltyProgram = loyaltyInfoSlug === store.slug ? loyaltyInfo?.program || null : null;
     const loyaltyRewards = loyaltyInfoSlug === store.slug ? loyaltyInfo?.rewards || [] : [];
@@ -394,25 +405,23 @@ export function StoreHubPortal({ open, onClose, store, isAuthenticated = false, 
                         )}
                     </section>
 
-                    {(instagramUrl || facebookUrl || websiteUrl) && (
-                        <section className="mt-4 rounded-3xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+                    {visibleSocialLinks.length > 0 && (
+                        <section className="mt-4 rounded-3xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900" aria-label="Redes sociais da loja">
                             <h3 className="font-black text-slate-900 dark:text-white">Acompanhe a loja</h3>
                             <div className="mt-3 flex flex-wrap gap-2">
-                                {instagramUrl && (
-                                    <a href={instagramUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center gap-2 rounded-full border border-slate-200 px-4 text-sm font-bold text-slate-700 dark:border-slate-700 dark:text-slate-200">
-                                        <Instagram className="h-4 w-4" /> Instagram
+                                {visibleSocialLinks.map(link => (
+                                    <a
+                                        key={link.platform}
+                                        href={link.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        aria-label={'Abrir ' + link.label + ' da ' + store.name + ' em nova guia'}
+                                        className="inline-flex min-h-11 items-center gap-2 rounded-full border border-slate-200 px-4 text-sm font-bold text-slate-700 transition hover:border-indigo-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 dark:border-slate-700 dark:text-slate-200 dark:hover:border-indigo-400"
+                                    >
+                                        {link.icon}
+                                        {link.label}
                                     </a>
-                                )}
-                                {facebookUrl && (
-                                    <a href={facebookUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center gap-2 rounded-full border border-slate-200 px-4 text-sm font-bold text-slate-700 dark:border-slate-700 dark:text-slate-200">
-                                        <Globe2 className="h-4 w-4" /> Facebook
-                                    </a>
-                                )}
-                                {websiteUrl && (
-                                    <a href={websiteUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-10 items-center gap-2 rounded-full border border-slate-200 px-4 text-sm font-bold text-slate-700 dark:border-slate-700 dark:text-slate-200">
-                                        <ExternalLink className="h-4 w-4" /> Site
-                                    </a>
-                                )}
+                                ))}
                             </div>
                         </section>
                     )}
