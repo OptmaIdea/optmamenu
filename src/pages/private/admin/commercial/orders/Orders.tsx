@@ -17,6 +17,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { isCurrentOrderStatus } from '@/utils/adminOrderVisibility';
 import { formatTimeInRoute } from '@/utils/orders/timeInRoute';
 import { getUnsafeCancelReason } from '@/utils/orders/orderCancellationSafety';
+import { getTableOrderLabel, isTableOrder } from '@/utils/orders/tableOrderPresentation';
 import { OrderCancellationInbox } from './OrderCancellationInbox';
 
 function getAutomaticExpirationAt(order: Order): string | null {
@@ -105,6 +106,7 @@ export default function Orders() {
                         .join(' ');
                     const searchable = [
                         publicOrder.order_code || '',
+                        publicOrder.table_code || '',
                         o.customer_name || '',
                         o.customer_phone || '',
                         itemText,
@@ -295,6 +297,8 @@ export default function Orders() {
             order_code?: string;
             public_order_token?: string;
             fulfillment_type?: string;
+            sales_channel?: string | null;
+            table_code?: string | null;
             payment_method_code?: string | null;
             payment_method?: string | null;
             promised_payment_method_code?: string | null;
@@ -361,8 +365,14 @@ export default function Orders() {
         };
     }
 
+    function isOrderAtTable(order: Order) {
+        const publicOrder = getPublicOrderFields(order);
+        return isTableOrder(publicOrder.fulfillment_type, publicOrder.sales_channel);
+    }
+
     function getFulfillmentLabel(order: Order) {
         const publicOrder = getPublicOrderFields(order);
+        if (isOrderAtTable(order)) return 'Mesa';
         return publicOrder.fulfillment_type === 'delivery' ? 'Entrega' : 'Retirada';
     }
 
@@ -370,6 +380,7 @@ export default function Orders() {
         const publicOrder = getPublicOrderFields(order);
         const info = getCheckoutPaymentInfo(order);
         if (publicOrder.fulfillment_type === 'delivery') return 'Entrega ao cliente';
+        if (isOrderAtTable(order)) return `${getTableOrderLabel(publicOrder.table_code)} · atendimento local`;
         return info.timing === 'advance' ? 'Retirada · pagamento antecipado' : 'Retirada · pagamento na retirada';
     }
 
@@ -379,22 +390,23 @@ export default function Orders() {
         const methodCode = info.selectedMethodCode || info.rawMethodCode;
         const promisedCode = info.promisedMethodCode;
         const fulfillment = publicOrder.fulfillment_type;
+        const atTable = isOrderAtTable(order);
 
         if (publicOrder.payment_status === 'paid' && methodCode.includes('pix')) return 'PIX pago';
         if (methodCode === 'pix_manual_qr') return 'PIX com comprovante';
         if (methodCode === 'pix') return 'PIX';
-        if (methodCode === 'cash') return fulfillment === 'delivery' ? 'Dinheiro na entrega' : 'Dinheiro';
-        if (methodCode === 'card') return fulfillment === 'delivery' ? 'Cartão na entrega' : 'Cartão';
+        if (methodCode === 'cash') return atTable ? 'Dinheiro na mesa' : fulfillment === 'delivery' ? 'Dinheiro na entrega' : 'Dinheiro';
+        if (methodCode === 'card') return atTable ? 'Cartão na mesa' : fulfillment === 'delivery' ? 'Cartão na entrega' : 'Cartão';
         if (methodCode === 'credit_card') return 'Cartão de crédito';
         if (methodCode === 'debit_card') return 'Cartão de débito';
         if (methodCode === 'payment_link') return 'Link de pagamento';
         if (info.selectedMethodName && methodCode && methodCode !== 'pending') return info.selectedMethodName;
 
-        if (promisedCode === 'cash') return fulfillment === 'delivery' ? 'Dinheiro na entrega' : 'Dinheiro na retirada';
-        if (promisedCode === 'card') return fulfillment === 'delivery' ? 'Cartão na entrega' : 'Cartão na retirada';
-        if (promisedCode === 'pix') return fulfillment === 'delivery' ? 'PIX na entrega' : 'PIX na retirada';
+        if (promisedCode === 'cash') return atTable ? 'Dinheiro na mesa' : fulfillment === 'delivery' ? 'Dinheiro na entrega' : 'Dinheiro na retirada';
+        if (promisedCode === 'card') return atTable ? 'Cartão na mesa' : fulfillment === 'delivery' ? 'Cartão na entrega' : 'Cartão na retirada';
+        if (promisedCode === 'pix') return atTable ? 'PIX na mesa' : fulfillment === 'delivery' ? 'PIX na entrega' : 'PIX na retirada';
         if (info.notesPaymentLabel) return info.notesPaymentLabel;
-        return fulfillment === 'delivery' ? 'Na entrega' : 'Na retirada';
+        return atTable ? 'Na mesa' : fulfillment === 'delivery' ? 'Na entrega' : 'Na retirada';
     }
 
     function getPaymentChangeText(order: Order) {
@@ -607,6 +619,7 @@ export default function Orders() {
     function getOrderStatusLabel(order: Order) {
         const publicOrder = getPublicOrderFields(order);
         const isPaidPickup = publicOrder.fulfillment_type === 'pickup' && publicOrder.payment_status === 'paid';
+        if (isOrderAtTable(order) && order.status === 'ready') return 'Pronto para servir';
 
         if (isPaidPickup && ['confirmed', 'ready'].includes(order.status)) return 'Aguardando retirada';
         return statusLabels[order.status] || order.status;
@@ -729,6 +742,7 @@ export default function Orders() {
                                 const paymentChangeText = getPaymentChangeText(order);
                                 const deliveryAddressLines = getDeliveryAddressLines(order);
                                 const fulfillmentLabel = getFulfillmentLabel(order);
+                                const tableOrder = isOrderAtTable(order);
                                 const fulfillmentDetailLabel = getFulfillmentDetailLabel(order);
                                 const checkoutPaymentInfo = getCheckoutPaymentInfo(order);
                                 let timerDisplay = null;
@@ -770,6 +784,11 @@ export default function Orders() {
                                                         <h3 className="font-bold text-lg text-gray-800 dark:text-white">{publicOrder.order_code || `#${order.id.slice(0, 8).toUpperCase()}`}</h3>
                                                         <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border ${statusColors[order.status]}`}>{getOrderStatusLabel(order)}</span>
                                                         <span className="rounded border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-black uppercase text-sky-800 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-200">{fulfillmentLabel}</span>
+                                                        {tableOrder && (
+                                                            <span className="max-w-48 truncate rounded border border-violet-300 bg-violet-50 px-2 py-0.5 text-[11px] font-black text-violet-900 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200" title={getTableOrderLabel(publicOrder.table_code)}>
+                                                                {getTableOrderLabel(publicOrder.table_code)}
+                                                            </span>
+                                                        )}
                                                         {publicOrder.payment_status === 'paid' && <span className="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-800">Pagamento confirmado</span>}
                                                         {isAwaitingAdvancePayment(order) && (
                                                             <span className="rounded border border-amber-300 bg-amber-50 px-2 py-0.5 text-[10px] font-black uppercase text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">Aguardando pagamento — não iniciar atendimento</span>
@@ -901,8 +920,8 @@ export default function Orders() {
                                                                 <button onClick={() => updateStatus(order.id, 'out_for_delivery' as OrderStatus)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-purple-600 px-6 py-2 text-sm font-bold text-white shadow-lg shadow-purple-200 transition hover:bg-purple-700 sm:w-auto"><Truck size={16} /> Saiu para entrega</button>
                                                             ) : (
                                                                 <>
-                                                                    <button type="button" onClick={() => markOrderReady(order)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-700 transition hover:bg-emerald-100 sm:w-auto"><MessageCircle size={16} /> Avisar retirada</button>
-                                                                    <button onClick={() => void handleFinalizeOrder(order)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-6 py-2 text-sm font-bold text-white shadow-lg shadow-green-200 transition hover:bg-green-700 sm:w-auto"><CheckCircle size={16} /> Finalizar retirada</button>
+                                                                    <button type="button" onClick={() => markOrderReady(order)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-700 transition hover:bg-emerald-100 sm:w-auto"><MessageCircle size={16} /> {tableOrder ? 'Avisar pedido pronto' : 'Avisar retirada'}</button>
+                                                                    <button onClick={() => void handleFinalizeOrder(order)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-6 py-2 text-sm font-bold text-white shadow-lg shadow-green-200 transition hover:bg-green-700 sm:w-auto"><CheckCircle size={16} /> {tableOrder ? 'Concluir pedido da mesa' : 'Finalizar retirada'}</button>
                                                                 </>
                                                             )}
                                                         </>}
@@ -914,7 +933,7 @@ export default function Orders() {
                                                             ) : (
                                                                 <button onClick={() => void cancelOrder(order)} className="w-full rounded-lg bg-red-50 px-4 py-2 text-sm font-bold text-red-600 transition hover:bg-red-100 sm:w-auto">Cancelar</button>
                                                             ))}
-                                                            {publicOrder.fulfillment_type === 'delivery' ? <button onClick={() => updateStatus(order.id, 'out_for_delivery' as OrderStatus)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-purple-600 px-6 py-2 text-sm font-bold text-white shadow-lg shadow-purple-200 transition hover:bg-purple-700 sm:w-auto"><Truck size={16} /> Saiu para entrega</button> : <button onClick={() => publicOrder.payment_status === 'paid' ? updateStatus(order.id, 'completed') : setFinalizingOrder(order)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-6 py-2 text-sm font-bold text-white shadow-lg shadow-green-200 transition hover:bg-green-700 sm:w-auto"><CheckCircle size={16} /> Finalizar retirada</button>}
+                                                            {publicOrder.fulfillment_type === 'delivery' ? <button onClick={() => updateStatus(order.id, 'out_for_delivery' as OrderStatus)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-purple-600 px-6 py-2 text-sm font-bold text-white shadow-lg shadow-purple-200 transition hover:bg-purple-700 sm:w-auto"><Truck size={16} /> Saiu para entrega</button> : <button onClick={() => publicOrder.payment_status === 'paid' ? updateStatus(order.id, 'completed') : setFinalizingOrder(order)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-6 py-2 text-sm font-bold text-white shadow-lg shadow-green-200 transition hover:bg-green-700 sm:w-auto"><CheckCircle size={16} /> {tableOrder ? 'Concluir pedido da mesa' : 'Finalizar retirada'}</button>}
                                                         </>}
                                                         {order.status === 'out_for_delivery' && <button onClick={() => publicOrder.payment_status === 'paid' ? updateStatus(order.id, 'completed') : setFinalizingOrder(order)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#21A896] px-6 py-2 text-sm font-bold text-white transition hover:bg-[#1A867A] sm:w-auto"><CheckCircle size={16} /> {publicOrder.payment_status === 'paid' ? 'Confirmar entrega' : 'Finalizar entrega e pagamento'}</button>}
                                                         {order.status === 'completed' && <span className="px-4 py-2 text-green-600 bg-green-50 rounded-lg font-bold text-sm flex items-center gap-2 cursor-default"><CheckCircle size={16} /> Pedido Concluído</span>}
