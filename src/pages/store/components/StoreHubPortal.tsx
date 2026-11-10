@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
     Award,
     CalendarClock,
     ExternalLink,
     FileText,
     Gift,
-    Globe2,
     Instagram,
     Facebook,
     Youtube,
@@ -121,7 +120,7 @@ export function StoreHubPortal({ open, onClose, store, isAuthenticated = false, 
         )
         : null;
     const mapUrl = normalizeExternalUrl(config.contact_map_link);
-    const socialLinks: Array<{ platform: StoreSocialLinkPlatform; label: string; url: string; icon: React.ReactNode }> = [
+    const socialLinks: Array<{ platform: StoreSocialLinkPlatform; label: string; url: string; icon: ReactNode }> = [
         { platform: 'twitter', label: 'X', url: normalizeStoreSocialLink('twitter', config.social_links?.twitter) || '', icon: <span aria-hidden="true" className="text-base font-black">𝕏</span> },
         { platform: 'youtube', label: 'YouTube', url: normalizeStoreSocialLink('youtube', config.social_links?.youtube) || '', icon: <Youtube className="h-4 w-4" aria-hidden="true" /> },
         { platform: 'tiktok', label: 'TikTok', url: normalizeStoreSocialLink('tiktok', config.social_links?.tiktok) || '', icon: <Music2 className="h-4 w-4" aria-hidden="true" /> },
