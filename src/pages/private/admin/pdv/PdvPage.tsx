@@ -33,6 +33,7 @@ import type {
 } from '@/types/pdv';
 import { getActiveStoreId } from '@/utils/activeStore';
 import { hasOnlyPdvOperationalAccess } from '@/utils/permissions';
+import { parsePdvCashAmount } from '@/utils/pdvCash';
 
 type CartLine = {
   product: PosProduct;
@@ -104,6 +105,7 @@ type CartPanelProps = {
   shortageConfirmed: boolean;
   setShortageConfirmed: (value: boolean) => void;
   processing: boolean;
+  online: boolean;
   onChangeQuantity: (product: PosProduct, quantity: number) => void;
   onClear: () => void;
   onFinalize: () => void;
@@ -122,6 +124,7 @@ function CartPanel({
   shortageConfirmed,
   setShortageConfirmed,
   processing,
+  online,
   onChangeQuantity,
   onClear,
   onFinalize,
@@ -135,16 +138,19 @@ function CartPanel({
   const shortageLines = cart.filter(
     (line) => line.quantity > line.product.available_stock
   );
-  const received = Number(cashReceived.replace(',', '.')) || 0;
-  const change = paymentMethodCode === 'cash' ? Math.max(0, received - subtotal) : 0;
+  const received = parsePdvCashAmount(cashReceived);
+  const change = paymentMethodCode === 'cash' && received !== null
+    ? Math.max(0, received - subtotal)
+    : 0;
   const canFinalize =
     cart.length > 0 &&
     !pricingLoading &&
     !pricingError &&
     Boolean(pricingQuote) &&
     Boolean(paymentMethodCode) &&
+    online &&
     (!shortageLines.length || shortageConfirmed) &&
-    (paymentMethodCode !== 'cash' || received >= subtotal);
+    (paymentMethodCode !== 'cash' || (received !== null && received >= subtotal));
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -164,6 +170,7 @@ function CartPanel({
           <button
             type="button"
             onClick={onClear}
+            disabled={processing}
             className="flex h-10 items-center gap-1.5 rounded-xl px-2.5 text-xs font-bold text-[#DC2626] hover:bg-[#DC2626]/10"
           >
             <Trash2 size={16} />
@@ -322,6 +329,7 @@ function CartPanel({
             <select
               value={paymentMethodCode}
               onChange={(event) => setPaymentMethodCode(event.target.value)}
+              disabled={processing}
               className="h-11 w-full rounded-xl border border-[#6B6258]/15 bg-white px-3 text-sm font-semibold dark:border-gray-700 dark:bg-gray-950"
             >
               <option value="">Selecione</option>
@@ -342,6 +350,7 @@ function CartPanel({
                 <input
                   value={cashReceived}
                   onChange={(event) => setCashReceived(event.target.value)}
+                  disabled={processing}
                   inputMode="decimal"
                   placeholder="0,00"
                   className="h-11 w-full rounded-xl border border-[#6B6258]/15 bg-white px-3 text-sm font-semibold dark:border-gray-700 dark:bg-gray-950"
@@ -354,6 +363,18 @@ function CartPanel({
                 </div>
               </div>
             </div>
+          )}
+
+          {paymentMethodCode === 'cash' && cashReceived.trim() && received === null && (
+            <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+              Valor de dinheiro inválido. Use, por exemplo, 20,00 ou 1.000,00.
+            </p>
+          )}
+
+          {!online && (
+            <p role="alert" className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
+              Sem conexão. O carrinho está preservado; só é possível concluir a venda quando a conexão voltar.
+            </p>
           )}
 
           {shortageLines.length > 0 && (
@@ -410,6 +431,7 @@ export default function PdvPage() {
   const [categoryId, setCategoryId] = useState<string>('all');
   const [online, setOnline] = useState(() => navigator.onLine);
   const saleAttemptIdRef = useRef(uuidv4());
+  const saleInProgressRef = useRef(false);
 
   const loadBootstrap = useCallback(
     async (requestedLocationId?: string | null, allowFallback = true) => {
@@ -618,6 +640,10 @@ export default function PdvPage() {
   const showAdminExit = !hasOnlyPdvOperationalAccess(permissions);
 
   const changeQuantity = useCallback((product: PosProduct, quantity: number) => {
+    if (saleInProgressRef.current) {
+      toast.info('Aguarde a conclusão da venda antes de alterar os itens.');
+      return;
+    }
     saleAttemptIdRef.current = uuidv4();
     setShortageConfirmed(false);
     setCart((current) => {
@@ -645,11 +671,14 @@ export default function PdvPage() {
       !bootstrap?.selected_location_id ||
       cart.length === 0 ||
       !pricingQuote ||
-      pricingLoading
+      pricingLoading ||
+      !online ||
+      saleInProgressRef.current
     ) {
       return;
     }
 
+    saleInProgressRef.current = true;
     setProcessing(true);
     try {
       const shortageItems = cart
@@ -711,6 +740,7 @@ export default function PdvPage() {
         saleError instanceof Error ? saleError.message : 'Não foi possível concluir a venda.';
       toast.error(message);
     } finally {
+      saleInProgressRef.current = false;
       setProcessing(false);
     }
   };
@@ -733,8 +763,12 @@ export default function PdvPage() {
       shortageConfirmed={shortageConfirmed}
       setShortageConfirmed={setShortageConfirmed}
       processing={processing}
+      online={online}
       onChangeQuantity={changeQuantity}
-      onClear={clearCart}
+      onClear={() => {
+        if (saleInProgressRef.current) return;
+        clearCart();
+      }}
       onFinalize={() => void finalizeSale()}
     />
   );
