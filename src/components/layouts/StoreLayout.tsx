@@ -17,18 +17,12 @@ import {
 } from '@/services/customerCartPersistence';
 import { useCartStore } from '@/store/useCartStore';
 import { useCustomerAuth } from '@/store/useCustomerAuth';
-
-function getStoreSlugFromPath(pathname: string): string | null {
-    const segments = pathname.split('/').filter(Boolean);
-    if (segments.length < 2) return null;
-
-    const [prefix, slug] = segments;
-    if (['s', 'loja', 'cardapio', 'q', 'mesa'].includes(prefix) && slug) {
-        return slug;
-    }
-
-    return null;
-}
+import {
+    getStoreSlugFromPath,
+    hasMatchingStoreId,
+    onlyCurrentPublicStore,
+    resolveStoreSlugForLayout,
+} from '@/utils/storefront/storeLayoutScope';
 
 export function StoreLayout({ children }: { children: React.ReactNode }) {
     const location = useLocation();
@@ -38,20 +32,24 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
     const customer = useCustomerAuth((state) => state.customer);
     const isAuthenticated = useCustomerAuth((state) => state.isAuthenticated);
     const sessionRestored = useCustomerAuth((state) => state.sessionRestored);
-    const cartCount = items.reduce((acc, item) => acc + item.quantity, 0);
-    const cartTotal = items.reduce(
-        (acc, item) => acc + Number(item.price || 0) * item.quantity,
-        0,
-    );
-    const storeSlug = context?.canonicalSlug || getStoreSlugFromPath(location.pathname);
-    const checkoutPath = storeSlug
-        ? `/checkout?store=${encodeURIComponent(storeSlug)}`
-        : '/checkout';
-    const isTableContext = context?.type === 'table';
+    const routeSlug = getStoreSlugFromPath(location.pathname);
+    const storeSlug = resolveStoreSlugForLayout(location.pathname, context?.canonicalSlug);
+    const isStoreCatalogRoute = Boolean(routeSlug);
+    // Guardar a slug da requisição impede mostrar o institucional da loja anterior na transição.
+    const [loadedPublicStore, setLoadedPublicStore] = useState<{
+        requestedSlug: string;
+        store: PublicStorefrontStore | null;
+    } | null>(null);
+    const publicStore = onlyCurrentPublicStore(storeSlug, loadedPublicStore);
+    const cartMatchesStore = !isStoreCatalogRoute
+        || hasMatchingStoreId(context?.storeId, publicStore?.id);
+    const cartCount = cartMatchesStore ? items.reduce((acc, item) => acc + item.quantity, 0) : 0;
+    const cartTotal = cartMatchesStore
+        ? items.reduce((acc, item) => acc + Number(item.price || 0) * item.quantity, 0)
+        : 0;
+    const checkoutPath = storeSlug ? `/checkout?store=${encodeURIComponent(storeSlug)}` : '/checkout';
+    const isTableContext = context?.type === 'table' && cartMatchesStore;
     const isCheckoutRoute = location.pathname === '/checkout';
-
-    const isStoreCatalogRoute = Boolean(getStoreSlugFromPath(location.pathname));
-    const [publicStore, setPublicStore] = useState<PublicStorefrontStore | null>(null);
     const [storeHubOpen, setStoreHubOpen] = useState(false);
     const [storeHubSection, setStoreHubSection] = useState<'overview' | 'contact'>('overview');
 
@@ -184,7 +182,7 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         if (!storeSlug) {
-            setPublicStore(null);
+            setLoadedPublicStore(null);
             return;
         }
 
@@ -197,12 +195,13 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
             .then(([storefront, catalog]) => {
                 if (!active) return;
 
-                setPublicStore(storefront.store || null);
+                setLoadedPublicStore({ requestedSlug: storeSlug, store: storefront.store || null });
 
-                if (!context?.storeId) return;
+                const matchedCartStoreId = context?.storeId;
+                if (!matchedCartStoreId || !hasMatchingStoreId(matchedCartStoreId, storefront.store?.id)) return;
 
                 configureCustomerCartRetention(
-                    context.storeId,
+                    matchedCartStoreId,
                     storefront.store?.visual_config?.customer_cart_retention_hours,
                 );
 
@@ -212,7 +211,7 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
                         category_id: product.category_id || category.id,
                     })),
                 );
-                syncCustomerCartCatalog(context.storeId, products);
+                syncCustomerCartCatalog(matchedCartStoreId, products);
             })
             .catch((error) => {
                 console.error('Não foi possível aplicar a política do carrinho público:', error);
@@ -258,12 +257,12 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
             ) : (
                 <CustomerAuthPortal
                     storeSlug={storeSlug}
-                    storeId={context?.storeId || null}
+                    storeId={isStoreCatalogRoute && !cartMatchesStore ? null : context?.storeId || null}
                     hideTrigger={!isCheckoutRoute}
                 />
             )}
 
-            {isStoreCatalogRoute && publicStore && (
+            {isStoreCatalogRoute && publicStore && cartMatchesStore && (
                 <>
                     <StorefrontBottomNavigation
                         storeSlug={storeSlug}
