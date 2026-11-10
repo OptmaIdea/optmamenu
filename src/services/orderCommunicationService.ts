@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { buildWhatsappUrl, normalizeBrazilWhatsapp } from '@/utils/whatsapp';
+import { isTableOrder } from '@/utils/orders/tableOrderPresentation';
 
 export type OrderMessageEventCode =
   | 'order_accepted'
@@ -102,6 +103,7 @@ function readyText(fulfillmentType?: string | null): string {
 
 function readyDeadlineText(data: OrderMessageData): string {
   if (data.paymentStatus === 'paid' || !data.expiresAt) return '';
+  if (isTableOrder(data.fulfillmentType)) return `Prazo da reserva: até às *${formatTime(data.expiresAt)}*.`;
   return `Retire até às *${formatTime(data.expiresAt)}*.`;
 }
 
@@ -113,6 +115,7 @@ function paymentThanksText(data: OrderMessageData): string {
 function reservationText(data: OrderMessageData): string {
   if (data.paymentStatus === 'paid') {
     if (data.fulfillmentType === 'delivery') return 'O pedido fica reservado até sair para entrega.';
+    if (isTableOrder(data.fulfillmentType)) return 'Seu pagamento foi confirmado. Acompanhe o atendimento do pedido na mesa.';
     return 'O pedido fica reservado para retirada, sem prazo automático de expiração por pagamento.';
   }
 
