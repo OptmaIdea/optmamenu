@@ -37,6 +37,7 @@ import { buildWhatsappUrl, canOpenWhatsapp } from '@/utils/whatsapp';
 import { formatBRL } from '@/utils/pricing';
 import { systemConfirm } from '@/components/common/SystemDialogProvider';
 import { getVisiblePayNowMethods } from '@/utils/storefront/sandboxCheckoutMethods';
+import { buildStoreReturnPath } from '@/utils/storefront/tableReturnPath';
 
 const DEFAULT_STORE_SLUG = 'gelinharessjn';
 const CHECKOUT_DRAFT_VERSION = 3;
@@ -306,7 +307,7 @@ export default function Checkout() {
         () => new URLSearchParams(location.search).get('store')?.trim() || context?.canonicalSlug || DEFAULT_STORE_SLUG,
         [context?.canonicalSlug, location.search],
     );
-    const storePath = `/s/${encodeURIComponent(storeSlug)}`;
+    const storePath = buildStoreReturnPath(storeSlug, context?.type, context?.tableCode);
     const { enabled: isTestStore, accepted: testAcknowledged } = useGelinharesTestNotice(storeSlug);
     const draftKey = `optmamenu.publicCheckoutDraft.v${CHECKOUT_DRAFT_VERSION}.${storeSlug}`;
     const totalValue = total();
@@ -360,7 +361,9 @@ export default function Checkout() {
                 && (!paymentOptions.pay_on_fulfillment.requires_method_choice || Boolean(selectedPayLaterMethod))
                 && (!cashAtDelivery || !needsChange || (Number.isFinite(changeValue) && changeValue >= totalValue))
             : false;
-    const fulfillmentValid = isTableContext || ['pickup', 'delivery'].includes(effectiveFulfillment);
+    const fulfillmentValid = isTableContext
+        ? Boolean(context?.tableCode?.trim())
+        : ['pickup', 'delivery'].includes(effectiveFulfillment);
     const checkoutValid = customerValid && addressValid && paymentValid && fulfillmentValid && items.length > 0
         && (isAuthenticated || (effectiveFulfillment === 'pickup' && paymentTiming === 'pay_on_fulfillment'));
 
@@ -627,7 +630,9 @@ export default function Checkout() {
 
     const finishOrder = async () => {
         if (!isAuthenticated && (paymentTiming === 'pay_now' || effectiveFulfillment !== 'pickup')) {
-            setError('Para pagar antecipadamente ou escolher entrega, entre na sua conta da loja. Sem login, é possível retirar e pagar na loja.');
+            setError(isTableContext
+                ? 'Para pedir nesta mesa, entre na sua conta da loja. A identificação da mesa será preservada.'
+                : 'Para pagar antecipadamente ou escolher entrega, entre na sua conta da loja. Sem login, é possível retirar e pagar na loja.');
             setView('payment');
             return;
         }
@@ -960,6 +965,32 @@ export default function Checkout() {
         );
     }
 
+    if (view === 'fulfillment' && isTableContext) {
+        return (
+            <div className="min-h-screen bg-slate-50 pb-24 text-slate-950 dark:bg-slate-950 dark:text-slate-100">
+                <CheckoutHeader storeSlug={storeSlug} title="Atendimento à mesa" subtitle="Confira onde deseja receber" onBack={() => setView('review')} />
+                <main className="mx-auto max-w-3xl space-y-4 px-4 py-5">
+                    <section className="rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm dark:border-emerald-800 dark:bg-slate-900">
+                        <div className="flex items-center gap-3">
+                            <MapPin className="h-7 w-7 text-emerald-700" />
+                            <div>
+                                <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Mesa identificada</p>
+                                <p className="text-xl font-black">{context?.tableCode}</p>
+                            </div>
+                        </div>
+                        <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
+                            Seu pedido será encaminhado à equipe da loja com esta identificação de mesa.
+                            A confirmação e o atendimento seguem as condições do estabelecimento.
+                        </p>
+                    </section>
+                    <button type="button" onClick={() => setView('review')} className="min-h-12 w-full rounded-2xl bg-emerald-600 px-4 font-black text-white">
+                        Confirmar mesa
+                    </button>
+                </main>
+            </div>
+        );
+    }
+
     if (view === 'fulfillment') {
         return (
             <div className="min-h-screen bg-slate-50 pb-24 text-slate-950 dark:bg-slate-950 dark:text-slate-100">
@@ -1191,18 +1222,20 @@ export default function Checkout() {
                     )}
                     {!isAuthenticated && effectiveFulfillment !== 'pickup' && (
                         <section role="alert" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
-                            <p className="font-black">Entrega exige conta autenticada</p>
-                            <p className="mt-1">Entre na sua conta desta loja para finalizar uma entrega. Sem login, apenas retirada com pagamento na loja está disponível.</p>
-                            <button type="button" onClick={() => navigate(`/loja/${encodeURIComponent(storeSlug)}`)}
-                                className="mt-3 min-h-11 rounded-xl bg-emerald-700 px-4 font-black text-white">Ir para a loja e entrar</button>
+                            <p className="font-black">{isTableContext ? 'Pedido na mesa exige conta autenticada' : 'Entrega exige conta autenticada'}</p>
+                            <p className="mt-1">{isTableContext
+                                ? 'Entre na sua conta para enviar o pedido identificado para esta mesa. Voltando ao cardápio, a mesa será preservada.'
+                                : 'Entre na sua conta desta loja para finalizar uma entrega. Sem login, apenas retirada com pagamento na loja está disponível.'}</p>
+                            <button type="button" onClick={() => navigate(storePath)}
+                                className="mt-3 min-h-11 rounded-xl bg-emerald-700 px-4 font-black text-white">{isTableContext ? 'Voltar à mesa e entrar' : 'Ir para a loja e entrar'}</button>
                         </section>
                     )}
                     {!isAuthenticated && visiblePayNowMethods.length > 0 && (
                         <section className="rounded-2xl border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/40 p-4 text-sm text-emerald-950" aria-label="Pagamento antecipado requer conta">
                             <p className="font-black">Pagamento antecipado: exclusivo para cliente autenticado</p>
                             <p className="mt-2">Entre ou cadastre-se na loja para pagar por Pix ou cartão antes do atendimento. Sem login, escolha retirada com pagamento na loja.</p>
-                            <button type="button" onClick={() => navigate(`/loja/${encodeURIComponent(storeSlug)}`)}
-                                className="mt-3 min-h-11 rounded-xl bg-emerald-700 px-4 font-black text-white">Ir para a loja e entrar</button>
+                            <button type="button" onClick={() => navigate(storePath)}
+                                className="mt-3 min-h-11 rounded-xl bg-emerald-700 px-4 font-black text-white">{isTableContext ? 'Voltar à mesa e entrar' : 'Ir para a loja e entrar'}</button>
                         </section>
                     )}
                     {!paymentOptionsLoading && isAuthenticated && visiblePayNowMethods.length > 0 && (
@@ -1372,7 +1405,7 @@ export default function Checkout() {
                     </section>
                 )}
                 <section className="overflow-hidden rounded-2xl bg-white dark:bg-slate-900 shadow-sm">
-                    <ReviewRow icon={<MapPin size={21} />} title="Informações da entrega" description={fulfillmentDescription} missing={!fulfillmentValid || !addressValid} actionLabel="Alterar" onClick={() => setView('fulfillment')} />
+                    <ReviewRow icon={<MapPin size={21} />} title={isTableContext ? 'Mesa do atendimento' : 'Informações da entrega'} description={fulfillmentDescription} missing={!fulfillmentValid || !addressValid} actionLabel={isTableContext ? 'Conferir' : 'Alterar'} onClick={() => setView('fulfillment')} />
                     <ReviewRow icon={<UserRound size={21} />} title="Seus dados" description={customerDescription} missing={!customerValid} actionLabel="Alterar" onClick={() => setView('customer')} />
                     <ReviewRow icon={<Wallet size={21} />} title="Pagamento" description={paymentDescription} missing={!paymentValid} actionLabel="Ver tudo" onClick={() => setView('payment')} />
                 </section>

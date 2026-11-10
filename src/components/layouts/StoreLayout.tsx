@@ -267,6 +267,7 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
                 <>
                     <StorefrontBottomNavigation
                         storeSlug={storeSlug}
+                        tableCode={isTableContext ? context?.tableCode : undefined}
                         storeName={publicStore.name}
                         isAuthenticated={isAuthenticated}
                         checkoutPath={checkoutPath}
