@@ -19,11 +19,13 @@ import {
     X,
 } from 'lucide-react';
 import { formatBRL } from '@/utils/pricing';
+import { buildStoreReturnPath } from '@/utils/storefront/tableReturnPath';
 
 type ThemeMode = 'light' | 'dark' | 'system';
 
 interface StorefrontBottomNavigationProps {
     storeSlug: string | null;
+    tableCode?: string | null;
     storeName: string;
     isAuthenticated: boolean;
     checkoutPath: string;
@@ -47,6 +49,7 @@ function readThemeMode(): ThemeMode {
 
 export function StorefrontBottomNavigation({
     storeSlug,
+    tableCode,
     storeName,
     isAuthenticated,
     checkoutPath,
@@ -76,7 +79,9 @@ export function StorefrontBottomNavigation({
         };
     }, [menuOpen]);
 
-    const homePath = storeSlug ? `/s/${encodeURIComponent(storeSlug)}` : location.pathname;
+    const homePath = storeSlug
+        ? buildStoreReturnPath(storeSlug, tableCode ? 'table' : 'remote', tableCode)
+        : location.pathname;
 
     const openAccount = (
         tab: 'profile' | 'orders' | 'consumption' | 'loyalty' | 'messages' | 'security' = 'profile',
